@@ -176,6 +176,10 @@ textarea.inp{min-height:0;font-size:14px;line-height:1.5;resize:vertical}
           <div id="vnBusy" class="hide">
             <div class="busy"><span class="spin"></span><span id="vnBusyText">Đang cài đặt…</span></div>
             <div class="sub" id="vnBusySub"></div>
+            <div id="vnDownload" class="hide" style="margin-top:12px">
+              <progress id="vnDownloadBar" max="100" style="width:100%;accent-color:var(--accent)" aria-label="Tiến độ tải file mô hình VieNeu"></progress>
+              <div class="sub" id="vnDownloadText" aria-live="polite"></div>
+            </div>
             <pre class="logbox" id="vnLog"></pre>
           </div>
           <div id="vnError" class="hide">
@@ -204,7 +208,7 @@ textarea.inp{min-height:0;font-size:14px;line-height:1.5;resize:vertical}
                 <div class="busy"><span class="spin"></span><span id="f5BusyText">Đang cài…</span></div>
                 <div class="sub" id="f5BusySub"></div>
                 <div id="f5Download" class="hide" style="margin-top:12px">
-                  <progress id="f5DownloadBar" max="100" style="width:100%;accent-color:var(--accent)" aria-label="Tiến độ tải mô hình F5-TTS"></progress>
+                  <progress id="f5DownloadBar" max="100" style="width:100%;accent-color:var(--accent)" aria-label="Tiến độ tải file mô hình F5-TTS"></progress>
                   <div class="sub" id="f5DownloadText" aria-live="polite"></div>
                 </div>
                 <pre class="logbox" id="f5Log"></pre>
@@ -536,6 +540,39 @@ async function pollEngine(first){
   vnTimer = setTimeout(pollEngine, settled ? 5000 : 1200);
 }
 
+function modelErrorText(error){
+  if(/External data path|ONNXRuntimeError|escapes model directory/i.test(error)){
+    return error + ' — Lỗi nạp file mô hình ONNX trên máy, không phải lỗi mạng. Khởi động lại ứng dụng đã cập nhật rồi bấm Thử lại.';
+  }
+  if(/\b403\b|ProxyError|ConnectError|ConnectionError|connection (?:failed|refused|reset)|timed out|NameResolutionError|Failed to resolve|Temporary failure in name resolution/i.test(error)){
+    return error + ' — Không tải được dữ liệu. Kiểm tra kết nối internet rồi bấm Thử lại.';
+  }
+  return error;
+}
+
+function renderModelDownload(prefix, model, visible){
+  const download = model.download;
+  show('#'+prefix+'Download', visible && !!download);
+  if(!download) return;
+  const done = Math.max(0, Number(download.done) || 0);
+  const total = Math.max(0, Number(download.total) || 0);
+  const bar = $('#'+prefix+'DownloadBar');
+  const bytes = n => n >= 1024**3 ? (n / 1024**3).toFixed(2)+' GB' : (n / 1024**2).toFixed(1)+' MB';
+  let text;
+  if(download.status==='complete'){
+    bar.value = 100;
+    text = `Đã tải xong file · 100% · ${bytes(done)}. Đang chuẩn bị mô hình…`;
+  }else if(total > 0){
+    const percent = Math.min(100, done / total * 100);
+    bar.value = percent;
+    text = `Đang tải file · ${percent.toFixed(1)}% · ${bytes(done)} / ${bytes(total)}`;
+  }else{
+    bar.removeAttribute('value');
+    text = `Đang kiểm tra file / kết nối… (${bytes(done)} đã tải)`;
+  }
+  $('#'+prefix+'DownloadText').textContent = `${download.repo || ''} / ${download.file}: ${text}`;
+}
+
 function renderEngine(st){
   const eng = st.engine || {};
   const nvidia = gpu && gpu.nvidia;
@@ -543,6 +580,7 @@ function renderEngine(st){
   vnReady = st.installed && st.running && eng.state==='ready';
   const err = st.installErr || (st.installed && !st.running && st.engineErr) || (eng.state==='error' && eng.error);
   const busy = st.installing || (st.installed && !vnReady && !err);
+  renderModelDownload('vn', eng, busy && !st.installing);
   show('#vnSetup', !st.installed && !st.installing && !err);
   show('#vnBusy', busy); show('#vnError', !!err && !st.installing); show('#vnReady', vnReady);
   show('#pvCard', vnReady);
@@ -562,8 +600,7 @@ function renderEngine(st){
     $('#vnLog').textContent = (st.log||[]).join('\n'); $('#vnLog').scrollTop = 1e9;
   }
   if(err && !st.installing){
-    let t = err;
-    if(/403|ProxyError|ConnectError|Connection|timed out|resolve/i.test(t)) t += ' — Không tải được dữ liệu. Kiểm tra kết nối internet rồi bấm Thử lại.';
+    const t = modelErrorText(err);
     $('#vnErrText').textContent = 'Lỗi: ' + t;
     $('#vnErrLog').textContent = (st.log||[]).join('\n'); $('#vnErrLog').scrollTop = 1e9;
     show('#retryBtn', st.installed);
@@ -581,22 +618,7 @@ function renderF5(st){
   const err = f.installErr || (f.installed && !f.running && f.engineErr) || (fe.state==='error' && fe.error);
   const otherInstalling = st.installingModel && st.installingModel!=='f5';
   const busy = f.installing || (f.installed && !f5Ready && !err);
-  const download = fe.download;
-  show('#f5Download', onF5 && busy && !f.installing && !!download);
-  if(download){
-    const done = Math.max(0, Number(download.done) || 0);
-    const total = Math.max(0, Number(download.total) || 0);
-    const bar = $('#f5DownloadBar');
-    const bytes = n => n >= 1024**3 ? (n / 1024**3).toFixed(2)+' GB' : (n / 1024**2).toFixed(1)+' MB';
-    if(total > 0){
-      const percent = Math.min(100, done / total * 100);
-      bar.value = percent;
-      $('#f5DownloadText').textContent = `${download.file}: ${percent.toFixed(1)}% · ${bytes(done)} / ${bytes(total)}`;
-    }else{
-      bar.removeAttribute('value');
-      $('#f5DownloadText').textContent = `${download.file}: đang kết nối… (${bytes(done)} đã tải)`;
-    }
-  }
+  renderModelDownload('f5', fe, onF5 && busy && !f.installing);
   show('#f5Box', onF5 && !f5Ready);
   show('#f5Setup', onF5 && !f.installed && !f.installing && !err);
   show('#f5Busy', onF5 && busy); show('#f5Error', onF5 && !!err && !f.installing);
@@ -621,8 +643,7 @@ function renderF5(st){
     $('#f5Log').textContent = (st.log||[]).join('\n'); $('#f5Log').scrollTop = 1e9;
   }
   if(onF5 && err && !f.installing){
-    let t = err;
-    if(/403|ProxyError|ConnectError|Connection|timed out|resolve/i.test(t)) t += ' — Không tải được dữ liệu. Kiểm tra kết nối internet rồi bấm Thử lại.';
+    const t = modelErrorText(err);
     $('#f5ErrText').textContent = 'Lỗi F5-TTS: ' + t;
     $('#f5ErrLog').textContent = (st.log||[]).join('\n'); $('#f5ErrLog').scrollTop = 1e9;
     show('#f5Retry', f.installed);

@@ -3,6 +3,7 @@
 Test download reporting without downloading models or installing ML libraries.
 """
 import ast
+import os
 import sys
 import tempfile
 import types
@@ -51,7 +52,7 @@ class DownloadProgressTest(unittest.TestCase):
             self.hub.hf_hub_download = fetch
             self.scope["download_model_file"]("repo", "model.pt")
             self.assertEqual(self.scope["STATE"]["download"],
-                             {"file": "model.pt", "done": 10, "total": 10})
+                             {"repo": "repo", "file": "model.pt", "done": 10, "total": 10, "status": "complete"})
             self.assertIs(self.download.tqdm, FakeTqdm)
 
     def test_cached_file_with_modern_api(self):
@@ -76,3 +77,44 @@ class DownloadProgressTest(unittest.TestCase):
             self.scope["download_model_file"]("repo", "model.pt")
         self.assertNotIn("download", self.scope["STATE"])
         self.assertIs(self.download.tqdm, FakeTqdm)
+
+
+class ModelMaterializationTest(unittest.TestCase):
+    def setUp(self):
+        source = Path(__file__).with_name("engine_server.py").read_text()
+        function = next(n for n in ast.parse(source).body
+                        if isinstance(n, ast.FunctionDef) and n.name == "materialize_model_file")
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name).resolve()
+        self.scope = {"Path": Path, "os": os, "ARGS": types.SimpleNamespace(data=str(self.root))}
+        exec(compile(ast.Module(body=[function], type_ignores=[]), source, "exec"), self.scope)
+
+    def test_symlinked_graph_and_data_stay_inside_same_model_directory(self):
+        snapshot = self.root / "snapshot" / "onnx_update"
+        snapshot.mkdir(parents=True)
+        outputs = []
+        for name in ("vieneu_prefill.onnx", "vieneu_backbone_shared.data"):
+            blob = self.root / "blobs" / name / "hash"
+            blob.parent.mkdir(parents=True)
+            blob.write_bytes(name.encode())
+            link = snapshot / name
+            link.symlink_to(blob)
+            target = self.scope["materialize_model_file"](link)
+            self.assertFalse(target.is_symlink())
+            self.assertEqual(target.resolve().parent, target.parent)
+            self.assertEqual(target.read_bytes(), blob.read_bytes())
+            self.assertTrue(os.path.samefile(target, blob))  # No duplicate large weights.
+            self.assertEqual(self.scope["materialize_model_file"](link), target)
+            self.assertTrue(link.is_symlink())  # Preserve the original cache.
+            outputs.append(target)
+        self.assertEqual(outputs[0].parent, outputs[1].parent)
+
+    def test_copy_fallback_when_hard_links_are_unavailable(self):
+        source = self.root / "graph.onnx"
+        source.write_bytes(b"model")
+        with patch("os.link", side_effect=OSError("cross-device link")):
+            target = self.scope["materialize_model_file"](source)
+        self.assertFalse(target.is_symlink())
+        self.assertEqual(target.read_bytes(), b"model")
+        self.assertEqual(list(target.parent.glob(".model-*")), [])

@@ -133,13 +133,14 @@ class FakeCloneModel:
         return "lời thoại nhận dạng tự động"
 
 
-def download_model_file(repo, filename):
+def download_model_file(repo, filename, **options):
     """Expose real byte progress, including resumed downloads, through /health."""
     import inspect
     from huggingface_hub import file_download, hf_hub_download
     from tqdm.auto import tqdm
 
-    STATE["download"] = {"file": filename, "done": 0, "total": 0}
+    label = "/".join(filter(None, [options.get("subfolder"), filename]))
+    STATE["download"] = {"repo": repo, "file": label, "done": 0, "total": 0, "status": "downloading"}
 
     class DownloadProgress(tqdm):
         def __init__(self, *a, **kw):
@@ -153,7 +154,8 @@ def download_model_file(repo, filename):
 
         def publish(self):
             STATE["download"] = {
-                "file": filename, "done": int(self.n), "total": int(self.total or 0)
+                "repo": repo, "file": label, "done": int(self.n),
+                "total": int(self.total or 0), "status": "downloading"
             }
 
         def update(self, n=1):
@@ -163,21 +165,83 @@ def download_model_file(repo, filename):
 
     try:
         if "tqdm_class" in inspect.signature(hf_hub_download).parameters:
-            path = hf_hub_download(repo, filename, tqdm_class=DownloadProgress)
+            path = hf_hub_download(repo, filename, tqdm_class=DownloadProgress, **options)
         else:
             # Existing F5 installations use hub <1.0, without tqdm_class.
             original = file_download.tqdm
             file_download.tqdm = DownloadProgress
             try:
-                path = hf_hub_download(repo, filename)
+                path = hf_hub_download(repo, filename, **options)
             finally:
                 file_download.tqdm = original
         size = Path(path).stat().st_size
-        STATE["download"] = {"file": filename, "done": size, "total": size}
+        STATE["download"] = {"repo": repo, "file": label, "done": size, "total": size, "status": "complete"}
         return path
     except Exception:
         STATE.pop("download", None)
         raise
+
+
+def materialize_model_file(source):
+    """Keep ONNX graphs and external data together as real files, not HF symlinks."""
+    import hashlib
+    import shutil
+    import tempfile
+
+    source = Path(source)
+    # The snapshot parent identifies both repository revision and subfolder.
+    key = hashlib.sha256(str(source.parent).encode()).hexdigest()[:16]
+    directory = Path(ARGS.data) / "models" / "vieneu" / key
+    directory.mkdir(parents=True, exist_ok=True)
+    target = directory / source.name
+    if target.is_file() and not target.is_symlink() and os.path.samefile(source, target):
+        return target
+    fd, temporary = tempfile.mkstemp(dir=directory, prefix=".model-")
+    os.close(fd)
+    try:
+        os.unlink(temporary)
+        try:
+            os.link(source.resolve(), temporary)
+        except OSError:
+            shutil.copyfile(source, temporary)
+        os.replace(temporary, target)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+    return target
+
+
+def fetch_onnx_artifacts(repo, files, subfolder):
+    """Used by VieNeu for both its backbone and audio codec artifacts."""
+    from huggingface_hub.errors import EntryNotFoundError
+
+    directory = None
+    for filename in files:
+        STATE["detail"] = "Đang tải mô hình VieNeu: " + filename
+        try:
+            source = download_model_file(repo, filename, subfolder=subfolder or None)
+        except EntryNotFoundError:
+            if filename.endswith(".json") and filename != "config.json":
+                continue  # Only optional metadata may be absent.
+            raise
+        target = materialize_model_file(source)
+        if directory is not None and target.parent != directory:
+            raise RuntimeError("Phiên bản mô hình thay đổi trong lúc tải. Hãy bấm Thử lại.")
+        directory = target.parent
+    STATE["detail"] = "Đã tải xong file mô hình. Đang nạp VieNeu…"
+    return directory
+
+
+def create_vieneu_model(options):
+    from vieneu import Vieneu
+    from vieneu._v3_turbo_engine.onnx_runtime_lite import OnnxV3LiteEngine
+
+    original = OnnxV3LiteEngine._fetch
+    OnnxV3LiteEngine._fetch = staticmethod(fetch_onnx_artifacts)
+    try:
+        return Vieneu(**options)
+    finally:
+        OnnxV3LiteEngine._fetch = staticmethod(original)
 
 
 class F5Model:
@@ -195,8 +259,7 @@ class F5Model:
         if not vocab.exists():
             # Repo lưu bảng ký tự dưới tên config.json (theo hướng dẫn của tác giả)
             shutil.copy(download_model_file(self.REPO, "config.json"), vocab)
-        STATE.pop("download", None)
-        STATE["detail"] = "Đang nạp mô hình F5-TTS…"
+        STATE["detail"] = "Đã tải xong file mô hình. Đang nạp F5-TTS…"
         self.m = F5TTS(model="F5TTS_Base", ckpt_file=ckpt, vocab_file=str(vocab), device=self.device)
         if self.device == "cuda" and needs_fp32():
             self.m.ema_model.float()
@@ -250,7 +313,6 @@ def load_vieneu():
     load_meta()
     if FAKE:
         return VieNeuModel(FakeModel()), "fake", "CPU"
-    from vieneu import Vieneu
     STATE["detail"] = "Đang tải mô hình (lần đầu sẽ tải khoảng vài trăm MB, có thể mất vài phút)…"
     gpu_kw = {"dtype": "float32"} if needs_fp32() else {}
     attempts = [] if ARGS.force_cpu else [gpu_kw]
@@ -258,7 +320,7 @@ def load_vieneu():
     last = None
     for kw in attempts:
         try:
-            m = Vieneu(**kw)
+            m = create_vieneu_model(kw)
             backend = getattr(m, "backend", "onnx")
             device = "CPU"
             if backend == "pytorch":
@@ -271,7 +333,7 @@ def load_vieneu():
             last = e
             log("load failed:", e)
             traceback.print_exc()
-    raise RuntimeError(f"Không tải được mô hình: {last}")
+    raise RuntimeError(f"Không tải hoặc nạp được mô hình: {last}")
 
 
 def load_model():
@@ -287,6 +349,7 @@ def load_model():
         else:
             raise ValueError("mô hình không hợp lệ: " + ARGS.model)
         STATE.update(state="ready", backend=backend, device=device, detail="", error="")
+        STATE.pop("download", None)
         log("model ready:", ARGS.model, backend, device)
     except Exception as e:
         traceback.print_exc()
@@ -294,6 +357,7 @@ def load_model():
         if "out of memory" in msg.lower():
             msg = "Card màn hình không đủ bộ nhớ (VRAM) cho mô hình này. " + msg
         STATE.update(state="error", error=msg, detail="")
+        STATE.pop("download", None)
 
 
 # ---------------------------------------------------------- giọng cá nhân ---
