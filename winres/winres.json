@@ -1,0 +1,16 @@
+{
+  "RT_GROUP_ICON": { "APP": { "0000": ["icon.png"] } },
+  "RT_MANIFEST": { "#1": { "0409": {
+    "identity": { "name": "GiongAI", "version": "1.2.0.0" },
+    "description": "Giong AI - chuyen van ban thanh giong noi",
+    "minimum-os": "win7", "execution-level": "as invoker", "dpi-awareness": "system"
+  } } },
+  "RT_VERSION": { "#1": { "0000": {
+    "fixed": { "file_version": "1.2.0.0", "product_version": "1.2.0.0" },
+    "info": { "0409": {
+      "CompanyName": "GiongAI", "FileDescription": "Giong AI - Text to Speech",
+      "FileVersion": "1.2.0", "ProductName": "Giong AI", "ProductVersion": "1.2.0",
+      "OriginalFilename": "GiongAI.exe", "LegalCopyright": "Free"
+    } }
+  } } }
+}
