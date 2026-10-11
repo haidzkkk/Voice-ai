@@ -7,15 +7,15 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23d9480f'/%3E%3Cg fill='white'%3E%3Crect x='7' y='13' width='3' height='6' rx='1.5'/%3E%3Crect x='12' y='9' width='3' height='14' rx='1.5'/%3E%3Crect x='17' y='6' width='3' height='20' rx='1.5'/%3E%3Crect x='22' y='11' width='3' height='10' rx='1.5'/%3E%3C/g%3E%3C/svg%3E">
 <style>
 :root{
-  --bg:#f6f3ee; --panel:#fffdf9; --ink:#1f1b16; --muted:#6f665c; --line:#e6dfd4;
-  --accent:#d9480f; --accent-ink:#fff; --accent-soft:#fde8dc; --ok:#2f855a; --bad:#c53030;
+  --bg:#f4f6f9; --panel:#fff; --ink:#172333; --muted:#6b7787; --line:#e4e9ef;
+  --accent:#087f78; --accent-ink:#fff; --accent-soft:#e3f3f0; --ok:#2f855a; --bad:#c53030;
   --field:#fff; --shadow:0 1px 2px rgba(40,30,20,.06),0 8px 24px rgba(40,30,20,.06);
 }
 @media (prefers-color-scheme: dark){
   :root{
-    --bg:#16130f; --panel:#1f1b16; --ink:#f1ebe3; --muted:#a59a8d; --line:#342d25;
-    --accent:#ff7a3d; --accent-ink:#1a0f08; --accent-soft:#3a2418; --ok:#68d391; --bad:#fc8181;
-    --field:#191612; --shadow:none;
+    --bg:#111820; --panel:#19232d; --ink:#e7edf5; --muted:#a1afc0; --line:#2c3b49;
+    --accent:#55d1bd; --accent-ink:#102720; --accent-soft:#203e3c; --ok:#68d391; --bad:#fc8181;
+    --field:#15202a; --shadow:none;
   }
 }
 *{box-sizing:border-box}
@@ -110,60 +110,58 @@ textarea.inp{min-height:0;font-size:14px;line-height:1.5;resize:vertical}
 .chips.wrapc{flex-wrap:wrap}
 .chip.rec{border-style:dashed}
 .hide{display:none!important}
+
+/* Studio layout */
+.wrap{max-width:1200px;padding:28px 28px 56px}
+header{margin-bottom:20px;gap:14px}.logo{width:42px;height:42px;border-radius:13px}.brand-tag{font-size:10px;font-weight:650;color:var(--muted);letter-spacing:.16em;margin-left:10px;vertical-align:middle}
+.app-nav{display:flex;gap:6px;border-bottom:1px solid var(--line);padding-bottom:12px;margin-bottom:28px}
+.nav-item{background:transparent;border:0;border-radius:9px;padding:10px 18px;font-weight:600;color:var(--muted);cursor:pointer}.nav-item:hover{background:var(--panel)}.nav-item.on{background:var(--accent-soft);color:var(--accent)}
+.page-intro{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:22px}.page-intro h2{font-size:28px;line-height:1.25;letter-spacing:-.035em;margin:0 0 8px;font-weight:650}.page-intro p{margin:0;color:var(--muted);font-size:14px}.local-label{font-size:12px;color:var(--muted);border:1px solid var(--line);padding:7px 11px;border-radius:99px;white-space:nowrap}
+.workspace{display:grid;grid-template-columns:minmax(0,var(--options-width,46%)) 16px minmax(0,1fr);gap:12px;align-items:start}.card{padding:24px;border-radius:18px;box-shadow:0 3px 18px rgba(28,44,62,.035)}
+.workspace-divider{align-self:stretch;min-height:180px;display:flex;align-items:flex-start;padding-top:120px;justify-content:center;cursor:col-resize;touch-action:none;border-radius:8px;outline:none}.workspace-divider::before{content:'';position:sticky;top:35vh;width:4px;height:64px;border-radius:99px;background:var(--line);transition:background .15s}.workspace-divider:hover::before,.workspace-divider:focus-visible::before,.workspace-divider.dragging::before{background:var(--accent)}.layout-resizing,.layout-resizing *{cursor:col-resize!important;user-select:none!important}.workspace .card{min-width:0}.layout-controls{display:flex;flex-direction:column;align-items:flex-end;gap:2px}.layout-controls .sub{font-size:11px}
+.section-heading{display:flex;align-items:center;gap:10px;margin-bottom:20px}.card .section-heading h2{font-size:16px;font-weight:650;letter-spacing:-.02em;text-transform:none;margin:0;color:var(--ink)}.step{width:26px;height:26px;display:grid;place-items:center;background:var(--bg);border:1px solid var(--line);border-radius:8px;font-size:11px;font-weight:650;color:var(--muted)}
+label.fl{color:var(--ink);font-weight:550;font-size:12px;margin:17px 0 7px}select,.inp{padding:11px 12px;border-radius:10px;font-size:14px;min-height:44px}select{cursor:pointer}.engine-hint{margin-top:8px;font-size:12px;line-height:1.55}
+.disclosure{border-top:1px solid var(--line);margin-top:18px;padding-top:14px}.disclosure summary{font-size:13px;font-weight:550;cursor:pointer;list-style:none;display:flex;align-items:center;gap:10px;padding:3px 0}.disclosure summary::after{content:'＋';margin-left:auto;color:var(--muted)}.disclosure[open]>summary::after{content:'−'}.disclosure summary::-webkit-details-marker{display:none}.disclosure summary .sub{font-size:11px;font-weight:400;display:none}.advanced[open] summary .sub{display:inline}.field-pair{display:grid;grid-template-columns:1fr 1fr;gap:12px}.sidebar-footer{margin-top:22px;padding-top:12px;border-top:1px solid var(--line)}.sidebar-footer .disclosure{border-top:0;margin-top:4px;padding-top:4px}
+.editor-card .section-heading{margin-bottom:18px}.sample-row{display:flex;align-items:center;gap:10px;margin-bottom:14px}.sample-row select{max-width:270px;background:var(--bg);font-size:12px;border-color:transparent}.sample-row .btn{font-size:12px}#text{min-height:clamp(180px,22vh,240px);border:0;background:var(--bg);font-size:15px;line-height:1.8;padding:16px;border-radius:12px}#text:focus{box-shadow:0 0 0 2px var(--accent-soft)}.editor-meta{display:flex;justify-content:space-between;gap:8px;color:var(--muted);font-size:11px;margin:12px 0 20px}.create-actions{border-top:1px solid var(--line);padding-top:20px}.btn.primary{border-radius:11px;font-size:14px;padding:12px 18px;min-height:46px}.btn.primary.compact{width:auto;min-height:40px;padding:9px 16px}.btn{transition:background .15s,border-color .15s;font-size:13px}.result{border-top:1px solid var(--line);margin-top:18px;padding-top:18px}#msg:empty{min-height:0;margin:0}.badge{font-size:11px;margin-top:16px}.lead{font-size:13px}.hlist li{padding:16px 4px;gap:12px}.hlist .n{font-size:14px;font-weight:550}.hlist .empty{padding:36px;text-align:center;display:block;font-weight:400}.hlist .tag{border:0;background:var(--bg);padding:4px 9px}.hlist .btn{font-size:12px}.hlist .btn[data-pvplay],.hlist .btn[data-play]{background:var(--accent-soft);color:var(--accent);border-radius:10px;min-width:36px;justify-content:center}.hist{margin:0}
+#historyPreview{margin-bottom:16px}dialog{width:min(620px,calc(100% - 32px));max-height:88vh;padding:26px;border:1px solid var(--line);border-radius:20px;background:var(--panel);color:var(--ink);box-shadow:0 24px 100px rgba(0,0,0,.22)}dialog::backdrop{background:rgba(12,24,36,.45);backdrop-filter:blur(4px)}.dialog-heading{display:flex;justify-content:space-between;align-items:center;gap:12px}.dialog-heading h2{margin:4px 0 0;font-size:22px;letter-spacing:-.025em}.eyebrow{font-size:10px;color:var(--accent);font-weight:650;letter-spacing:.14em}.pvform{border-top:0;padding-top:0;margin-top:18px}.pvform .row{gap:10px}.pvform .readme{margin-top:10px}.pvform .sub{font-size:12px;line-height:1.6}.pvform p.sub{margin:6px 0 12px}.pvform .check{font-size:12px;margin-bottom:18px}#pvConsent{flex:none}
+button:focus-visible,summary:focus-visible{outline:3px solid var(--accent-soft);outline-offset:3px}progress{height:9px;border-radius:99px}
+@media(max-width:900px){.card{padding:20px}.local-label{display:none}.editor-meta #shortcutHint{display:none}.editor-card .section-heading{flex-wrap:wrap}}
+@media(max-width:800px){.wrap{padding:18px 16px 32px}.workspace{grid-template-columns:1fr;gap:16px}.workspace-divider,.layout-controls{display:none}.voice-card{order:0}.editor-card{order:1}.page-intro h2{font-size:24px}.page-intro{align-items:flex-start;flex-wrap:wrap;margin-bottom:20px}header .status{display:none}.brand-tag{display:none}.app-nav{margin-bottom:24px;gap:2px}.nav-item{font-size:12px;padding:10px 13px}.section-heading{margin-bottom:14px}#text{min-height:220px}.hlist li{flex-wrap:wrap;gap:8px}.hlist .n{min-width:140px}.hlist .t{font-size:11px}.sample-row select{max-width:none;min-width:0}.card{border-radius:14px}.page-intro p{font-size:13px}dialog{padding:20px}}
+@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}.spin,.rec.on .recdot{animation:none}}
+
+
+.dialog-scroll{max-height:52vh;overflow-y:auto;padding-right:4px;padding-bottom:14px}.dialog-actions{border-top:1px solid var(--line);padding-top:4px}.dialog-actions .msg:empty{min-height:0;margin:0}.dialog-actions .check{margin-bottom:12px}.pvform .field-pair{grid-template-columns:2fr 1fr}.dialog-scroll>label.fl:first-child{margin-top:0}
 </style>
 </head>
 <body>
 <div class="wrap">
   <header>
-    <div class="logo"><svg viewBox="0 0 24 24" fill="#fff"><rect x="2" y="9" width="3" height="6" rx="1.5"/><rect x="7" y="5" width="3" height="14" rx="1.5"/><rect x="12" y="2" width="3" height="20" rx="1.5"/><rect x="17" y="7" width="3" height="10" rx="1.5"/></svg></div>
-    <div>
-      <h1>Giọng AI</h1>
-      <div class="sub">Chuyển văn bản thành giọng nói · miễn phí</div>
-    </div>
+    <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.4" stroke-linecap="round"><path d="M4 10v4m4-7v10m4-13v16m4-13v10m4-7v4"/></svg></div>
+    <div><h1>Giọng AI<span class="brand-tag">STUDIO</span></h1><div class="sub">Nội dung của bạn. Giọng nói bạn chọn.</div></div>
     <div class="spacer"></div>
     <div class="status"><span class="dot" id="dot"></span><span id="statusText">Đang kết nối…</span></div>
-    <button class="btn" id="quitBtn" title="Tắt tool">Thoát</button>
+    <button class="btn ghost" id="quitBtn" title="Tắt ứng dụng">Thoát</button>
   </header>
-
-  <div class="grid">
-    <section class="card">
-      <div class="row" style="justify-content:space-between;margin-bottom:10px">
-        <h2 style="margin:0">Văn bản</h2>
-        <div class="row">
-          <button class="btn ghost" id="loadBtn">Mở file .txt</button>
-          <button class="btn ghost" id="clearBtn">Xóa</button>
-          <input type="file" id="fileIn" accept=".txt,.srt,.md,text/plain" class="hide">
-        </div>
-      </div>
-      <textarea id="text" placeholder="Nhập hoặc dán nội dung cần đọc vào đây…"></textarea>
-      <div class="meta"><span id="count">0 ký tự · 0 từ</span> · Bấm <span class="kbd">Ctrl</span> + <span class="kbd">Enter</span> để tạo nhanh</div>
-    </section>
-
-    <aside>
-      <section class="card">
-        <div class="tabs" id="engTabs">
-          <button class="tab on" data-e="ms">Giọng Microsoft<small>Online · nhẹ</small></button>
-          <button class="tab" data-e="vieneu">Giọng AI nâng cao<small>Trên máy · giọng cá nhân</small></button>
-        </div>
-
+  <nav class="app-nav" aria-label="Điều hướng chính">
+    <button class="nav-item on" data-view="create" aria-current="page">Tạo audio</button>
+    <button class="nav-item" data-view="library">Giọng cá nhân</button>
+    <button class="nav-item" data-view="history">Thư viện audio</button>
+  </nav>
+  <main>
+  <div id="createView">
+    <div class="page-intro"><div><h2>Biến nội dung thành giọng nói.</h2><p>Chọn giọng yêu thích, thêm nội dung và để Giọng AI đọc giúp bạn.</p></div><div class="layout-controls"><button class="btn ghost" id="resetLayoutBtn">Đặt lại bố cục</button><span class="sub">Kéo thanh giữa hai cột để chỉnh độ rộng</span></div></div>
+    <div class="workspace" id="workspace">
+      <section class="card voice-card" aria-labelledby="voiceHeading">
+        <div class="section-heading"><span class="step">01</span><h2 id="voiceHeading">Chọn giọng đọc</h2></div>
+        <label class="fl" for="engineSelect">Công cụ tạo giọng</label>
+        <select id="engineSelect"><option value="ms">Microsoft · trực tuyến</option><option value="vieneu">VieNeu · nhanh, trên máy</option><option value="f5">F5-TTS · clone giọng, trên máy</option></select>
+        <div class="sub engine-hint" id="engineHint"></div>
         <div id="msPanel">
-          <label class="fl" for="locale">Ngôn ngữ</label>
-          <select id="locale"></select>
-          <label class="fl">Giới tính</label>
-          <div class="chips" id="gender">
-            <button class="chip on" data-g="">Tất cả</button>
-            <button class="chip" data-g="Female">Nữ</button>
-            <button class="chip" data-g="Male">Nam</button>
-          </div>
-          <label class="fl" for="voice">Giọng</label>
-          <select id="voice"></select>
+          <label class="fl" for="locale">Ngôn ngữ</label><select id="locale"></select>
+          <label class="fl" for="voice">Giọng đọc</label><select id="voice"></select>
+          <details class="disclosure" open data-layout-option="msFilters"><summary>Lọc theo giới tính</summary><label class="fl" for="gender">Giới tính</label><select id="gender"><option value="">Tất cả</option><option value="Female">Nữ</option><option value="Male">Nam</option></select></details>
         </div>
-
         <div id="vnPanel" class="hide">
-          <div class="row" style="margin-bottom:12px">
-            <button class="btn ghost" id="modelDirBtn">Mở thư mục mô hình</button>
-          </div>
-          <div class="sub" style="margin-bottom:12px">Các mô hình đã tải nằm trong thư mục hf/hub và models.</div>
           <div id="vnSetup" class="hide">
             <p class="lead">25 giọng tiếng Việt tự nhiên chia theo miền Bắc · Trung · Nam, và <b>giọng cá nhân</b> nhân bản từ vài giây ghi âm. Chạy hoàn toàn trên máy bạn, miễn phí (mô hình mã nguồn mở VieNeu-TTS).</p>
             <ul class="facts">
@@ -180,7 +178,7 @@ textarea.inp{min-height:0;font-size:14px;line-height:1.5;resize:vertical}
               <progress id="vnDownloadBar" max="100" style="width:100%;accent-color:var(--accent)" aria-label="Tiến độ tải file mô hình VieNeu"></progress>
               <div class="sub" id="vnDownloadText" aria-live="polite"></div>
             </div>
-            <pre class="logbox" id="vnLog"></pre>
+            <details class="disclosure"><summary>Xem nhật ký</summary><pre class="logbox" id="vnLog"></pre></details>
           </div>
           <div id="vnError" class="hide">
             <div class="msg err" id="vnErrText"></div>
@@ -189,14 +187,9 @@ textarea.inp{min-height:0;font-size:14px;line-height:1.5;resize:vertical}
               <button class="btn" id="reinstallBtn">Cài lại</button>
               <button class="btn ghost" id="logDirBtn">Mở thư mục nhật ký</button>
             </div>
-            <pre class="logbox" id="vnErrLog"></pre>
+            <details class="disclosure"><summary>Xem nhật ký</summary><pre class="logbox" id="vnErrLog"></pre></details>
           </div>
           <div id="vnReady" class="hide">
-            <label class="fl">Mô hình giọng</label>
-            <div class="models" id="vmodel">
-              <button class="mdl on" data-m="vieneu"><b>VieNeu</b><small>Nhanh · nhẹ</small></button>
-              <button class="mdl" data-m="f5"><b>F5-TTS Việt</b><small>Rõ hơn · giống giọng hơn</small></button>
-            </div>
             <div id="f5Box" class="hide">
               <div id="f5Setup" class="hide">
                 <p class="lead">F5-TTS tiếng Việt được huấn luyện trên ~1.000 giờ giọng nói: đọc rõ hơn, ngắt nghỉ tự nhiên hơn và nhại giọng cá nhân giống hơn VieNeu. Đổi lại chạy chậm hơn. Dùng cá nhân, không thương mại.</p>
@@ -211,7 +204,7 @@ textarea.inp{min-height:0;font-size:14px;line-height:1.5;resize:vertical}
                   <progress id="f5DownloadBar" max="100" style="width:100%;accent-color:var(--accent)" aria-label="Tiến độ tải file mô hình F5-TTS"></progress>
                   <div class="sub" id="f5DownloadText" aria-live="polite"></div>
                 </div>
-                <pre class="logbox" id="f5Log"></pre>
+                <details class="disclosure"><summary>Xem nhật ký</summary><pre class="logbox" id="f5Log"></pre></details>
               </div>
               <div id="f5Error" class="hide">
                 <div class="msg err" id="f5ErrText"></div>
@@ -219,38 +212,30 @@ textarea.inp{min-height:0;font-size:14px;line-height:1.5;resize:vertical}
                   <button class="btn" id="f5Retry">Thử lại</button>
                   <button class="btn" id="f5Reinstall">Cài lại F5</button>
                 </div>
-                <pre class="logbox" id="f5ErrLog"></pre>
+                <details class="disclosure"><summary>Xem nhật ký</summary><pre class="logbox" id="f5ErrLog"></pre></details>
               </div>
             </div>
             <div id="vnVoiceUI">
             <div class="badge" id="vnDevice"></div>
             <div class="hint hide" id="gpuHint"></div>
-            <label class="fl">Vùng miền</label>
-            <div class="chips" id="region">
-              <button class="chip on" data-r="">Tất cả</button>
-              <button class="chip" data-r="Bắc">Bắc</button>
-              <button class="chip" data-r="Trung">Trung</button>
-              <button class="chip" data-r="Nam">Nam</button>
-            </div>
-            <label class="fl">Giới tính</label>
-            <div class="chips" id="vgender">
-              <button class="chip on" data-g="">Tất cả</button>
-              <button class="chip" data-g="female">Nữ</button>
-              <button class="chip" data-g="male">Nam</button>
-            </div>
-            <label class="fl" for="vvoice">Giọng</label>
+            <details class="disclosure" open data-layout-option="voiceFilters"><summary>Lọc giọng đọc</summary><div class="field-pair">
+              <div><label class="fl" for="region">Vùng miền</label><select id="region"><option value="">Tất cả vùng miền</option><option>Bắc</option><option>Trung</option><option>Nam</option></select></div>
+              <div><label class="fl" for="vgender">Giới tính</label><select id="vgender"><option value="">Tất cả</option><option value="female">Nữ</option><option value="male">Nam</option></select></div>
+            </div></details>
+            <label class="fl" for="vvoice">Giọng đọc</label>
             <select id="vvoice"></select>
             <div class="sub" id="vvoiceDesc" style="margin-top:6px"></div>
             <div class="row" style="margin-top:10px">
               <button class="btn" id="vPreviewBtn">▶ Nghe thử giọng</button>
               <span class="sub" id="vPreviewMsg"></span>
             </div>
-            <label class="fl">Văn bản mẫu <span class="sub">— bấm để chèn vào ô văn bản</span></label>
-            <div class="chips wrapc" id="samples"></div>
+
             </div>
           </div>
         </div>
 
+
+        <details class="disclosure advanced" open data-layout-option="voiceSettings"><summary>Tùy chỉnh giọng đọc<span class="sub">Tốc độ, cao độ, âm lượng</span></summary>
         <div id="sliders"><div class="slider"><div class="top"><span>Tốc độ</span><b id="rateV">0%</b></div>
           <input type="range" id="rate" min="-50" max="100" step="5" value="0"></div>
         <div class="slider" id="pitchWrap"><div class="top"><span>Cao độ</span><b id="pitchV">0 Hz</b></div>
@@ -261,7 +246,19 @@ textarea.inp{min-height:0;font-size:14px;line-height:1.5;resize:vertical}
           <button class="btn ghost" id="resetBtn">Đặt lại mặc định</button>
         </div></div>
 
-        <button class="btn primary" id="goBtn">Tạo giọng</button>
+        </details>
+        <div class="sidebar-footer"><button class="btn ghost" id="manageVoiceBtn">Quản lý giọng cá nhân →</button>
+          <details class="disclosure"><summary>Mô hình &amp; công cụ</summary><button class="btn" id="modelDirBtn">Mở thư mục mô hình</button><p class="sub">Mô hình đã tải nằm trong thư mục hf/hub và models.</p></details>
+        </div>
+      </section>
+      <div id="workspaceDivider" class="workspace-divider" role="separator" aria-label="Chỉnh độ rộng cột tùy chọn" aria-orientation="vertical" aria-controls="workspace" aria-valuemin="28" aria-valuemax="68" aria-valuenow="46" tabindex="0" title="Kéo để đổi độ rộng · nhấp đúp để đặt lại · phím ← → để điều chỉnh"></div>
+      <section class="card editor-card" aria-labelledby="textHeading">
+        <div class="section-heading"><span class="step">02</span><h2 id="textHeading">Thêm nội dung</h2><div class="spacer"></div><button class="btn ghost" id="loadBtn">Mở file .txt</button><button class="btn ghost" id="clearBtn">Xóa</button><input type="file" id="fileIn" accept=".txt,.srt,.md,text/plain" class="hide"></div>
+        <div class="sample-row"><select id="sampleSelect" aria-label="Chọn văn bản mẫu"><option value="">Thử một văn bản mẫu…</option></select><button class="btn" id="insertSampleBtn">Chèn mẫu</button></div>
+        <textarea id="text" aria-label="Nội dung cần đọc" placeholder="Viết một câu chuyện, bản tin hoặc bất cứ điều gì bạn muốn kể…"></textarea>
+        <div class="editor-meta"><span id="count">0 ký tự · 0 từ</span><span id="shortcutHint">⌘ / Ctrl + Enter để tạo</span></div>
+        <div class="create-actions">
+        <button class="btn primary" id="goBtn">Tạo audio</button>
         <div class="progress" id="prog"><i></i></div>
         <div class="row" style="justify-content:space-between">
           <div class="msg" id="msg"></div>
@@ -276,39 +273,45 @@ textarea.inp{min-height:0;font-size:14px;line-height:1.5;resize:vertical}
             <button class="btn" id="folderBtn">Mở thư mục</button>
           </div>
         </div>
-      </section>
-
-      <section class="card hist hide" id="pvCard">
-        <div class="row" style="justify-content:space-between;margin-bottom:6px">
-          <h2 style="margin:0">Giọng cá nhân</h2>
-          <button class="btn" id="pvNewBtn">+ Tạo giọng mới</button>
         </div>
-        <ul class="hlist" id="pvList"></ul>
-
-        <div id="pvForm" class="pvform hide">
-          <label class="fl" for="pvName">Tên giọng</label>
-          <input id="pvName" class="inp" maxlength="60" placeholder="Ví dụ: Giọng của tôi">
-          <label class="fl">Giới tính</label>
-          <div class="chips" id="pvGender">
-            <button class="chip on" data-g="female">Nữ</button>
-            <button class="chip" data-g="male">Nam</button>
-          </div>
+      </section>
+    </div>
+  </div>
+  <section id="libraryView" class="hide" aria-labelledby="libraryHeading">
+    <div class="page-intro"><div><h2 id="libraryHeading">Giọng cá nhân</h2><p>Giữ những giọng bạn yêu thích trong một nơi. Tải mẫu, ghi âm hoặc chỉnh lời thoại.</p></div><button class="btn" data-switch-create>Quay lại tạo audio</button></div>
+    <div class="card hide" id="voiceLibraryNotice"><h3>Chuẩn bị mô hình giọng nói</h3><p class="sub">Cần VieNeu sẵn sàng để phân tích và quản lý giọng cá nhân.</p><button class="btn" data-switch-create>Chọn hoặc cài mô hình</button></div>
+    <section class="card hide" id="pvCard"><div class="section-heading"><h2>Giọng đã lưu</h2><div class="spacer"></div><button class="btn primary compact" id="pvNewBtn">+ Thêm giọng mới</button></div><ul class="hlist" id="pvList"></ul><div class="hide" id="libraryPreview"><div class="sub" id="libraryPreviewName"></div><audio id="libraryPlayer" controls></audio></div></section>
+  </section>
+  <section id="historyView" class="hide" aria-labelledby="historyHeading">
+    <div class="page-intro"><div><h2 id="historyHeading">Thư viện audio</h2><p>Nghe lại, tải về và quản lý nội dung bạn đã tạo.</p></div><button class="btn" id="folderBtn2">Mở thư mục audio ↗</button></div>
+    <div class="card hide" id="historyPreview"><div class="sub" id="historyPreviewName"></div><audio id="historyPlayer" controls></audio></div>
+    <section class="card"><ul class="hlist" id="hist"></ul></section>
+  </section>
+  </main>
+</div>
+<dialog id="pvDialog" aria-labelledby="pvDialogTitle"><div class="dialog-heading"><div><div class="eyebrow">GIỌNG CÁ NHÂN</div><h2 id="pvDialogTitle">Thêm giọng mới</h2></div><button class="btn ghost" id="pvCloseBtn" aria-label="Đóng">✕</button></div>
+        <div id="pvForm" class="pvform"><div class="dialog-scroll">
+          <div class="field-pair"><div><label class="fl" for="pvName">Tên giọng</label>
+          <input id="pvName" autocomplete="off" class="inp" maxlength="60" placeholder="Ví dụ: Giọng của tôi">
+          </div><div><label class="fl" for="pvGender">Giới tính</label><select id="pvGender"><option value="female">Nữ</option><option value="male">Nam</option></select></div></div>
           <div id="pvAudioInputs">
           <label class="fl">Ghi âm hoặc tải file giọng nói 5–12 giây</label>
           <p class="sub">Có thể nói nội dung bất kỳ, không cần đọc theo mẫu. Chọn đoạn chỉ có một người nói rõ, ít tạp âm. VieNeu tự phân tích đặc trưng giọng khi lưu.</p>
-          <div class="sub">Văn bản gợi ý nếu bạn muốn ghi âm:</div>
-          <div class="readme" id="pvScript">Xin chào, đây là giọng nói của tôi. Hôm nay trời rất đẹp, tôi muốn kể cho bạn nghe một câu chuyện thú vị về quê hương mình.</div>
+          <details class="disclosure"><summary>Xem văn bản gợi ý (không bắt buộc)</summary>
+          <div class="readme" id="pvScript">Xin chào, đây là giọng nói của tôi. Hôm nay trời rất đẹp, tôi muốn kể cho bạn nghe một câu chuyện thú vị về quê hương mình.</div></details>
+          <label class="fl" for="pvSource">Nguồn âm thanh</label><select id="pvSource"><option value="file">Tải file có sẵn</option><option value="mic">Ghi âm micro</option><option value="system">Ghi âm trong máy</option></select>
           <div class="row" style="margin-top:10px">
             <button class="btn rec" id="recBtn"><span class="recdot"></span><span id="recLabel">Ghi âm micro</span></button>
             <button class="btn rec" id="systemRecBtn"><span class="recdot"></span><span id="systemRecLabel">Ghi âm trong máy</span></button>
-            <span class="sub">hoặc</span>
+
             <button class="btn" id="pvUploadBtn">Chọn file âm thanh</button>
             <input type="file" id="pvFile" accept="audio/*,.wav,.mp3,.m4a,.ogg,.webm" class="hide">
           </div>
-          <div class="sub" style="margin-top:8px">Ghi âm trong máy: chọn tab đang phát giọng nói và bật “Chia sẻ âm thanh”. Trên Mac, hãy dùng Chrome hoặc Edge; thu âm toàn bộ máy/cửa sổ tùy trình duyệt hỗ trợ. Tự dừng sau 12 giây.</div>
+          <div class="sub hide" id="systemRecHelp" style="margin-top:8px">Ghi âm trong máy: chọn tab đang phát giọng nói và bật “Chia sẻ âm thanh”. Trên Mac, hãy dùng Chrome hoặc Edge; thu âm toàn bộ máy/cửa sổ tùy trình duyệt hỗ trợ. Tự dừng sau 12 giây.</div>
           </div>
           <div class="sub" id="pvInfo" style="margin-top:8px"></div>
           <audio id="pvPreview" controls class="hide"></audio>
+          <details class="disclosure" id="pvTranscriptDetails"><summary>Lời thoại tham chiếu cho F5-TTS</summary>
           <label class="fl" for="pvRefText">Lời thoại trong đoạn ghi âm <span class="sub">— không bắt buộc</span></label>
           <textarea id="pvRefText" class="inp" rows="2" placeholder="Có thể để trống. Nếu nhập, hãy nhập đúng lời nói trong đoạn âm thanh đã chọn."></textarea>
           <div class="sub">VieNeu không cần lời thoại. F5-TTS tự nhận dạng lời thoại khi dùng giọng lần đầu nếu ô này trống (có thể tải thêm mô hình nhận dạng ~1,6 GB).</div>
@@ -316,32 +319,70 @@ textarea.inp{min-height:0;font-size:14px;line-height:1.5;resize:vertical}
             <button class="btn" id="pvTranscribeBtn">Tự nhận dạng lời thoại</button>
           </div>
           <div class="sub">Với F5-TTS, nghe lại mẫu và kiểm tra lời thoại nhận dạng có khớp không. Lời thoại sai có thể làm giọng đọc sai nội dung.</div>
+          </details></div><div class="dialog-actions">
           <label class="check" style="margin-top:12px"><input type="checkbox" id="pvConsent"> Đây là giọng của tôi, hoặc tôi đã được người đó đồng ý.</label>
           <div class="row" style="margin-top:12px">
             <button class="btn primary" id="pvSaveBtn" style="width:auto;padding:10px 18px;font-size:15px">Phân tích và lưu giọng</button>
             <button class="btn ghost" id="pvCancelBtn">Hủy</button>
           </div>
           <div class="msg" id="pvMsg"></div>
-        </div>
-      </section>
-
-      <section class="card hist">
-        <div class="row" style="justify-content:space-between;margin-bottom:6px">
-          <h2 style="margin:0">Đã tạo gần đây</h2>
-          <button class="btn ghost" id="folderBtn2">Mở thư mục</button>
-        </div>
-        <ul class="hlist" id="hist"></ul>
-      </section>
-    </aside>
-  </div>
-</div>
-
+        </div></div>
+</dialog>
 <script>
+
 const $ = s => document.querySelector(s);
 const store = {
   get(k, d){ try{ const v = localStorage.getItem('giongai.'+k); return v===null?d:JSON.parse(v) }catch(e){ return d } },
   set(k, v){ try{ localStorage.setItem('giongai.'+k, JSON.stringify(v)) }catch(e){} }
 };
+const workspace=$('#workspace'), divider=$('#workspaceDivider');
+let workspaceRatio=Number(store.get('layoutWidth',46)), layoutPointer=null;
+if(!Number.isFinite(workspaceRatio)) workspaceRatio=46;
+function applyWorkspaceWidth(ratio=workspaceRatio,save=false){
+  workspaceRatio=Math.max(28,Math.min(68,ratio));
+  if(window.matchMedia('(max-width:800px)').matches || !workspace.clientWidth) return;
+  const gap=parseFloat(getComputedStyle(workspace).columnGap)||12;
+  const available=workspace.clientWidth-divider.offsetWidth-gap*2;
+  const min=Math.max(28,300/available*100), max=Math.min(68,(available-300)/available*100);
+  const rendered=Math.max(min,Math.min(max,workspaceRatio));
+  workspace.style.setProperty('--options-width',(available*rendered/100)+'px');
+  divider.setAttribute('aria-valuemin',Math.round(min));
+  divider.setAttribute('aria-valuemax',Math.round(max));
+  divider.setAttribute('aria-valuenow',Math.round(rendered));
+  divider.setAttribute('aria-valuetext','Tùy chọn '+Math.round(rendered)+'%, nội dung '+Math.round(100-rendered)+'%');
+  if(save) store.set('layoutWidth',workspaceRatio);
+}
+function finishLayoutDrag(){
+  layoutPointer=null;divider.classList.remove('dragging');document.body.classList.remove('layout-resizing');
+  store.set('layoutWidth',workspaceRatio);
+}
+divider.addEventListener('pointerdown',event=>{
+  if(event.button!==0) return;
+  event.preventDefault();layoutPointer=event.pointerId;divider.setPointerCapture(event.pointerId);
+  divider.classList.add('dragging');document.body.classList.add('layout-resizing');
+});
+divider.addEventListener('pointermove',event=>{
+  if(layoutPointer!==event.pointerId) return;
+  const rect=workspace.getBoundingClientRect();
+  const gap=parseFloat(getComputedStyle(workspace).columnGap)||12;
+  const available=rect.width-divider.offsetWidth-gap*2;
+  applyWorkspaceWidth((event.clientX-rect.left-gap-divider.offsetWidth/2)/available*100);
+});
+for(const event of ['pointerup','pointercancel','lostpointercapture']) divider.addEventListener(event,finishLayoutDrag);
+divider.addEventListener('keydown',event=>{
+  const change={ArrowLeft:-2,ArrowRight:2};
+  if(event.key in change){event.preventDefault();applyWorkspaceWidth(Number(divider.getAttribute('aria-valuenow'))+change[event.key],true);}
+  if(event.key==='Home' || event.key==='End'){event.preventDefault();applyWorkspaceWidth(event.key==='Home'?28:68,true);}
+});
+function resetWorkspace(){applyWorkspaceWidth(46,true);}
+divider.addEventListener('dblclick',resetWorkspace);
+$('#resetLayoutBtn').onclick=resetWorkspace;
+window.addEventListener('resize',()=>applyWorkspaceWidth());
+applyWorkspaceWidth();
+document.querySelectorAll('details[data-layout-option]').forEach(details=>{
+  details.open=!!store.get('expanded.'+details.dataset.layoutOption,true);
+  details.addEventListener('toggle',()=>store.set('expanded.'+details.dataset.layoutOption,details.open));
+});
 let voices = [], gender = '', currentJob = null;
 
 let langNames = null, regionNames = null;
@@ -366,8 +407,10 @@ async function loadVoices(){
   try{
     const r = await fetch('/api/voices'); const d = await r.json();
     voices = d.voices || [];
-    $('#dot').className = 'dot ' + (d.online?'on':'off');
-    $('#statusText').textContent = d.online ? voices.length + ' giọng sẵn sàng' : 'Mất kết nối – dùng danh sách giọng có sẵn';
+    if(engine==='ms'){
+      $('#dot').className = 'dot ' + (d.online?'on':'off');
+      $('#statusText').textContent = d.online ? voices.length + ' giọng trực tuyến' : 'Microsoft · chưa kết nối';
+    }
   }catch(e){
     $('#dot').className='dot off'; $('#statusText').textContent='Không kết nối được tool';
   }
@@ -382,7 +425,7 @@ async function loadVoices(){
   const savedLoc = store.get('locale','vi-VN');
   $('#locale').value = locs.includes(savedLoc) ? savedLoc : locs[0];
   gender = store.get('gender','');
-  document.querySelectorAll('#gender .chip').forEach(c=>c.classList.toggle('on', c.dataset.g===gender));
+  $('#gender').value=gender;
   fillVoices(store.get('voice',''));
 }
 function fillVoices(pref){
@@ -394,11 +437,7 @@ function fillVoices(pref){
 }
 $('#locale').onchange = ()=>{ store.set('locale',$('#locale').value); fillVoices(); store.set('voice',$('#voice').value); };
 $('#voice').onchange = ()=> store.set('voice',$('#voice').value);
-document.querySelectorAll('#gender .chip').forEach(c=>c.onclick=()=>{
-  gender = c.dataset.g; store.set('gender',gender);
-  document.querySelectorAll('#gender .chip').forEach(x=>x.classList.toggle('on',x===c));
-  fillVoices($('#voice').value);
-});
+$('#gender').onchange=()=>{ gender=$('#gender').value; store.set('gender',gender); fillVoices($('#voice').value); };
 
 const sliders = {rate:'%', pitch:' Hz', volume:'%'};
 function showSlider(k){ const v=+$('#'+k).value; $('#'+k+'V').textContent=(v>0?'+':'')+v+sliders[k]; }
@@ -423,7 +462,7 @@ $('#fileIn').onchange = async e=>{
 
 function setMsg(t, err){ $('#msg').textContent=t||''; $('#msg').className='msg'+(err?' err':''); }
 function setBusy(b){
-  $('#goBtn').textContent = b?'Đang tạo…':'Tạo giọng';
+  $('#goBtn').textContent = b?'Đang tạo audio…':'Tạo audio';
   $('#goBtn').disabled = b || (typeof engine!=='undefined' && engine==='vieneu' && (!vnReady || (vmodel==='f5' && !f5Ready)));
   $('#prog').style.display=b?'block':'none'; $('#cancelBtn').classList.toggle('hide',!b);
   if(!b) $('#prog i').style.width='0';
@@ -480,7 +519,7 @@ function showResult(name){
 }
 $('#goBtn').onclick = generate;
 $('#cancelBtn').onclick = ()=>{ if(currentJob) fetch('/api/cancel?id='+currentJob); };
-document.addEventListener('keydown', e=>{ if((e.ctrlKey||e.metaKey) && e.key==='Enter'){ e.preventDefault(); generate(); } });
+document.addEventListener('keydown', e=>{ if((e.ctrlKey||e.metaKey) && e.key==='Enter' && currentView==='create' && !$('#pvDialog').open){ e.preventDefault(); generate(); } });
 
 const openFolder = ()=> fetch('/api/open-folder');
 $('#folderBtn').onclick = openFolder; $('#folderBtn2').onclick = openFolder;
@@ -505,7 +544,7 @@ async function loadHistory(){
 }
 $('#hist').onclick = async e=>{
   const p = e.target.closest('[data-play]'), d = e.target.closest('[data-del]');
-  if(p) showResult(p.dataset.play);
+  if(p){$('#historyPlayer').src=fileURL(p.dataset.play);$('#historyPreviewName').textContent=p.dataset.play;show('#historyPreview',true);$('#historyPlayer').play().catch(()=>{});}
   if(d && confirm('Xóa file này?')){ await fetch('/api/delete?name='+encodeURIComponent(d.dataset.del),{method:'POST'}); loadHistory(); }
 };
 
@@ -521,19 +560,47 @@ let vmodel = store.get('vmodel','vieneu'), f5Ready = false;
 let region = store.get('vregion',''), vgender = store.get('vgender','');
 const STYLE = {tu_nhien:'tự nhiên', doc_truyen:'đọc truyện', tin_tuc:'tin tức', ke_chuyen:'kể chuyện'};
 const show = (id, on) => $(id).classList.toggle('hide', !on);
+let currentView='create';
 
 function setEngine(e){
   engine = e; store.set('engine', e);
-  document.querySelectorAll('#engTabs .tab').forEach(t=>t.classList.toggle('on', t.dataset.e===e));
+  $('#engineSelect').value=e==='ms'?'ms':vmodel;
+  $('#engineHint').textContent=e==='ms'?'Có sẵn nhiều ngôn ngữ. Cần kết nối Internet.':vmodel==='f5'?'Dùng giọng mẫu để đọc nội dung mới. Chạy trên máy của bạn.':'Giọng tiếng Việt có sẵn và giọng cá nhân. Chạy trên máy của bạn.';
+  $('#statusText').textContent=e==='ms'?'Microsoft · trực tuyến':'Đang kiểm tra mô hình…';
   show('#msPanel', e==='ms'); show('#vnPanel', e==='vieneu'); show('#pitchWrap', e==='ms');
   if(e==='vieneu') pollEngine(true); else { clearTimeout(vnTimer); show('#pvCard', false); updateGo(); }
 }
-document.querySelectorAll('#engTabs .tab').forEach(t=>t.onclick=()=>setEngine(t.dataset.e));
+$('#engineSelect').onchange=()=>{
+  const value=$('#engineSelect').value;
+  if(value!=='ms'){vmodel=value;store.set('vmodel',value);}
+  setEngine(value==='ms'?'ms':'vieneu');
+  if(lastSt && value!=='ms') renderEngine(lastSt);
+  descVn();
+};
+function setView(view){
+  currentView=view;
+  for(const name of ['create','library','history']) show('#'+name+'View',name===view);
+  if(view==='create') applyWorkspaceWidth();
+  document.querySelectorAll('[data-view]').forEach(button=>{
+    button.classList.toggle('on',button.dataset.view===view);
+    if(button.dataset.view===view) button.setAttribute('aria-current','page'); else button.removeAttribute('aria-current');
+  });
+  if(view==='library'){
+    if(engine==='ms') setEngine('vieneu');
+    show('#voiceLibraryNotice',!vnReady);
+  }
+  if(view==='history') loadHistory();
+}
+document.querySelectorAll('[data-view]').forEach(button=>button.onclick=()=>setView(button.dataset.view));
+document.querySelectorAll('[data-switch-create]').forEach(button=>button.onclick=()=>setView('create'));
+$('#manageVoiceBtn').onclick=()=>setView('library');
 
 function updateGo(){
   const block = engine==='vieneu' && (!vnReady || (vmodel==='f5' && !f5Ready));
   $('#goBtn').disabled = block || !!currentJob;
-  show('#sliders', !block); show('#goBtn', !block);
+  show('#sliders', !block); show('#goBtn', true);
+  $('#sliders').closest('details').classList.toggle('hide',block);
+  if(!currentJob) $('#goBtn').textContent=block?'Chờ mô hình sẵn sàng':'Tạo audio';
 }
 
 async function pollEngine(first){
@@ -594,7 +661,7 @@ function renderEngine(st){
   renderModelDownload('vn', eng, busy && !st.installing);
   show('#vnSetup', !st.installed && !st.installing && !err);
   show('#vnBusy', busy); show('#vnError', !!err && !st.installing); show('#vnReady', vnReady);
-  show('#pvCard', vnReady);
+  show('#pvCard', vnReady); show('#voiceLibraryNotice',!vnReady);
   if(!st.installed){
     const win = st.os==='windows';
     show('#gpuWrap', win || st.os==='linux');
@@ -622,11 +689,16 @@ function renderEngine(st){
 }
 
 function renderF5(st){
-  document.querySelectorAll('#vmodel .mdl').forEach(b=>b.classList.toggle('on', b.dataset.m===vmodel));
+  $('#engineSelect').value=engine==='ms'?'ms':vmodel;
   const f = (st.models||{}).f5 || {}, fe = f.engine || {};
   f5Ready = !!(f.installed && f.running && fe.state==='ready');
   const onF5 = vmodel==='f5';
   const err = f.installErr || (f.installed && !f.running && f.engineErr) || (fe.state==='error' && fe.error);
+  const selectedReady=onF5?f5Ready:vnReady;
+  if(engine!=='ms'){
+    $('#dot').className='dot'+(selectedReady?' on':'');
+    $('#statusText').textContent=(onF5?'F5-TTS':'VieNeu')+(selectedReady?' · sẵn sàng':' · đang chuẩn bị');
+  }
   const otherInstalling = st.installingModel && st.installingModel!=='f5';
   const busy = f.installing || (f.installed && !f5Ready && !err);
   renderModelDownload('f5', fe, onF5 && busy && !f.installing);
@@ -667,11 +739,7 @@ function renderF5(st){
   $('#gpuHint').textContent = gpuIdle ? 'Máy có card ' + gpu.name + ' nhưng mô hình đang chạy bằng CPU (chậm). Hãy cập nhật driver NVIDIA mới nhất (bản 570 trở lên) rồi khởi động lại tool. Nếu vẫn vậy, bấm “Cài lại” và chọn dùng card NVIDIA.' : '';
   show('#gpuHint', !!gpuIdle);
 }
-document.querySelectorAll('#vmodel .mdl').forEach(b=>b.onclick=()=>{
-  vmodel = b.dataset.m; store.set('vmodel', vmodel);
-  if(lastSt) renderF5(lastSt);
-  descVn(); updateGo(); pollEngine();
-});
+
 $('#f5Gpu').onchange = ()=>{ $('#f5Gpu').dataset.touched = 1; if(lastSt) renderF5(lastSt); };
 $('#f5InstallBtn').onclick = async ()=>{
   const g = !$('#f5GpuWrap').classList.contains('hide') && $('#f5Gpu').checked;
@@ -740,14 +808,12 @@ function descVn(){
   $('#vvoiceDesc').textContent = d;
 }
 $('#vvoice').onchange = ()=>{ store.set('vvoice', $('#vvoice').value); descVn(); };
-function chipGroup(id, key, get, set){
-  document.querySelectorAll(id+' .chip').forEach(c=>{
-    c.classList.toggle('on', c.dataset[key]===get());
-    c.onclick = ()=>{ set(c.dataset[key]); document.querySelectorAll(id+' .chip').forEach(x=>x.classList.toggle('on', x===c)); fillVn(); };
-  });
+function bindFilter(id, key, get, set){
+  const select=$(id); select.value=get();
+  select.onchange=()=>{set(select.value);fillVn();};
 }
-chipGroup('#region','r',()=>region,v=>{region=v;store.set('vregion',v)});
-chipGroup('#vgender','g',()=>vgender,v=>{vgender=v;store.set('vgender',v)});
+bindFilter('#region','r',()=>region,v=>{region=v;store.set('vregion',v)});
+bindFilter('#vgender','g',()=>vgender,v=>{vgender=v;store.set('vgender',v)});
 
 // ----- Giọng cá nhân -----
 let pvGender = 'female', pvWav = null, pvSeconds = 0, rec = null, recStart = 0, recTick = null;
@@ -762,29 +828,43 @@ function renderPv(){
       <button class="btn ghost" data-pvedit="${v.id}" title="Nghe mẫu, nhận dạng và sửa lời thoại">Sửa lời thoại${v.ref_text_legacy?' ⚠':''}</button>
       <button class="btn ghost" data-pvuse="${v.id}">Dùng</button>
       <button class="btn ghost" data-pvdel="${v.id}" title="Xóa">✕</button></li>`).join('')
-    : '<li class="empty">Chưa có giọng cá nhân. Bấm “+ Tạo giọng mới” để ghi âm giọng của bạn.</li>';
+    : '<li class="empty">Chưa có giọng cá nhân. Bấm “+ Thêm giọng mới” để bắt đầu.</li>';
 }
 $('#pvList').onclick = async e=>{
   const t = e.target.closest('button'); if(!t) return;
-  if(t.dataset.pvplay){ $('#player').src = '/api/engine/voice-sample?id='+t.dataset.pvplay; $('#result').style.display='block'; $('#resName').textContent='Mẫu ghi âm'; $('#player').play().catch(()=>{}); }
-  if(t.dataset.pvuse){ region=''; vgender=''; chipGroup('#region','r',()=>region,v=>{region=v;store.set('vregion',v)}); chipGroup('#vgender','g',()=>vgender,v=>{vgender=v;store.set('vgender',v)}); fillVn('c:'+t.dataset.pvuse); store.set('vvoice','c:'+t.dataset.pvuse); }
+  if(t.dataset.pvplay){ const voice=vnVoices.custom.find(v=>v.id===t.dataset.pvplay); $('#libraryPlayer').src='/api/engine/voice-sample?id='+t.dataset.pvplay; $('#libraryPreviewName').textContent=voice?voice.name:'Mẫu ghi âm';show('#libraryPreview',true);$('#libraryPlayer').play().catch(()=>{}); }
+  if(t.dataset.pvuse){ setView('create'); region=''; vgender=''; bindFilter('#region','r',()=>region,v=>{region=v;store.set('vregion',v)}); bindFilter('#vgender','g',()=>vgender,v=>{vgender=v;store.set('vgender',v)}); fillVn('c:'+t.dataset.pvuse); store.set('vvoice','c:'+t.dataset.pvuse); }
   if(t.dataset.pvedit){
     const c = vnVoices.custom.find(x=>x.id===t.dataset.pvedit) || {};
     resetPv(); pvEditingId=t.dataset.pvedit;
     $('#pvName').value=c.name || '';
+    $('#pvGender').value=c.gender || 'female'; $('#pvGender').disabled=true;
     $('#pvRefText').value=c.ref_text_legacy ? '' : (c.ref_text || '');
     $('#pvPreview').src='/api/engine/voice-sample?id='+pvEditingId; show('#pvPreview',true);
     $('#pvSaveBtn').textContent='Lưu chỉnh sửa';
-    show('#pvForm',true); show('#pvAudioInputs',false);
+    openVoiceDialog(pvEditingId ? 'Sửa giọng cá nhân' : 'Thêm giọng mới'); show('#pvAudioInputs',false);
     $('#pvInfo').textContent=c.ref_text_legacy ? 'Giọng cũ đang lưu văn bản mẫu. Bấm Tự nhận dạng lời thoại rồi nghe lại để kiểm tra.' : 'Nghe mẫu và sửa lời thoại cho khớp với chính đoạn âm thanh này.';
     $('#pvForm').scrollIntoView({behavior:'smooth',block:'nearest'});
   }
   if(t.dataset.pvdel && confirm('Xóa giọng cá nhân này?')){ await fetch('/api/engine/voice-delete?id='+t.dataset.pvdel,{method:'POST'}); loadVnVoices(); }
 };
-document.querySelectorAll('#pvGender .chip').forEach(c=>c.onclick=()=>{ pvGender=c.dataset.g; document.querySelectorAll('#pvGender .chip').forEach(x=>x.classList.toggle('on',x===c)); });
-function resetPv(){ stopRec(true); ++pvAudioGeneration; pvEditingId=''; pvWav=null; pvSeconds=0; $('#pvInfo').textContent=''; show('#pvPreview',false); $('#pvMsg').textContent=''; $('#pvMsg').className='msg'; $('#pvConsent').checked=false; $('#pvRefText').value=''; $('#pvSaveBtn').textContent='Phân tích và lưu giọng'; show('#pvAudioInputs',true); }
-$('#pvNewBtn').onclick = ()=>{ resetPv(); $('#pvName').value=''; show('#pvForm',true); $('#pvName').focus(); };
-$('#pvCancelBtn').onclick = ()=>{ stopRec(true); ++pvAudioGeneration; show('#pvForm',false); };
+$('#pvGender').onchange=()=>{pvGender=$('#pvGender').value;};
+function resetPv(){ stopRec(true); ++pvAudioGeneration; pvEditingId=''; pvWav=null; pvSeconds=0; $('#pvInfo').textContent=''; show('#pvPreview',false); $('#pvMsg').textContent=''; $('#pvMsg').className='msg'; $('#pvConsent').checked=false; $('#pvRefText').value=''; $('#pvSaveBtn').textContent='Phân tích và lưu giọng'; show('#pvAudioInputs',true); $('#pvSource').value='file'; renderAudioSource(); pvGender='female'; $('#pvGender').value=pvGender; $('#pvGender').disabled=false; }
+$('#pvNewBtn').onclick = ()=>{ resetPv(); $('#pvName').value=''; openVoiceDialog(pvEditingId ? 'Sửa giọng cá nhân' : 'Thêm giọng mới'); $('#pvName').focus(); };
+function openVoiceDialog(title){
+  $('#pvDialogTitle').textContent=title; $('#pvTranscriptDetails').open=!!pvEditingId || vmodel==='f5';
+  if(!$('#pvDialog').open) $('#pvDialog').showModal();
+}
+function closeVoiceDialog(){stopRec(true);++pvAudioGeneration;$('#pvDialog').close();}
+$('#pvCancelBtn').onclick=closeVoiceDialog;
+$('#pvCloseBtn').onclick=closeVoiceDialog;
+$('#pvDialog').addEventListener('cancel',event=>{event.preventDefault();closeVoiceDialog();});
+function renderAudioSource(){
+  const source=$('#pvSource').value;
+  show('#recBtn',source==='mic');show('#systemRecBtn',source==='system');show('#pvUploadBtn',source==='file');show('#systemRecHelp',source==='system');
+}
+$('#pvSource').onchange=renderAudioSource;
+renderAudioSource();
 
 function audioBase64(blob){
   return new Promise((ok,bad)=>{ const fr=new FileReader(); fr.onload=()=>ok(fr.result.split(',')[1]); fr.onerror=bad; fr.readAsDataURL(blob); });
@@ -854,7 +934,7 @@ function renderRecording(){
     button.classList.toggle('on', active && rec.state==='recording');
     label.textContent = active && rec.state==='recording' ? `Dừng (${Math.floor((Date.now()-recStart)/1000)}s)` : (source==='mic' ? 'Ghi âm micro' : 'Ghi âm trong máy');
   }
-  $('#pvUploadBtn').disabled = working;
+  $('#pvUploadBtn').disabled = working; $('#pvSource').disabled=working;
   $('#pvSaveBtn').disabled = working;
   $('#pvTranscribeBtn').disabled = working;
 }
@@ -931,7 +1011,7 @@ $('#pvSaveBtn').onclick = async ()=>{
     try{
       const r=await fetch('/api/engine/voice-update',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:pvEditingId,name,ref_text:$('#pvRefText').value.trim()})});
       if(!r.ok) throw new Error(await r.text());
-      await loadVnVoices(); show('#pvForm',false);
+      await loadVnVoices(); closeVoiceDialog();
       setMsg('Đã cập nhật lời thoại của giọng “'+name+'”.');
     }catch(e){ msg('Lỗi: '+e.message,true); }
     $('#pvSaveBtn').disabled=false;
@@ -946,11 +1026,11 @@ $('#pvSaveBtn').onclick = async ()=>{
     const r = await fetch('/api/engine/clone',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name, gender:pvGender, wav_b64:b64, ref_text:$('#pvRefText').value.trim()})});
     if(!r.ok) throw new Error(await r.text());
     const d = await r.json();
-    show('#pvForm',false);
+    closeVoiceDialog();
     region=''; vgender='';
-    chipGroup('#region','r',()=>region,v=>{region=v;store.set('vregion',v)}); chipGroup('#vgender','g',()=>vgender,v=>{vgender=v;store.set('vgender',v)});
+    bindFilter('#region','r',()=>region,v=>{region=v;store.set('vregion',v)}); bindFilter('#vgender','g',()=>vgender,v=>{vgender=v;store.set('vgender',v)});
     await loadVnVoices('c:'+d.id); store.set('vvoice','c:'+d.id);
-    setMsg('Đã lưu giọng “'+name+'”. Nhập văn bản rồi bấm Tạo giọng để nghe thử.');
+    setView('create'); setMsg('Đã lưu giọng “'+name+'”. Nhập văn bản rồi bấm Tạo giọng để nghe thử.');
   }catch(e){ msg('Lỗi: '+e.message, true); }
   $('#pvSaveBtn').disabled = false;
 };
@@ -970,12 +1050,13 @@ function voiceStyle(){
   return 'tu_nhien';
 }
 function renderSamples(){
-  const st = voiceStyle();
-  $('#samples').innerHTML = SAMPLES.map(x=>`<button class="chip${x.k===st?' on':''}" data-s="${x.k}" title="${x.k===st?'Hợp với phong cách của giọng này':''}">${x.label}${x.k===st?' ★':''}</button>`).join('');
+  const current=$('#sampleSelect').value, style=voiceStyle();
+  $('#sampleSelect').innerHTML='<option value="">Thử một văn bản mẫu…</option>'+SAMPLES.map(x=>`<option value="${x.k}">${x.label}${x.k===style?' · gợi ý':''}</option>`).join('');
+  $('#sampleSelect').value=current;
 }
-$('#samples').onclick = e=>{
-  const b = e.target.closest('[data-s]'); if(!b) return;
-  const x = SAMPLES.find(y=>y.k===b.dataset.s);
+$('#insertSampleBtn').onclick = ()=>{
+  const x=SAMPLES.find(y=>y.k===$('#sampleSelect').value);
+  if(!x){$('#sampleSelect').focus();return;}
   const cur = ta.value.trim();
   if(cur && !SAMPLES.some(y=>y.text===cur) && !confirm('Thay nội dung đang có bằng văn bản mẫu “'+x.label+'”?')) return;
   ta.value = x.text; ta.oninput(); ta.focus();
@@ -1013,7 +1094,7 @@ $('#vPreviewBtn').onclick = async ()=>{
 };
 
 setEngine(engine);
-
+renderSamples();
 loadVoices(); loadHistory();
 </script>
 </body>
