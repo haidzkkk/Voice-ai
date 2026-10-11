@@ -35,6 +35,7 @@ META = {}  # preset name -> metadata (gender, region, style, description, featur
 REGION_ORDER = {"Bắc": 0, "Trung": 1, "Nam": 2}
 FAKE = bool(os.environ.get("GIONGAI_FAKE_ENGINE"))
 LEGACY_REF_TEXT = "Xin chào, đây là giọng nói của tôi. Hôm nay trời rất đẹp, tôi muốn kể cho bạn nghe một câu chuyện thú vị về quê hương mình."
+F5_EMOTIONS = {"vui", "buon", "gian", "haohung", "thitham", "kechuyen"}
 
 
 def log(*a):
@@ -395,6 +396,7 @@ def list_custom():
                         "created": d.get("created", 0), "seconds": d.get("seconds", 0),
                         "ref_text": d.get("ref_text", ""),
                         "ref_text_auto": d.get("ref_text_auto", False),
+                        "emotion_samples": d.get("emotion_samples", {}),
                         "ref_text_legacy": d.get("ref_text", "").strip() == LEGACY_REF_TEXT and not d.get("ref_text_verified")})
         except Exception:
             pass
@@ -478,12 +480,30 @@ def resolve_ref(req):
     return ref_wav, ref_text
 
 
+def f5_style_groups(text, samples):
+    """Style labels select reference clips; labels never enter model text."""
+    tag = "macdinh"
+    position = 0
+    groups = []
+    for match in re.finditer(r"\[([\w]+)\]", text):
+        label = match.group(1).lower()
+        if label != "macdinh" and label not in F5_EMOTIONS:
+            raise ValueError(f"Thẻ [{label}] chưa hỗ trợ. Dùng các thẻ trong mục Cảm xúc F5-TTS.")
+        if label != "macdinh" and not samples.get(label):
+            raise ValueError(f"Chưa thiết lập mẫu cho [{label}]. Mở Thiết lập cảm xúc để chọn mẫu trước.")
+        groups.extend((part, end, tag) for part, end in split_groups(text[position:match.start()]))
+        tag, position = label, match.end()
+    groups.extend((part, end, tag) for part, end in split_groups(text[position:]))
+    if not groups:
+        raise ValueError("Hãy nhập lời cần đọc sau thẻ cảm xúc.")
+    return groups
+
+
 def synthesize(req, job):
     text = (req.get("text") or "").strip()
     if not text:
         raise ValueError("Văn bản trống")
-    groups = split_groups(text)
-    job["total"] = len(groups)
+    groups = [(part, end, "macdinh") for part, end in split_groups(text)]
     speed_pct = int(req.get("speed") or 0)
     native_speed = 1.0
 
@@ -491,18 +511,32 @@ def synthesize(req, job):
         voice = load_custom_vieneu(req.get("voice")) if req.get("custom") else (req.get("voice") or None)
         run = lambda g: MODEL.synth(g, voice)
     else:
-        ref_wav, ref_text = resolve_ref(req)
+        samples = {}
+        if req.get("custom_id"):
+            metadata = json.loads((voices_dir() / (check_id(req["custom_id"]) + ".json")).read_text(encoding="utf-8"))
+            samples = metadata.get("emotion_samples") or {}
+        groups = f5_style_groups(text, samples)
+        references = {}
+        for _, _, tag in groups:
+            if tag in references:
+                continue
+            reference = req if tag == "macdinh" else {"custom_id": check_id(samples[tag])}
+            try:
+                references[tag] = resolve_ref(reference)
+            except FileNotFoundError:
+                raise ValueError(f"Mẫu cho [{tag}] không còn trên máy. Hãy thiết lập lại cảm xúc này.")
         if ARGS.model == "f5":
             native_speed = max(0.5, min(2.0, 1 + speed_pct / 100.0))
             speed_pct = 0
-        run = lambda g: MODEL.synth(normalize_vi(g), ref_wav, ref_text, native_speed)
+        run = lambda g, tag: MODEL.synth(normalize_vi(g), *references[tag], native_speed)
 
+    job["total"] = len(groups)
     parts = []
-    for i, (g, para_end) in enumerate(groups):
+    for i, (g, para_end, tag) in enumerate(groups):
         if job.get("cancel"):
             raise InterruptedError("đã hủy")
         with MODEL_LOCK:
-            wav = run(g)
+            wav = run(g) if ARGS.model == "vieneu" else run(g, tag)
         sr = MODEL.sample_rate
         parts.append(np.asarray(wav, dtype=np.float32).reshape(-1))
         if i < len(groups) - 1:

@@ -131,6 +131,14 @@ button:focus-visible,summary:focus-visible{outline:3px solid var(--accent-soft);
 
 
 .dialog-scroll{max-height:52vh;overflow-y:auto;padding-right:4px;padding-bottom:14px}.dialog-actions{border-top:1px solid var(--line);padding-top:4px}.dialog-actions .msg:empty{min-height:0;margin:0}.dialog-actions .check{margin-bottom:12px}.pvform .field-pair{grid-template-columns:2fr 1fr}.dialog-scroll>label.fl:first-child{margin-top:0}
+.wizard-steps{display:flex;gap:8px;margin:20px 0;font-size:12px;color:var(--muted)}.wizard-steps span{flex:1;border-bottom:3px solid var(--line);padding:8px 0}.wizard-steps .on{color:var(--accent);border-color:var(--accent)}.wizard-options{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0}.wizard-options .btn{font-size:12px}.wizard-options .configured{border-color:var(--accent);background:var(--accent-soft)}.wizard-note{padding:12px;background:var(--bg);border-radius:10px;font-size:13px}.help-content{font-size:14px;line-height:1.7;margin:18px 0 22px}.wizard-panel h3{font-size:17px;margin:0 0 8px}.wizard-panel .sub{line-height:1.6}.wizard-panel audio{margin:14px 0}.wizard-panel textarea{min-height:90px}#f5EmotionDialog{width:min(700px,calc(100% - 32px))}#helpDialog{width:min(520px,calc(100% - 32px))}.wizard-footer{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:20px;padding-top:16px;border-top:1px solid var(--line)}.wizard-footer .primary{width:auto;margin-left:auto}.help-link{font-size:12px!important;color:var(--accent)!important}.emotion-tools-actions{gap:6px;flex-wrap:wrap}.emotion-tools-actions select{flex:1;min-width:160px}.wizard-panel .check{margin-top:12px}.wizard-panel .field-pair{margin-top:14px}
+
+.text-highlight-wrap{position:relative;background:var(--bg);border-radius:12px;overflow:hidden}
+#textHighlights{position:absolute;inset:0;pointer-events:none;overflow:hidden;white-space:pre-wrap;overflow-wrap:break-word;color:transparent;padding:16px;font:inherit;font-size:15px;line-height:1.8}
+#textHighlights mark{color:transparent;background:var(--emotion-color);border-radius:3px}
+.text-highlight-wrap #text{position:relative;background:transparent;display:block;margin:0}
+.emotion-legend{display:flex;flex-wrap:wrap;gap:8px 14px;margin-top:10px;font-size:12px;color:var(--muted)}
+.emotion-legend span{display:inline-flex;align-items:center;gap:6px}.emotion-legend i{width:12px;height:12px;border-radius:3px;background:var(--emotion-color);border:1px solid #8885}
 </style>
 </head>
 <body>
@@ -257,10 +265,10 @@ button:focus-visible,summary:focus-visible{outline:3px solid var(--accent-soft);
         <div class="sample-row"><select id="sampleSelect" aria-label="Chọn văn bản mẫu"><option value="">Thử một văn bản mẫu…</option></select><button class="btn" id="insertSampleBtn">Chèn mẫu</button></div>
         <details class="disclosure" open style="margin:0 0 14px;border-top:0;padding-top:0">
           <summary>Thẻ biểu cảm</summary>
-          <div class="sample-row" style="margin:10px 0 6px"><select id="emotionCue" aria-label="Chọn thẻ biểu cảm"><option value="[cười]">Cười nhẹ · [cười]</option><option value="[thở dài]">Thở dài · [thở dài]</option><option value="[hắng giọng]">Hắng giọng · [hắng giọng]</option></select><button class="btn" id="insertEmotionBtn">Chèn tại con trỏ</button></div>
+          <div class="row emotion-tools-actions" style="margin:10px 0 6px"><select id="emotionCue" aria-label="Chọn thẻ biểu cảm"></select><button class="btn" id="insertEmotionBtn">Chèn thẻ</button><button class="btn hide" id="setupEmotionsBtn">Thiết lập cảm xúc</button><button class="btn ghost help-link" data-help="emotion">ⓘ Cách hoạt động</button></div>
           <div class="sub" id="emotionHint" style="font-size:12px"></div>
         </details>
-        <textarea id="text" aria-label="Nội dung cần đọc" placeholder="Viết một câu chuyện, bản tin hoặc bất cứ điều gì bạn muốn kể…"></textarea>
+        <div class="text-highlight-wrap"><div id="textHighlights" aria-hidden="true"></div><textarea id="text" aria-label="Nội dung cần đọc" placeholder="Viết một câu chuyện, bản tin hoặc bất cứ điều gì bạn muốn kể…"></textarea></div><div id="emotionLegend" class="emotion-legend" aria-label="Chú giải màu biểu cảm"></div>
         <div class="editor-meta"><span id="count">0 ký tự · 0 từ</span><span id="shortcutHint">⌘ / Ctrl + Enter để tạo</span></div>
         <div class="create-actions">
         <button class="btn primary" id="goBtn">Tạo audio</button>
@@ -333,6 +341,39 @@ button:focus-visible,summary:focus-visible{outline:3px solid var(--accent-soft);
           <div class="msg" id="pvMsg"></div>
         </div></div>
 </dialog>
+<dialog id="f5EmotionDialog" aria-labelledby="emotionDialogTitle">
+  <div class="dialog-heading"><div><div class="eyebrow">F5-TTS · BỘ MẪU CẢM XÚC</div><h2 id="emotionDialogTitle">Thiết lập cảm xúc</h2></div><button class="btn ghost" id="emotionCloseBtn" aria-label="Đóng thiết lập cảm xúc">✕</button></div>
+  <div class="wizard-steps"><span data-emotion-step="1">01 · Chọn cảm xúc</span><span data-emotion-step="2">02 · Chọn mẫu</span><span data-emotion-step="3">03 · Kiểm tra &amp; lưu</span></div>
+  <div class="dialog-scroll">
+    <div class="wizard-note hide" id="emotionPrerequisites">Cần F5-TTS sẵn sàng để nhận dạng và nghe thử. <button class="btn ghost help-link" id="prepareF5Btn">Mở phần cài mô hình →</button></div>
+    <div class="wizard-panel" id="emotionStep1">
+      <h3>Bạn muốn giọng nào, sắc thái nào?</h3><button class="btn ghost help-link" data-help="setup">ⓘ Hướng dẫn thiết lập từ đầu</button><button class="btn ghost help-link" data-help="sameSpeaker">ⓘ Vì sao cần mẫu của cùng người?</button>
+      <label class="fl" for="emotionBaseVoice">Giọng cá nhân gốc</label><select id="emotionBaseVoice"></select>
+      <button class="btn ghost" id="emotionAddBaseBtn">+ Tạo giọng gốc trước</button>
+      <label class="fl" for="emotionStyle">Cảm xúc / cách đọc</label><select id="emotionStyle"></select>
+      <div class="wizard-options" id="emotionConfigured"></div>
+    </div>
+    <div class="wizard-panel hide" id="emotionStep2">
+      <h3>Chọn một mẫu mang sắc thái này</h3><button class="btn ghost help-link" data-help="sample">ⓘ Mẫu tốt cần những gì?</button>
+      <label class="fl" for="emotionSampleVoice">Mẫu đã lưu trên máy</label><select id="emotionSampleVoice"></select>
+      <audio id="emotionSamplePlayer" controls class="hide"></audio>
+      <button class="btn" id="emotionAddSampleBtn">+ Tải file hoặc ghi âm mẫu mới</button>
+    </div>
+    <div class="wizard-panel hide" id="emotionStep3">
+      <h3>Nghe lại và kiểm tra lời thoại</h3><button class="btn ghost help-link" data-help="transcript">ⓘ Vì sao phải khớp lời thoại?</button>
+      <audio id="emotionReviewPlayer" controls></audio>
+      <label class="fl" for="emotionRefText">Đúng lời nói trong đoạn mẫu</label><textarea class="inp" id="emotionRefText" rows="3" placeholder="Nhận dạng tự động rồi sửa các từ chưa đúng, hoặc nhập lời nói trong mẫu."></textarea>
+      <div class="row"><button class="btn" id="emotionTranscribeBtn">Tự nhận dạng</button><button class="btn" id="emotionPreviewBtn">Nghe thử sắc thái</button><button class="btn ghost help-link" data-help="quality">ⓘ Kết quả có giống hoàn toàn không?</button></div>
+      <audio id="emotionGeneratedPlayer" controls class="hide"></audio>
+      <label class="check"><input type="checkbox" id="emotionSameSpeaker"> Mẫu này là của cùng người nói với giọng gốc.</label>
+      <label class="check"><input type="checkbox" id="emotionTranscriptChecked"> Tôi đã nghe lại và lời thoại trên khớp với đoạn mẫu.</label>
+      <button class="btn ghost" id="emotionRemoveBtn">Bỏ liên kết cảm xúc này</button>
+    </div>
+  </div>
+  <div class="msg" id="emotionWizardMsg" aria-live="polite"></div>
+  <div class="wizard-footer"><button class="btn ghost" id="emotionBackBtn">← Quay lại</button><button class="btn primary" id="emotionNextBtn">Tiếp tục →</button></div>
+</dialog>
+<dialog id="helpDialog" aria-labelledby="helpTitle"><div class="dialog-heading"><h2 id="helpTitle"></h2><button class="btn ghost" id="helpCloseBtn" aria-label="Đóng hướng dẫn">✕</button></div><div class="help-content" id="helpBody"></div><button class="btn primary" id="helpDoneBtn">Đã hiểu</button></dialog>
 <script>
 
 const $ = s => document.querySelector(s);
@@ -453,29 +494,81 @@ for(const k in sliders){
 $('#resetBtn').onclick = ()=>{ for(const k in sliders){ $('#'+k).value=0; showSlider(k); store.set(k,0);} };
 
 const ta = $('#text');
+const EMOTION_COLORS={vui:['Vui','#fbbf2466'],buon:['Buồn','#60a5fa66'],gian:['Giận','#f8717166'],haohung:['Hào hứng','#fb923c66'],thitham:['Thì thầm','#c084fc66'],kechuyen:['Kể chuyện','#34d39966'],'cười':['Cười nhẹ','#fbbf2466'],'thở dài':['Thở dài','#60a5fa66'],'hắng giọng':['Hắng giọng','#c084fc66']};
+let cueRanges=store.get('cueRanges',[]),highlightText=store.get('text','');
+function renderTextHighlights(){
+ const text=ta.value,isF5=engine==='vieneu'&&vmodel==='f5';
+ const ranges=[];
+ if(isF5){
+  const tags=[...text.matchAll(/\[(vui|buon|gian|haohung|thitham|kechuyen|macdinh)\]/gi)];
+  tags.forEach((m,i)=>{const tag=m[1].toLowerCase();if(tag!=='macdinh')ranges.push({start:m.index,end:tags[i+1]?.index??text.length,tag});});
+ }else if(engine==='vieneu'){
+  ranges.push(...cueRanges.filter(r=>EMOTION_COLORS[r.tag]&&r.start>=0&&r.end<=text.length));
+  for(const m of text.matchAll(/\[(cười|thở dài|hắng giọng)\]/g))if(!ranges.some(r=>r.start<=m.index&&r.end>=m.index+m[0].length))ranges.push({start:m.index,end:m.index+m[0].length,tag:m[1]});
+ }
+ const boundaries=[...new Set([0,text.length,...ranges.flatMap(r=>[r.start,r.end])])].sort((a,b)=>a-b);
+ let html='';for(let i=0;i<boundaries.length-1;i++){const start=boundaries[i],end=boundaries[i+1],r=ranges.find(r=>r.start<=start&&r.end>=end);const part=esc(text.slice(start,end));html+=r?'<mark style="--emotion-color:'+EMOTION_COLORS[r.tag][1]+'">'+part+'</mark>':part;}
+ $('#textHighlights').innerHTML=html+'\n';
+ const keys=isF5?['vui','buon','gian','haohung','thitham','kechuyen']:engine==='vieneu'?['cười','thở dài','hắng giọng']:[];
+ $('#emotionLegend').innerHTML=keys.map(k=>'<span style="--emotion-color:'+EMOTION_COLORS[k][1]+'"><i></i>'+EMOTION_COLORS[k][0]+'</span>').join('');
+ $('#textHighlights').scrollTop=ta.scrollTop;$('#textHighlights').scrollLeft=ta.scrollLeft;
+}
+function syncCueRanges(){
+ const next=ta.value;if(next!==highlightText){let a=0;while(a<next.length&&a<highlightText.length&&next[a]===highlightText[a])a++;let oldEnd=highlightText.length,newEnd=next.length;while(oldEnd>a&&newEnd>a&&highlightText[oldEnd-1]===next[newEnd-1]){oldEnd--;newEnd--;}
+ const delta=newEnd-oldEnd;cueRanges=cueRanges.flatMap(r=>r.end<=a?[r]:r.start>=oldEnd?[{...r,start:r.start+delta,end:r.end+delta}]:[]);highlightText=next;store.set('cueRanges',cueRanges);}
+ renderTextHighlights();
+}
+ta.addEventListener('scroll',renderTextHighlights);
+new ResizeObserver(()=>{ $('#textHighlights').style.width=ta.clientWidth+'px';renderTextHighlights(); }).observe(ta);
 const emotionCuePattern=/\[(?:cười|cuoi|chuckle|thở dài|tho dai|sigh|hắng giọng|hang giong|clear throat)\]|<\|emotion_[123]\|>/i;
 function renderEmotionTools(){
-  const supported=engine==='vieneu' && vmodel==='vieneu';
-  $('#emotionCue').disabled=!supported; $('#insertEmotionBtn').disabled=!supported;
-  $('#emotionHint').textContent=supported
-    ? 'VieNeu hỗ trợ thẻ thử nghiệm. Chèn vào vị trí muốn có biểu cảm, ví dụ: Nghe hay quá [cười]. Hiệu quả tùy giọng và nội dung.'
-    : engine==='vieneu'
-      ? 'F5-TTS lấy sắc thái từ giọng mẫu. Để đọc vui, buồn hoặc hào hứng, chọn mẫu của cùng người nói có sắc thái đó. Chọn VieNeu để dùng các thẻ bên trên.'
-      : 'Các thẻ này dùng với VieNeu. Giọng Microsoft hiện hỗ trợ chỉnh tốc độ, cao độ và âm lượng.';
+ const previous=$('#emotionCue').value;
+ const isF5=engine==='vieneu' && vmodel==='f5';
+ const voice=vnVoices.custom.find(item=>'c:'+item.id===$('#vvoice').value);
+ if(isF5){
+  const samples=voice?.emotion_samples||{};
+  $('#emotionCue').innerHTML='<option value="[macdinh]">Giọng gốc · [macdinh]</option>'+Object.entries(F5_STYLES).map(([tag,label])=>`<option value="[${tag}]" ${samples[tag]&&vnVoices.custom.some(v=>v.id===samples[tag])?'':'disabled'}>${label} · [${tag}]${samples[tag]?(vnVoices.custom.some(v=>v.id===samples[tag])?'':' · mẫu đã bị xóa'):' · chưa thiết lập'}</option>`).join('');
+  $('#emotionHint').textContent=voice?'Bôi đen đoạn văn rồi chèn thẻ để áp dụng riêng cho đoạn đó. Chỉ dùng được cảm xúc đã có mẫu.':'Chọn giọng cá nhân rồi thiết lập bộ mẫu cảm xúc.';
+ }else{
+  $('#emotionCue').innerHTML='<option value="[cười]">Cười nhẹ · [cười]</option><option value="[thở dài]">Thở dài · [thở dài]</option><option value="[hắng giọng]">Hắng giọng · [hắng giọng]</option>';
+  $('#emotionHint').textContent=engine==='vieneu'?'Bôi đen đoạn rồi chèn biểu cảm để đánh dấu màu. VieNeu tạo biểu cảm tại thẻ chèn; màu không đảm bảo cả đoạn có cùng cảm xúc.':'Chọn VieNeu để dùng biểu cảm, hoặc F5-TTS để thiết lập mẫu cảm xúc.';
+ }
+ if([...$('#emotionCue').options].some(option=>option.value===previous&&!option.disabled))$('#emotionCue').value=previous;
+ const supported=engine==='vieneu' && (!isF5||!!voice);
+ $('#emotionCue').disabled=!supported;$('#insertEmotionBtn').disabled=!supported;
+ $('#setupEmotionsBtn').classList.toggle('hide',!isF5);
+ renderTextHighlights();
 }
 $('#insertEmotionBtn').onclick=()=>{
-  if(engine!=='vieneu' || vmodel!=='vieneu') return;
+  if($('#insertEmotionBtn').disabled) return;
   const position=ta.selectionStart ?? ta.value.length;
+  const end=ta.selectionEnd ?? position;
   const before=ta.value.slice(0,position),after=ta.value.slice(position);
   const prefix=before && !/\s$/.test(before)?' ':'';
+  if(engine==='vieneu' && vmodel==='f5' && end>position){
+    const previous=[...before.matchAll(/\[(vui|buon|gian|haohung|thitham|kechuyen|macdinh)\]/gi)].pop();
+    const restore=previous?'['+previous[1].toLowerCase()+']':'[macdinh]';
+    const selected=ta.value.slice(position,end).replace(/\[(vui|buon|gian|haohung|thitham|kechuyen|macdinh)\]/gi,'');
+    const remaining=ta.value.slice(end);
+    const suffix=remaining && !/^[\s.,!?;:…]/.test(remaining)?' ':'';
+    ta.setRangeText(prefix+$('#emotionCue').value+' '+selected+' '+restore+suffix,position,end,'end');
+    ta.oninput(); ta.focus(); return;
+  }
   const suffix=after && !/^[\s.,!?;:…]/.test(after)?' ':'';
-  ta.setRangeText(prefix+$('#emotionCue').value+suffix,position,position,'end');
-  ta.oninput(); ta.focus();
+  const cue=$('#emotionCue').value;
+  ta.setRangeText(prefix+cue+suffix,position,position,'end');
+  ta.oninput();
+  if(engine==='vieneu'&&vmodel!=='f5'&&end>position){
+   cueRanges=cueRanges.filter(r=>r.end<=position||r.start>=end+prefix.length+cue.length+suffix.length);
+   cueRanges.push({start:position,end:end+prefix.length+cue.length+suffix.length,tag:cue.slice(1,-1)});
+   store.set('cueRanges',cueRanges);renderTextHighlights();
+  }
+  ta.focus();
 };
 ta.value = store.get('text','');
 function updCount(){ const t=ta.value; const w=t.trim()?t.trim().split(/\s+/).length:0;
   $('#count').textContent = t.length.toLocaleString('vi-VN')+' ký tự · '+w.toLocaleString('vi-VN')+' từ'; }
-let saveT; ta.oninput = ()=>{ updCount(); clearTimeout(saveT); saveT=setTimeout(()=>store.set('text',ta.value),400); };
+let saveT; ta.oninput = ()=>{ syncCueRanges(); updCount(); clearTimeout(saveT); saveT=setTimeout(()=>store.set('text',ta.value),400); };
 updCount();
 $('#clearBtn').onclick = ()=>{ ta.value=''; ta.oninput(); ta.focus(); };
 $('#loadBtn').onclick = ()=> $('#fileIn').click();
@@ -498,6 +591,13 @@ async function generate(){
   if(!text){ setMsg('Bạn chưa nhập văn bản.', true); ta.focus(); return; }
   if(emotionCuePattern.test(text) && !(engine==='vieneu' && vmodel==='vieneu')){
     setMsg('Thẻ biểu cảm chỉ dùng với VieNeu. Chọn VieNeu hoặc bỏ thẻ khỏi nội dung để dùng mô hình hiện tại.',true); ta.focus(); return;
+  }
+  const styleTags=[...text.matchAll(/\[(vui|buon|gian|haohung|thitham|kechuyen|macdinh)\]/gi)].map(match=>match[1].toLowerCase());
+  if(styleTags.length){
+   if(engine!=='vieneu'||vmodel!=='f5'||!$('#vvoice').value.startsWith('c:')){setMsg('Thẻ cảm xúc F5 cần chọn F5-TTS và giọng cá nhân.',true);openHelp('emotion');return;}
+   const voice=vnVoices.custom.find(item=>'c:'+item.id===$('#vvoice').value),samples=voice?.emotion_samples||{};
+   const missing=styleTags.find(tag=>tag!=='macdinh'&&(!samples[tag]||!vnVoices.custom.some(item=>item.id===samples[tag])));
+   if(missing){setMsg('Chưa có mẫu cho ['+missing+']. Hãy thiết lập cảm xúc trước.',true);openEmotionSetup(voice?.id);emotionDraft.tag=missing;renderEmotionWizard();return;}
   }
   let body;
   if(engine==='vieneu'){
@@ -546,7 +646,7 @@ function showResult(name){
 }
 $('#goBtn').onclick = generate;
 $('#cancelBtn').onclick = ()=>{ if(currentJob) fetch('/api/cancel?id='+currentJob); };
-document.addEventListener('keydown', e=>{ if((e.ctrlKey||e.metaKey) && e.key==='Enter' && currentView==='create' && !$('#pvDialog').open){ e.preventDefault(); generate(); } });
+document.addEventListener('keydown', e=>{ if((e.ctrlKey||e.metaKey) && e.key==='Enter' && currentView==='create' && !$('#pvDialog').open && !$('#f5EmotionDialog').open && !$('#helpDialog').open){ e.preventDefault(); generate(); } });
 
 const openFolder = ()=> fetch('/api/open-folder');
 $('#folderBtn').onclick = openFolder; $('#folderBtn2').onclick = openFolder;
@@ -713,6 +813,7 @@ function renderEngine(st){
   }
   if(vnReady && !wasReady) loadVnVoices();
   renderF5(st);
+  if($('#f5EmotionDialog').open) refreshEmotionReadiness();
   updateGo();
 }
 
@@ -810,6 +911,9 @@ async function loadVnVoices(pref){
   try{ vnVoices = await (await fetch('/api/engine/voices')).json(); }catch(e){ return; }
   fillVn(pref || store.get('vvoice',''));
   renderPv();
+  if($('#f5EmotionDialog').open && emotionDraft){
+    if(emotionDraft.step<3) renderEmotionWizard(); else refreshEmotionReadiness();
+  }
 }
 function fillVn(pref){
   const sel = $('#vvoice'); const cur = pref || sel.value;
@@ -833,7 +937,7 @@ function descVn(){
   if(v.startsWith('p:')){ const p = vnVoices.presets.find(x=>x.id===v.slice(2)); d = p ? (p.description||'') + (p.featured?' · ★ giọng nổi bật':'') : ''; }
   else if(v.startsWith('c:')){ const c = vnVoices.custom.find(x=>x.id===v.slice(2)); d = 'Giọng cá nhân của bạn' + (vmodel==='f5' && c && !c.ref_text ? ' · chưa có lời thoại: lần đầu F5-TTS sẽ tự nhận dạng' : ''); }
   if(vmodel==='f5' && v.startsWith('p:')) d += ' · F5-TTS đọc theo giọng mẫu này';
-  $('#vvoiceDesc').textContent = d;
+  $('#vvoiceDesc').textContent = d; renderEmotionTools();
 }
 $('#vvoice').onchange = ()=>{ store.set('vvoice', $('#vvoice').value); descVn(); };
 function bindFilter(id, key, get, set){
@@ -854,6 +958,7 @@ function renderPv(){
       <span class="n">${esc(v.name)}</span>
       <span class="tag">${v.gender==='male'?'Nam':'Nữ'}${v.seconds?' · '+v.seconds+'s':''}</span>
       <button class="btn ghost" data-pvedit="${v.id}" title="Nghe mẫu, nhận dạng và sửa lời thoại">Sửa lời thoại${v.ref_text_legacy?' ⚠':''}</button>
+      <button class="btn ghost" data-pvemotions="${v.id}">Cảm xúc</button>
       <button class="btn ghost" data-pvuse="${v.id}">Dùng</button>
       <button class="btn ghost" data-pvdel="${v.id}" title="Xóa">✕</button></li>`).join('')
     : '<li class="empty">Chưa có giọng cá nhân. Bấm “+ Thêm giọng mới” để bắt đầu.</li>';
@@ -861,6 +966,7 @@ function renderPv(){
 $('#pvList').onclick = async e=>{
   const t = e.target.closest('button'); if(!t) return;
   if(t.dataset.pvplay){ const voice=vnVoices.custom.find(v=>v.id===t.dataset.pvplay); $('#libraryPlayer').src='/api/engine/voice-sample?id='+t.dataset.pvplay; $('#libraryPreviewName').textContent=voice?voice.name:'Mẫu ghi âm';show('#libraryPreview',true);$('#libraryPlayer').play().catch(()=>{}); }
+  if(t.dataset.pvemotions) openEmotionSetup(t.dataset.pvemotions);
   if(t.dataset.pvuse){ setView('create'); region=''; vgender=''; bindFilter('#region','r',()=>region,v=>{region=v;store.set('vregion',v)}); bindFilter('#vgender','g',()=>vgender,v=>{vgender=v;store.set('vgender',v)}); fillVn('c:'+t.dataset.pvuse); store.set('vvoice','c:'+t.dataset.pvuse); }
   if(t.dataset.pvedit){
     const c = vnVoices.custom.find(x=>x.id===t.dataset.pvedit) || {};
@@ -884,9 +990,10 @@ function openVoiceDialog(title){
   if(!$('#pvDialog').open) $('#pvDialog').showModal();
 }
 function closeVoiceDialog(){stopRec(true);++pvAudioGeneration;$('#pvDialog').close();}
-$('#pvCancelBtn').onclick=closeVoiceDialog;
-$('#pvCloseBtn').onclick=closeVoiceDialog;
-$('#pvDialog').addEventListener('cancel',event=>{event.preventDefault();closeVoiceDialog();});
+function cancelVoiceDialog(){closeVoiceDialog();returnToEmotionSetup();}
+$('#pvCancelBtn').onclick=cancelVoiceDialog;
+$('#pvCloseBtn').onclick=cancelVoiceDialog;
+$('#pvDialog').addEventListener('cancel',event=>{event.preventDefault();cancelVoiceDialog();});
 function renderAudioSource(){
   const source=$('#pvSource').value;
   show('#recBtn',source==='mic');show('#systemRecBtn',source==='system');show('#pvUploadBtn',source==='file');show('#systemRecHelp',source==='system');
@@ -1058,6 +1165,7 @@ $('#pvSaveBtn').onclick = async ()=>{
     region=''; vgender='';
     bindFilter('#region','r',()=>region,v=>{region=v;store.set('vregion',v)}); bindFilter('#vgender','g',()=>vgender,v=>{vgender=v;store.set('vgender',v)});
     await loadVnVoices('c:'+d.id); store.set('vvoice','c:'+d.id);
+    if(returnToEmotionSetup(d.id)){$('#pvSaveBtn').disabled=false;return;}
     setView('create'); setMsg('Đã lưu giọng “'+name+'”. Nhập văn bản rồi bấm Tạo giọng để nghe thử.');
   }catch(e){ msg('Lỗi: '+e.message, true); }
   $('#pvSaveBtn').disabled = false;
@@ -1120,6 +1228,136 @@ $('#vPreviewBtn').onclick = async ()=>{
   }catch(e){ pm('Lỗi: '+e.message); }
   previewing = false; $('#vPreviewBtn').disabled = false;
 };
+
+// F5 style tags route each text span to a verified reference clip.
+const F5_STYLES={vui:'Vui vẻ',buon:'Buồn, trầm',gian:'Giận, mạnh',haohung:'Hào hứng',thitham:'Thì thầm',kechuyen:'Kể chuyện'};
+let emotionDraft=null,emotionReturn=null,emotionBusy=false,emotionSaving=false,emotionEpoch=0,emotionPreviewJob=null;
+const HELP_NOTES={
+ emotion:['Thẻ cảm xúc hoạt động thế nào?','<p>F5-TTS đọc theo <b>audio mẫu và lời thoại của mẫu</b>. Thẻ [vui] chọn mẫu vui đã gán cho giọng gốc, không phải một mệnh lệnh cảm xúc mà mô hình tự hiểu.</p><p>Bôi đen một đoạn rồi chèn thẻ: app tự thêm thẻ cảm xúc ở đầu và khôi phục cảm xúc trước đó ở cuối đoạn. Không bôi đen: thẻ áp dụng từ con trỏ đến thẻ tiếp theo. [macdinh] quay về mẫu giọng gốc.</p><p>VieNeu có ba thẻ riêng: [cười], [thở dài], [hắng giọng]. Đây là biểu cảm tại vị trí chèn, không phải cảm xúc bao phủ cả đoạn được chọn.</p>'],
+ sameSpeaker:['Vì sao cần cùng một người nói?','<p>Mẫu tham chiếu mang cả danh tính giọng lẫn cách nói. Nếu mẫu vui và mẫu buồn là hai người khác nhau, audio có thể đổi sang giọng người khác.</p><p>Hãy chọn các đoạn của cùng người với giọng gốc. Ứng dụng không tự xác minh được danh tính người nói.</p>'],
+ sample:['Chuẩn bị mẫu cảm xúc','<p>Chọn đoạn rõ tiếng, một người nói, ít nhạc nền và khoảng <b>5–10 giây</b>. Hãy kết thúc trọn câu và để một chút yên lặng ở cuối.</p><p>Nói nội dung tự nhiên bằng đúng sắc thái muốn dùng; không cần đọc theo văn bản gợi ý. File dài hiện lấy 12 giây đầu, nên hãy nghe lại đoạn đã lưu và tránh cắt giữa một từ.</p>'],
+ transcript:['Vì sao lời thoại phải khớp?','<p>F5-TTS dùng cặp audio–văn bản làm tham chiếu. Nếu audio nói một câu nhưng lời thoại ghi câu khác, mô hình có thể đọc sai hoặc nói linh tinh.</p><p>Bấm Tự nhận dạng, nghe lại đoạn mẫu đã lưu, sửa từ sai rồi xác nhận. Việc xác nhận này chỉ dành cho <b>lời thoại mẫu</b>, không phải nội dung mới cần đọc.</p>'],
+ quality:['Cảm xúc không phải một công tắc tuyệt đối','<p>F5-TTS có thể học theo sắc thái của mẫu, nhưng mức độ thể hiện còn tùy chất lượng mẫu, nội dung và mô hình. Nhãn “vui” tự nó không làm một mẫu trung tính trở nên vui.</p><p>Nghe thử trước khi lưu liên kết. Nếu chưa đạt, chọn mẫu biểu cảm rõ hơn của cùng người. Đổi tốc độ không tương đương đổi cảm xúc.</p>'],
+ setup:['Bắt đầu thiết lập','<ol><li>Chọn F5-TTS, cài VieNeu trước nếu chưa có, rồi cài F5-TTS và chờ sẵn sàng.</li><li>Trong Giọng cá nhân, tạo một giọng gốc từ mẫu bạn được phép sử dụng.</li><li>Thiết lập từng cảm xúc bằng mẫu của cùng người, kiểm tra lời thoại và nghe thử.</li><li>Chèn thẻ vào nội dung mới rồi tạo audio.</li></ol><p>Lần đầu nhận dạng lời thoại có thể tải thêm mô hình Whisper. Các mẫu được lưu trên máy, không cần huấn luyện lại F5.</p>']
+};
+function openHelp(key){
+ const note=HELP_NOTES[key]||HELP_NOTES.emotion;
+ $('#helpTitle').textContent=note[0];$('#helpBody').innerHTML=note[1];
+ if(!$('#helpDialog').open) $('#helpDialog').showModal();
+}
+document.addEventListener('click',event=>{const button=event.target.closest('[data-help]');if(button)openHelp(button.dataset.help);});
+$('#helpCloseBtn').onclick=$('#helpDoneBtn').onclick=()=>$('#helpDialog').close();
+function emotionMessage(text,error=false){$('#emotionWizardMsg').textContent=text;$('#emotionWizardMsg').className='msg'+(error?' err':'');}
+function selectedBase(){return vnVoices.custom.find(voice=>voice.id===emotionDraft?.baseId);}
+function selectedEmotionSample(){return vnVoices.custom.find(voice=>voice.id===emotionDraft?.sampleId);}
+function refreshEmotionReadiness(){
+ if(!emotionDraft) return;
+ show('#emotionPrerequisites',!f5Ready);
+ $('#emotionNextBtn').disabled=emotionBusy || !f5Ready || !selectedBase() || (emotionDraft.step>=2&&!selectedEmotionSample()) || (emotionDraft.step===3&&(!$('#emotionRefText').value.trim()||!$('#emotionSameSpeaker').checked||!$('#emotionTranscriptChecked').checked));
+ $('#emotionRefText').disabled=emotionBusy; $('#emotionBackBtn').disabled=emotionBusy;$('#emotionCloseBtn').disabled=emotionSaving;
+ $('#emotionTranscribeBtn').disabled=emotionBusy||!f5Ready;$('#emotionPreviewBtn').disabled=emotionBusy||!f5Ready||!$('#emotionRefText').value.trim()||!$('#emotionTranscriptChecked').checked;
+ $('#emotionRemoveBtn').disabled=emotionBusy;
+}
+function renderEmotionWizard(){
+ if(!emotionDraft) return;
+ const draft=emotionDraft;
+ if(draft.step!==2 || !draft.sampleId)$('#emotionSamplePlayer').pause();
+ if(draft.step!==3){$('#emotionReviewPlayer').pause();$('#emotionGeneratedPlayer').pause();}
+ for(const step of [1,2,3])show('#emotionStep'+step,draft.step===step);
+ document.querySelectorAll('[data-emotion-step]').forEach(item=>item.classList.toggle('on',Number(item.dataset.emotionStep)===draft.step));
+ $('#emotionBaseVoice').innerHTML='<option value="">Chọn giọng gốc…</option>'+vnVoices.custom.map(voice=>`<option value="${voice.id}">${esc(voice.name)}</option>`).join('');$('#emotionBaseVoice').value=draft.baseId;
+ $('#emotionStyle').innerHTML=Object.entries(F5_STYLES).map(([tag,label])=>`<option value="${tag}">${label} · [${tag}]</option>`).join('');$('#emotionStyle').value=draft.tag;
+ const base=selectedBase(),mappings=base?.emotion_samples||{};
+ $('#emotionConfigured').innerHTML=Object.entries(F5_STYLES).map(([tag,label])=>{const available=mappings[tag]&&vnVoices.custom.some(voice=>voice.id===mappings[tag]);return `<button class="btn ${available?'configured':''}" data-configure-emotion="${tag}">${label}${available?' ✓':mappings[tag]?' · thiếu mẫu':''}</button>`;}).join('');
+ $('#emotionSampleVoice').innerHTML='<option value="">Chọn mẫu mang sắc thái '+F5_STYLES[draft.tag]+'…</option>'+vnVoices.custom.filter(voice=>voice.id!==draft.baseId).map(voice=>`<option value="${voice.id}">${esc(voice.name)}${voice.seconds?' · '+voice.seconds+' giây':''}</option>`).join('');$('#emotionSampleVoice').value=draft.sampleId;
+ show('#emotionBackBtn',draft.step>1);$('#emotionNextBtn').textContent=draft.step===3?'Lưu cảm xúc':'Tiếp tục →';
+ show('#emotionRemoveBtn',!!mappings[draft.tag]&&draft.step===3);
+ show('#emotionSamplePlayer',!!draft.sampleId);
+ if(draft.sampleId){const source='/api/engine/voice-sample?id='+draft.sampleId;$('#emotionSamplePlayer').src=source;$('#emotionReviewPlayer').src=source;}
+ if(draft.step===3){const sample=selectedEmotionSample();$('#emotionRefText').value=sample?.ref_text_legacy?'':(sample?.ref_text||'');$('#emotionSameSpeaker').checked=false;$('#emotionTranscriptChecked').checked=false;show('#emotionGeneratedPlayer',false);}
+ refreshEmotionReadiness();
+}
+function openEmotionSetup(baseId){
+ ++emotionEpoch;emotionReturn=null;
+ const current=$('#vvoice').value;
+ const chosen=baseId || (current.startsWith('c:')?current.slice(2):'');
+ emotionDraft={baseId:chosen,tag:'vui',sampleId:'',step:1};emotionMessage('');
+ if(engine!=='vieneu'||vmodel!=='f5'){vmodel='f5';store.set('vmodel',vmodel);setEngine('vieneu');}
+ renderEmotionWizard();$('#f5EmotionDialog').showModal();
+}
+function closeEmotionSetup(){
+ ++emotionEpoch;
+ if(emotionPreviewJob)fetch('/api/cancel?id='+emotionPreviewJob);
+ emotionPreviewJob=null;emotionDraft=null;emotionReturn=null;emotionBusy=false;emotionSaving=false;
+ for(const id of ['emotionSamplePlayer','emotionReviewPlayer','emotionGeneratedPlayer'])$('#'+id).pause();
+ $('#f5EmotionDialog').close();
+}
+$('#setupEmotionsBtn').onclick=()=>openEmotionSetup();
+$('#emotionCloseBtn').onclick=closeEmotionSetup;
+$('#f5EmotionDialog').addEventListener('cancel',event=>{event.preventDefault();if(!emotionSaving)closeEmotionSetup();});
+$('#prepareF5Btn').onclick=()=>{closeEmotionSetup();vmodel='f5';store.set('vmodel',vmodel);setEngine('vieneu');setView('create');openHelp('setup');};
+$('#emotionBaseVoice').onchange=()=>{emotionDraft.baseId=$('#emotionBaseVoice').value;emotionDraft.sampleId='';renderEmotionWizard();};
+$('#emotionStyle').onchange=()=>{emotionDraft.tag=$('#emotionStyle').value;emotionDraft.sampleId='';renderEmotionWizard();};
+$('#emotionConfigured').onclick=event=>{const button=event.target.closest('[data-configure-emotion]');if(button){emotionDraft.tag=button.dataset.configureEmotion;emotionDraft.sampleId='';renderEmotionWizard();}};
+$('#emotionSampleVoice').onchange=()=>{emotionDraft.sampleId=$('#emotionSampleVoice').value;renderEmotionWizard();};
+$('#emotionBackBtn').onclick=()=>{emotionDraft.step--;emotionMessage('');renderEmotionWizard();};
+for(const id of ['emotionRefText','emotionSameSpeaker','emotionTranscriptChecked'])$('#'+id).addEventListener('input',()=>{if(id==='emotionRefText')$('#emotionTranscriptChecked').checked=false;refreshEmotionReadiness();});
+async function emotionRequest(path,body){const response=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});if(!response.ok)throw new Error(await response.text());return response.json();}
+$('#emotionNextBtn').onclick=async()=>{
+ if($('#emotionNextBtn').disabled) return;
+ if(emotionDraft.step===1){emotionDraft.sampleId=selectedBase()?.emotion_samples?.[emotionDraft.tag]||'';if(!selectedEmotionSample())emotionDraft.sampleId='';emotionDraft.step=2;emotionMessage('');renderEmotionWizard();return;}
+ if(emotionDraft.step===2){emotionDraft.step=3;emotionMessage('');renderEmotionWizard();return;}
+ emotionBusy=true;emotionSaving=true;refreshEmotionReadiness();emotionMessage('Đang lưu mẫu và liên kết cảm xúc…');
+ try{
+  await emotionRequest('/api/engine/voice-update',{id:emotionDraft.sampleId,ref_text:$('#emotionRefText').value.trim()});
+  await emotionRequest('/api/engine/emotions',{id:emotionDraft.baseId,tag:emotionDraft.tag,sample_id:emotionDraft.sampleId});
+  const baseId=emotionDraft.baseId,tag=emotionDraft.tag;
+  region='';vgender='';store.set('vregion','');store.set('vgender','');$('#region').value='';$('#vgender').value='';
+  await loadVnVoices('c:'+baseId);store.set('vvoice','c:'+baseId);
+  emotionBusy=false;emotionSaving=false;closeEmotionSetup();setView('create');renderEmotionTools();
+  $('#emotionCue').value='['+tag+']';
+  setMsg('Đã thiết lập ['+tag+']. Chọn thẻ trong mục Thẻ biểu cảm để chèn vào nội dung.');
+ }catch(error){emotionMessage('Không lưu được: '+error.message,true);emotionBusy=false;emotionSaving=false;refreshEmotionReadiness();}
+};
+$('#emotionTranscribeBtn').onclick=async()=>{
+ if(emotionBusy) return;
+ const epoch=emotionEpoch;emotionBusy=true;refreshEmotionReadiness();emotionMessage('Đang nhận dạng lời thoại mẫu… lần đầu có thể tải thêm Whisper.');
+ try{const data=await emotionRequest('/api/engine/transcribe',{id:emotionDraft.sampleId});if(epoch!==emotionEpoch)return;$('#emotionRefText').value=data.ref_text;$('#emotionTranscriptChecked').checked=false;emotionMessage('Đã nhận dạng. Nghe lại mẫu, sửa từ chưa đúng rồi xác nhận.');}
+ catch(error){if(epoch===emotionEpoch)emotionMessage('Không nhận dạng được: '+error.message,true);}
+ finally{if(epoch===emotionEpoch){emotionBusy=false;refreshEmotionReadiness();}}
+};
+$('#emotionPreviewBtn').onclick=async()=>{
+ if(emotionBusy) return;
+ const epoch=emotionEpoch;emotionBusy=true;refreshEmotionReadiness();emotionMessage('Đang tạo đoạn nghe thử theo mẫu đã chọn…');
+ try{
+  await emotionRequest('/api/engine/voice-update',{id:emotionDraft.sampleId,ref_text:$('#emotionRefText').value.trim()});
+  const response=await emotionRequest('/api/tts',{engine:'f5',voice:emotionDraft.sampleId,custom:true,preview:true,text:'Xin chào, hôm nay tôi sẽ kể cho bạn nghe một câu chuyện.',rate:0,volume:0});
+  if(epoch!==emotionEpoch){fetch('/api/cancel?id='+response.id);return;}
+  emotionPreviewJob=response.id;
+  while(epoch===emotionEpoch){const job=await (await fetch('/api/job?id='+response.id)).json();if(job.status==='running'){await new Promise(resolve=>setTimeout(resolve,700));continue;}if(job.status!=='done')throw new Error(job.error||'Không tạo được đoạn thử');$('#emotionGeneratedPlayer').src='/preview/'+encodeURIComponent(job.file);show('#emotionGeneratedPlayer',true);$('#emotionGeneratedPlayer').play().catch(()=>{});emotionMessage('Nghe thử sắc thái. Nếu chưa phù hợp, quay lại chọn mẫu khác.');break;}
+ }catch(error){if(epoch===emotionEpoch)emotionMessage('Không nghe thử được: '+error.message,true);}
+ finally{if(epoch===emotionEpoch){emotionPreviewJob=null;emotionBusy=false;refreshEmotionReadiness();}}
+};
+$('#emotionRemoveBtn').onclick=async()=>{
+ if(emotionBusy)return;emotionBusy=true;emotionSaving=true;refreshEmotionReadiness();
+ try{await emotionRequest('/api/engine/emotions',{id:emotionDraft.baseId,tag:emotionDraft.tag,sample_id:''});await loadVnVoices();emotionDraft.step=1;emotionDraft.sampleId='';renderEmotionWizard();emotionMessage('Đã bỏ liên kết; file mẫu vẫn được giữ trong Giọng cá nhân.');}
+ catch(error){emotionMessage(error.message,true);}finally{emotionBusy=false;emotionSaving=false;refreshEmotionReadiness();}
+};
+function addEmotionVoice(kind){
+ if(!vnReady){emotionMessage('Cần VieNeu sẵn sàng để phân tích mẫu. Mở phần cài mô hình trước.',true);return;}
+ emotionReturn=kind;for(const id of ['emotionSamplePlayer','emotionReviewPlayer','emotionGeneratedPlayer'])$('#'+id).pause();$('#f5EmotionDialog').close();resetPv();
+ const base=selectedBase();$('#pvName').value=kind==='sample'?(base?.name||'Giọng')+' · '+F5_STYLES[emotionDraft.tag]:'';
+ if(base?.gender){pvGender=base.gender;$('#pvGender').value=pvGender;}
+ openVoiceDialog(kind==='sample'?'Thêm mẫu '+F5_STYLES[emotionDraft.tag]:'Tạo giọng gốc');
+ $('#pvInfo').textContent=kind==='sample'?'Thu hoặc chọn mẫu của cùng người nói, thể hiện rõ sắc thái '+F5_STYLES[emotionDraft.tag]+'.':'';
+}
+$('#emotionAddSampleBtn').onclick=()=>addEmotionVoice('sample');$('#emotionAddBaseBtn').onclick=()=>addEmotionVoice('base');
+function returnToEmotionSetup(id){
+ if(!emotionReturn||!emotionDraft)return false;
+ const kind=emotionReturn;emotionReturn=null;
+ if(id){if(kind==='base'){emotionDraft.baseId=id;emotionDraft.step=1;}else{emotionDraft.sampleId=id;emotionDraft.step=3;}}
+ renderEmotionWizard();$('#f5EmotionDialog').showModal();return true;
+}
 
 setEngine(engine);
 renderSamples();

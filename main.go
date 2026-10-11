@@ -54,6 +54,7 @@ func snapshot(j *job) job {
 
 var badName = regexp.MustCompile(`[<>:"/\\|?*\x00-\x1f]+`)
 var emotionCuePattern = regexp.MustCompile(`(?i)\[(?:cười|cuoi|chuckle|thở dài|tho dai|sigh|hắng giọng|hang giong|clear throat)\]|<\|emotion_[123]\|>`)
+var f5StylePattern = regexp.MustCompile(`(?i)\[(?:vui|buon|gian|haohung|thitham|kechuyen|macdinh)\]`)
 
 func fileNameFor(text string) string {
 	words := strings.Fields(text)
@@ -90,6 +91,25 @@ func previewName(in ttsRequest) string {
 	if in.Custom && validVoiceID(in.Voice) && (in.Engine == "vieneu" || in.Engine == "f5") {
 		if metadata, err := os.ReadFile(filepath.Join(engineDir(), "voices", in.Voice+".json")); err == nil {
 			h.Write(metadata)
+			var profile struct {
+				EmotionSamples map[string]string `json:"emotion_samples"`
+			}
+			if in.Engine == "f5" && json.Unmarshal(metadata, &profile) == nil {
+				keys := make([]string, 0, len(profile.EmotionSamples))
+				for tag := range profile.EmotionSamples {
+					keys = append(keys, tag)
+				}
+				sort.Strings(keys)
+				for _, tag := range keys {
+					id := profile.EmotionSamples[tag]
+					if validVoiceID(id) {
+						if sample, err := os.ReadFile(filepath.Join(engineDir(), "voices", id+".json")); err == nil {
+							h.Write([]byte(tag))
+							h.Write(sample)
+						}
+					}
+				}
+			}
 		}
 	}
 	return hex.EncodeToString(h.Sum(nil)[:12])
@@ -224,6 +244,10 @@ func handler(quit chan struct{}) http.Handler {
 		}
 		if in.Engine != "vieneu" && emotionCuePattern.MatchString(in.Text) {
 			http.Error(w, "Thẻ biểu cảm chỉ dùng với VieNeu. Chọn VieNeu hoặc bỏ thẻ khỏi nội dung.", 400)
+			return
+		}
+		if f5StylePattern.MatchString(in.Text) && (in.Engine != "f5" || !in.Custom) {
+			http.Error(w, "Thẻ cảm xúc F5-TTS cần chọn F5-TTS và một giọng cá nhân đã thiết lập mẫu cảm xúc.", 400)
 			return
 		}
 		if (in.Engine == "vieneu" || in.Engine == "f5") && currentEngine(in.Engine) == nil {

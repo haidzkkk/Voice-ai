@@ -939,6 +939,77 @@ func registerEngineAPI(mux *http.ServeMux) {
 		writeJSON(w, out)
 	})
 
+	mux.HandleFunc("/api/engine/emotions", func(w http.ResponseWriter, r *http.Request) {
+		if !postOnly(w, r) {
+			return
+		}
+		var in struct {
+			ID       string `json:"id"`
+			Tag      string `json:"tag"`
+			SampleID string `json:"sample_id"`
+		}
+		allowed := map[string]bool{"vui": true, "buon": true, "gian": true, "haohung": true, "thitham": true, "kechuyen": true}
+		if json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&in) != nil || !validVoiceID(in.ID) || !allowed[in.Tag] || (in.SampleID != "" && !validVoiceID(in.SampleID)) {
+			http.Error(w, "dữ liệu cảm xúc không hợp lệ", 400)
+			return
+		}
+		path := filepath.Join(engineDir(), "voices", in.ID+".json")
+		data, err := os.ReadFile(path)
+		var profile map[string]any
+		if err != nil || json.Unmarshal(data, &profile) != nil {
+			http.Error(w, "không tìm thấy giọng gốc", 404)
+			return
+		}
+		if in.SampleID != "" {
+			samplePath := filepath.Join(engineDir(), "voices", in.SampleID+".json")
+			data, err := os.ReadFile(samplePath)
+			var sample struct {
+				RefText  string `json:"ref_text"`
+				Verified bool   `json:"ref_text_verified"`
+			}
+			_, audioErr := os.Stat(filepath.Join(engineDir(), "voices", in.SampleID+".wav"))
+			if err != nil || audioErr != nil || json.Unmarshal(data, &sample) != nil {
+				http.Error(w, "không tìm thấy file mẫu cảm xúc", 404)
+				return
+			}
+			if strings.TrimSpace(sample.RefText) == "" || !sample.Verified {
+				http.Error(w, "Hãy nghe lại và xác nhận lời thoại mẫu trước khi lưu cảm xúc.", 400)
+				return
+			}
+		}
+		samples, _ := profile["emotion_samples"].(map[string]any)
+		if samples == nil {
+			samples = map[string]any{}
+		}
+		if in.SampleID == "" {
+			delete(samples, in.Tag)
+		} else {
+			samples[in.Tag] = in.SampleID
+		}
+		profile["emotion_samples"] = samples
+		data, err = json.Marshal(profile)
+		if err == nil {
+			var file *os.File
+			file, err = os.CreateTemp(filepath.Dir(path), ".emotion-*.tmp")
+			if err == nil {
+				defer os.Remove(file.Name())
+				_, err = file.Write(data)
+				closeErr := file.Close()
+				if err == nil {
+					err = closeErr
+				}
+				if err == nil {
+					err = os.Rename(file.Name(), path)
+				}
+			}
+		}
+		if err != nil {
+			http.Error(w, "không lưu được cảm xúc: "+err.Error(), 500)
+			return
+		}
+		writeJSON(w, map[string]bool{"ok": true})
+	})
+
 	mux.HandleFunc("/api/engine/transcribe", func(w http.ResponseWriter, r *http.Request) {
 		if !postOnly(w, r) {
 			return
