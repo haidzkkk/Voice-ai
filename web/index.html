@@ -293,6 +293,7 @@ textarea.inp{min-height:0;font-size:14px;line-height:1.5;resize:vertical}
             <button class="chip on" data-g="female">Nữ</button>
             <button class="chip" data-g="male">Nam</button>
           </div>
+          <div id="pvAudioInputs">
           <label class="fl">Ghi âm hoặc tải file giọng nói 5–12 giây</label>
           <p class="sub">Có thể nói nội dung bất kỳ, không cần đọc theo mẫu. Chọn đoạn chỉ có một người nói rõ, ít tạp âm. VieNeu tự phân tích đặc trưng giọng khi lưu.</p>
           <div class="sub">Văn bản gợi ý nếu bạn muốn ghi âm:</div>
@@ -305,11 +306,16 @@ textarea.inp{min-height:0;font-size:14px;line-height:1.5;resize:vertical}
             <input type="file" id="pvFile" accept="audio/*,.wav,.mp3,.m4a,.ogg,.webm" class="hide">
           </div>
           <div class="sub" style="margin-top:8px">Ghi âm trong máy: chọn tab đang phát giọng nói và bật “Chia sẻ âm thanh”. Trên Mac, hãy dùng Chrome hoặc Edge; thu âm toàn bộ máy/cửa sổ tùy trình duyệt hỗ trợ. Tự dừng sau 12 giây.</div>
+          </div>
           <div class="sub" id="pvInfo" style="margin-top:8px"></div>
           <audio id="pvPreview" controls class="hide"></audio>
           <label class="fl" for="pvRefText">Lời thoại trong đoạn ghi âm <span class="sub">— không bắt buộc</span></label>
           <textarea id="pvRefText" class="inp" rows="2" placeholder="Có thể để trống. Nếu nhập, hãy nhập đúng lời nói trong đoạn âm thanh đã chọn."></textarea>
           <div class="sub">VieNeu không cần lời thoại. F5-TTS tự nhận dạng lời thoại khi dùng giọng lần đầu nếu ô này trống (có thể tải thêm mô hình nhận dạng ~1,6 GB).</div>
+          <div class="row" style="margin-top:8px">
+            <button class="btn" id="pvTranscribeBtn">Tự nhận dạng lời thoại</button>
+          </div>
+          <div class="sub">Với F5-TTS, nghe lại mẫu và kiểm tra lời thoại nhận dạng có khớp không. Lời thoại sai có thể làm giọng đọc sai nội dung.</div>
           <label class="check" style="margin-top:12px"><input type="checkbox" id="pvConsent"> Đây là giọng của tôi, hoặc tôi đã được người đó đồng ý.</label>
           <div class="row" style="margin-top:12px">
             <button class="btn primary" id="pvSaveBtn" style="width:auto;padding:10px 18px;font-size:15px">Phân tích và lưu giọng</button>
@@ -746,13 +752,14 @@ chipGroup('#vgender','g',()=>vgender,v=>{vgender=v;store.set('vgender',v)});
 // ----- Giọng cá nhân -----
 let pvGender = 'female', pvWav = null, pvSeconds = 0, rec = null, recStart = 0, recTick = null;
 let recSource = '', recPending = false, recGeneration = 0;
+let pvEditingId = '', pvTranscribing = false, pvAudioGeneration = 0;
 function renderPv(){
   const list = vnVoices.custom || [];
   $('#pvList').innerHTML = list.length ? list.map(v=>`<li>
       <button class="btn ghost" data-pvplay="${v.id}" title="Nghe mẫu ghi âm">▶</button>
       <span class="n">${esc(v.name)}</span>
       <span class="tag">${v.gender==='male'?'Nam':'Nữ'}${v.seconds?' · '+v.seconds+'s':''}</span>
-      <button class="btn ghost" data-pvedit="${v.id}" title="Sửa lời thoại của đoạn ghi âm">✎</button>
+      <button class="btn ghost" data-pvedit="${v.id}" title="Nghe mẫu, nhận dạng và sửa lời thoại">Sửa lời thoại${v.ref_text_legacy?' ⚠':''}</button>
       <button class="btn ghost" data-pvuse="${v.id}">Dùng</button>
       <button class="btn ghost" data-pvdel="${v.id}" title="Xóa">✕</button></li>`).join('')
     : '<li class="empty">Chưa có giọng cá nhân. Bấm “+ Tạo giọng mới” để ghi âm giọng của bạn.</li>';
@@ -763,15 +770,44 @@ $('#pvList').onclick = async e=>{
   if(t.dataset.pvuse){ region=''; vgender=''; chipGroup('#region','r',()=>region,v=>{region=v;store.set('vregion',v)}); chipGroup('#vgender','g',()=>vgender,v=>{vgender=v;store.set('vgender',v)}); fillVn('c:'+t.dataset.pvuse); store.set('vvoice','c:'+t.dataset.pvuse); }
   if(t.dataset.pvedit){
     const c = vnVoices.custom.find(x=>x.id===t.dataset.pvedit) || {};
-    const nt = prompt('Lời thoại trong đoạn ghi âm của “'+(c.name||'')+'” (gõ đúng lời đã đọc):', c.ref_text||'');
-    if(nt!==null){ await fetch('/api/engine/voice-update',{method:'POST',body:JSON.stringify({id:t.dataset.pvedit, ref_text:nt})}); loadVnVoices(); }
+    resetPv(); pvEditingId=t.dataset.pvedit;
+    $('#pvName').value=c.name || '';
+    $('#pvRefText').value=c.ref_text_legacy ? '' : (c.ref_text || '');
+    $('#pvPreview').src='/api/engine/voice-sample?id='+pvEditingId; show('#pvPreview',true);
+    $('#pvSaveBtn').textContent='Lưu chỉnh sửa';
+    show('#pvForm',true); show('#pvAudioInputs',false);
+    $('#pvInfo').textContent=c.ref_text_legacy ? 'Giọng cũ đang lưu văn bản mẫu. Bấm Tự nhận dạng lời thoại rồi nghe lại để kiểm tra.' : 'Nghe mẫu và sửa lời thoại cho khớp với chính đoạn âm thanh này.';
+    $('#pvForm').scrollIntoView({behavior:'smooth',block:'nearest'});
   }
   if(t.dataset.pvdel && confirm('Xóa giọng cá nhân này?')){ await fetch('/api/engine/voice-delete?id='+t.dataset.pvdel,{method:'POST'}); loadVnVoices(); }
 };
 document.querySelectorAll('#pvGender .chip').forEach(c=>c.onclick=()=>{ pvGender=c.dataset.g; document.querySelectorAll('#pvGender .chip').forEach(x=>x.classList.toggle('on',x===c)); });
-function resetPv(){ stopRec(true); pvWav=null; pvSeconds=0; $('#pvInfo').textContent=''; show('#pvPreview',false); $('#pvMsg').textContent=''; $('#pvMsg').className='msg'; $('#pvConsent').checked=false; $('#pvRefText').value=''; }
+function resetPv(){ stopRec(true); ++pvAudioGeneration; pvEditingId=''; pvWav=null; pvSeconds=0; $('#pvInfo').textContent=''; show('#pvPreview',false); $('#pvMsg').textContent=''; $('#pvMsg').className='msg'; $('#pvConsent').checked=false; $('#pvRefText').value=''; $('#pvSaveBtn').textContent='Phân tích và lưu giọng'; show('#pvAudioInputs',true); }
 $('#pvNewBtn').onclick = ()=>{ resetPv(); $('#pvName').value=''; show('#pvForm',true); $('#pvName').focus(); };
-$('#pvCancelBtn').onclick = ()=>{ stopRec(true); show('#pvForm',false); };
+$('#pvCancelBtn').onclick = ()=>{ stopRec(true); ++pvAudioGeneration; show('#pvForm',false); };
+
+function audioBase64(blob){
+  return new Promise((ok,bad)=>{ const fr=new FileReader(); fr.onload=()=>ok(fr.result.split(',')[1]); fr.onerror=bad; fr.readAsDataURL(blob); });
+}
+$('#pvTranscribeBtn').onclick = async ()=>{
+  const msg=(text,error)=>{ $('#pvMsg').textContent=text; $('#pvMsg').className='msg'+(error?' err':''); };
+  if(pvTranscribing) return;
+  if(!pvEditingId && !pvWav) return msg('Hãy ghi âm hoặc chọn file trước.',true);
+  if(!f5Ready) return msg('Chọn F5-TTS và chờ mô hình sẵn sàng để tự nhận dạng. Bạn cũng có thể nhập đúng lời thoại thủ công.',true);
+  const generation=pvAudioGeneration;
+  const originalText=$('#pvRefText').value;
+  pvTranscribing=true; renderRecording(); msg('Đang nhận dạng lời thoại từ mẫu… lần đầu có thể cần tải mô hình nhận dạng.');
+  try{
+    const body=pvEditingId ? {id:pvEditingId} : {wav_b64:await audioBase64(pvWav)};
+    const r=await fetch('/api/engine/transcribe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(!r.ok) throw new Error(await r.text());
+    const d=await r.json();
+    if(generation!==pvAudioGeneration) return;
+    if($('#pvRefText').value===originalText) $('#pvRefText').value=d.ref_text;
+    msg('Đã nhận dạng. Nghe lại mẫu và kiểm tra lời thoại; sửa từ sai rồi bấm Lưu.');
+  }catch(e){ if(generation===pvAudioGeneration) msg('Không nhận dạng được: '+e.message,true); }
+  finally{ pvTranscribing=false; renderRecording(); }
+};
 
 function encodeWav(buf, maxSec){
   const sr = buf.sampleRate, n = Math.min(buf.length, Math.floor(sr*maxSec)), ch = buf.numberOfChannels;
@@ -786,6 +822,7 @@ function encodeWav(buf, maxSec){
   return {blob:new Blob([out],{type:'audio/wav'}), seconds:n/sr, full:buf.length/sr};
 }
 async function useAudio(blob, generation=null){
+  ++pvAudioGeneration;
   let ctx;
   try{
     ctx = new (window.AudioContext||window.webkitAudioContext)();
@@ -808,7 +845,7 @@ $('#pvUploadBtn').onclick = ()=> $('#pvFile').click();
 $('#pvFile').onchange = e=>{ const f=e.target.files[0]; if(f){ $('#pvRefText').value=''; useAudio(f); } e.target.value=''; };
 
 function renderRecording(){
-  const working = recPending || !!rec;
+  const working = recPending || !!rec || pvTranscribing;
   for(const source of ['mic', 'system']){
     const button = $(source==='mic' ? '#recBtn' : '#systemRecBtn');
     const label = $(source==='mic' ? '#recLabel' : '#systemRecLabel');
@@ -819,10 +856,11 @@ function renderRecording(){
   }
   $('#pvUploadBtn').disabled = working;
   $('#pvSaveBtn').disabled = working;
+  $('#pvTranscribeBtn').disabled = working;
 }
 
 async function startRec(source='mic'){
-  if(rec || recPending) return;
+  if(rec || recPending || pvTranscribing) return;
   if(!navigator.mediaDevices || !window.MediaRecorder){ $('#pvInfo').textContent='Trình duyệt này không hỗ trợ ghi âm. Hãy dùng Chrome hoặc Edge, hoặc chọn file âm thanh.'; return; }
   if(source==='system' && !navigator.mediaDevices.getDisplayMedia){ $('#pvInfo').textContent='Trình duyệt này không hỗ trợ ghi âm trong máy. Hãy mở ứng dụng bằng Chrome hoặc Edge.'; return; }
   const generation = ++recGeneration;
@@ -888,12 +926,23 @@ $('#pvSaveBtn').onclick = async ()=>{
   const msg = (t,err)=>{ $('#pvMsg').textContent=t; $('#pvMsg').className='msg'+(err?' err':''); };
   const name = $('#pvName').value.trim();
   if(!name) return msg('Hãy đặt tên cho giọng.', true);
+  if(pvEditingId){
+    $('#pvSaveBtn').disabled=true;
+    try{
+      const r=await fetch('/api/engine/voice-update',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:pvEditingId,name,ref_text:$('#pvRefText').value.trim()})});
+      if(!r.ok) throw new Error(await r.text());
+      await loadVnVoices(); show('#pvForm',false);
+      setMsg('Đã cập nhật lời thoại của giọng “'+name+'”.');
+    }catch(e){ msg('Lỗi: '+e.message,true); }
+    $('#pvSaveBtn').disabled=false;
+    return;
+  }
   if(!pvWav) return msg('Hãy ghi âm hoặc chọn file âm thanh.', true);
   if(pvSeconds<3) return msg('Đoạn ghi âm cần dài ít nhất 3 giây.', true);
   if(!$('#pvConsent').checked) return msg('Hãy xác nhận quyền sử dụng giọng nói.', true);
   $('#pvSaveBtn').disabled = true; msg('Đang phân tích giọng (khoảng 5–20 giây)…');
   try{
-    const b64 = await new Promise((ok,bad)=>{ const fr=new FileReader(); fr.onload=()=>ok(fr.result.split(',')[1]); fr.onerror=bad; fr.readAsDataURL(pvWav); });
+    const b64 = await audioBase64(pvWav);
     const r = await fetch('/api/engine/clone',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name, gender:pvGender, wav_b64:b64, ref_text:$('#pvRefText').value.trim()})});
     if(!r.ok) throw new Error(await r.text());
     const d = await r.json();

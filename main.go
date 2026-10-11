@@ -84,8 +84,14 @@ type ttsRequest struct {
 func previewDir() string { return filepath.Join(engineDir(), "previews") }
 
 func previewName(in ttsRequest) string {
-	h := sha256.Sum256([]byte(fmt.Sprintf("%s|%s|%v|%d|%d|%d|%s", in.Engine, in.Voice, in.Custom, in.Rate, in.Pitch, in.Volume, in.Text)))
-	return hex.EncodeToString(h[:12])
+	h := sha256.New()
+	fmt.Fprintf(h, "%s|%s|%v|%d|%d|%d|%s", in.Engine, in.Voice, in.Custom, in.Rate, in.Pitch, in.Volume, in.Text)
+	if in.Custom && validVoiceID(in.Voice) && (in.Engine == "vieneu" || in.Engine == "f5") {
+		if metadata, err := os.ReadFile(filepath.Join(engineDir(), "voices", in.Voice+".json")); err == nil {
+			h.Write(metadata)
+		}
+	}
+	return hex.EncodeToString(h.Sum(nil)[:12])
 }
 
 func startJob(in ttsRequest) *job {

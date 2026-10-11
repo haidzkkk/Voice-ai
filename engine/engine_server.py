@@ -34,6 +34,7 @@ META = {}  # preset name -> metadata (gender, region, style, description, featur
 
 REGION_ORDER = {"Bắc": 0, "Trung": 1, "Nam": 2}
 FAKE = bool(os.environ.get("GIONGAI_FAKE_ENGINE"))
+LEGACY_REF_TEXT = "Xin chào, đây là giọng nói của tôi. Hôm nay trời rất đẹp, tôi muốn kể cho bạn nghe một câu chuyện thú vị về quê hương mình."
 
 
 def log(*a):
@@ -273,7 +274,7 @@ class F5Model:
         key = (ref_wav, st.st_mtime, st.st_size, ref_text)
         if key not in self._refs:
             self._refs[key] = preprocess_ref_audio_text(ref_wav, ref_text, show_info=lambda *a, **k: None,
-                                                         device=self.device)
+                                                         clip_short=False, device=self.device)
         return self._refs[key]
 
     def transcribe(self, path):
@@ -392,7 +393,9 @@ def list_custom():
             d = json.loads(p.read_text(encoding="utf-8"))
             out.append({"id": p.stem, "name": d.get("name", p.stem), "gender": d.get("gender", ""),
                         "created": d.get("created", 0), "seconds": d.get("seconds", 0),
-                        "ref_text": d.get("ref_text", "")})
+                        "ref_text": d.get("ref_text", ""),
+                        "ref_text_auto": d.get("ref_text_auto", False),
+                        "ref_text_legacy": d.get("ref_text", "").strip() == LEGACY_REF_TEXT and not d.get("ref_text_verified")})
         except Exception:
             pass
     out.sort(key=lambda x: -x["created"])
@@ -459,9 +462,12 @@ def resolve_ref(req):
         ref_wav = str(voices_dir() / f"{vid}.wav")
         d = json.loads(meta_path.read_text(encoding="utf-8"))
         ref_text = (d.get("ref_text") or "").strip()
-        if not ref_text and ARGS.model == "f5":
+        legacy = ref_text == LEGACY_REF_TEXT and not d.get("ref_text_verified")
+        if (not ref_text or legacy) and ARGS.model == "f5":
             with MODEL_LOCK:
                 ref_text = MODEL.transcribe(ref_wav)
+            if not ref_text.strip():
+                raise ValueError("Không nhận dạng được lời thoại. Nghe lại mẫu và nhập đúng lời nói trong mục Sửa lời thoại.")
             d["ref_text"] = ref_text
             d["ref_text_auto"] = True
             meta_path.write_text(json.dumps(d, ensure_ascii=False), encoding="utf-8")
@@ -539,6 +545,7 @@ def clone(req):
             raise ValueError(f"Đoạn ghi âm chỉ {seconds:.1f} giây, cần ít nhất 3 giây")
         rec = {"name": name, "gender": req.get("gender", ""), "created": int(time.time()),
                "seconds": round(seconds, 1), "ref_text": (req.get("ref_text") or "").strip()[:500]}
+        rec["ref_text_verified"] = bool(rec["ref_text"])
         if ARGS.model == "vieneu":
             with MODEL_LOCK:
                 emb, codes = MODEL.m.encode_reference(str(wav_path), denoise=bool(req.get("denoise", True)))
@@ -558,10 +565,34 @@ def update_voice(req):
     if "ref_text" in req:
         d["ref_text"] = (req.get("ref_text") or "").strip()[:500]
         d.pop("ref_text_auto", None)
+        d["ref_text_verified"] = bool(d["ref_text"])
     if req.get("name"):
         d["name"] = req["name"].strip()[:60]
     p.write_text(json.dumps(d, ensure_ascii=False), encoding="utf-8")
     return {"ok": True}
+
+
+def transcribe_reference(req):
+    """Recognize the exact saved/uploaded sample without altering its voice metadata."""
+    if ARGS.model != "f5":
+        raise ValueError("Hãy cài và khởi động F5-TTS để tự nhận dạng lời thoại")
+    if req.get("id"):
+        path = voices_dir() / (check_id(req["id"]) + ".wav")
+        with MODEL_LOCK:
+            text = MODEL.transcribe(str(path))
+    else:
+        import tempfile
+        raw = base64.b64decode(req.get("wav_b64") or "", validate=True)
+        if len(raw) < 1000:
+            raise ValueError("Chưa có đoạn ghi âm để nhận dạng")
+        with tempfile.TemporaryDirectory(dir=ARGS.data, prefix="transcribe-") as directory:
+            path = Path(directory) / "reference.wav"
+            path.write_bytes(raw)
+            with MODEL_LOCK:
+                text = MODEL.transcribe(str(path))
+    if not text.strip():
+        raise ValueError("Không nhận dạng được lời thoại. Hãy chọn đoạn có giọng nói rõ hoặc nhập lời thoại thủ công.")
+    return {"ref_text": text}
 
 
 # ----------------------------------------------------------------- http ----
@@ -637,6 +668,8 @@ class H(BaseHTTPRequestHandler):
                 return self._send(200, data, "audio/mpeg" if ext == "mp3" else "audio/wav", {"X-Ext": ext})
             if u.path == "/clone":
                 return self._send(200, clone(self._body()))
+            if u.path == "/transcribe":
+                return self._send(200, transcribe_reference(self._body()))
             self._send(404, {"error": "not found"})
         except InterruptedError:
             self._send(499, {"error": "canceled"})

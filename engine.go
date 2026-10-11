@@ -939,6 +939,27 @@ func registerEngineAPI(mux *http.ServeMux) {
 		writeJSON(w, out)
 	})
 
+	mux.HandleFunc("/api/engine/transcribe", func(w http.ResponseWriter, r *http.Request) {
+		if !postOnly(w, r) {
+			return
+		}
+		if !engineReady("f5") {
+			http.Error(w, "Hãy chọn F5-TTS và chờ mô hình sẵn sàng để tự nhận dạng lời thoại.", 503)
+			return
+		}
+		body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 30<<20))
+		if err != nil {
+			http.Error(w, "file quá lớn", 400)
+			return
+		}
+		var out map[string]any
+		if err := engJSON(r.Context(), "f5", "POST", "/transcribe", body, &out); err != nil {
+			http.Error(w, err.Error(), 400)
+			return
+		}
+		writeJSON(w, out)
+	})
+
 	mux.HandleFunc("/api/engine/voice-update", func(w http.ResponseWriter, r *http.Request) {
 		if !postOnly(w, r) {
 			return
@@ -970,6 +991,7 @@ func registerEngineAPI(mux *http.ServeMux) {
 			}
 			d["ref_text"] = t
 			delete(d, "ref_text_auto")
+			d["ref_text_verified"] = t != ""
 		}
 		if n := strings.TrimSpace(in.Name); n != "" {
 			if r := []rune(n); len(r) > 60 {
