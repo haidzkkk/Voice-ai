@@ -30,6 +30,7 @@ class DownloadProgressTest(unittest.TestCase):
         self.hub = types.ModuleType("huggingface_hub")
         self.download = types.SimpleNamespace(tqdm=FakeTqdm)
         self.hub.file_download = self.download
+        self.hub.try_to_load_from_cache = lambda *a, **kw: None
         self.modules = patch.dict(sys.modules, {
             "huggingface_hub": self.hub,
             "tqdm.auto": types.SimpleNamespace(tqdm=FakeTqdm),
@@ -77,6 +78,19 @@ class DownloadProgressTest(unittest.TestCase):
             self.scope["download_model_file"]("repo", "model.pt")
         self.assertNotIn("download", self.scope["STATE"])
         self.assertIs(self.download.tqdm, FakeTqdm)
+
+    def test_existing_cache_skips_network_and_download_indicator(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "model.pt"
+            path.write_bytes(b"cached weights")
+            self.hub.try_to_load_from_cache = lambda *a, **kw: str(path)
+            def fetch(*a, **kw):
+                self.fail("Cached model must not contact the network")
+            self.hub.hf_hub_download = fetch
+            self.scope["STATE"]["download"] = {"status": "complete"}
+            self.assertEqual(self.scope["download_model_file"]("repo", "model.pt"), str(path))
+            self.assertNotIn("download", self.scope["STATE"])
+            self.assertIn("đã lưu", self.scope["STATE"]["detail"])
 
 
 class ModelMaterializationTest(unittest.TestCase):

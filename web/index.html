@@ -851,7 +851,7 @@ function renderF5(st){
   }
   if(onF5 && busy){
     $('#f5BusyText').textContent = f.installing ? (st.step||'Đang cài F5-TTS…') : (fe.detail || 'Đang khởi động F5-TTS…');
-    $('#f5BusySub').textContent = f.installing ? 'Có thể để tool chạy và làm việc khác. Đừng tắt tool trong lúc cài.' : 'Lần đầu sẽ tải mô hình về máy.';
+    $('#f5BusySub').textContent = f.installing ? 'Có thể để tool chạy và làm việc khác. Đừng tắt tool trong lúc cài.' : 'Mỗi lần mở app cần nạp mô hình vào bộ nhớ. File đã lưu được dùng lại; chỉ tải khi còn thiếu.';
     $('#f5Log').textContent = (st.log||[]).join('\n'); $('#f5Log').scrollTop = 1e9;
   }
   if(onF5 && err && !f.installing){

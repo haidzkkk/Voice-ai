@@ -138,10 +138,17 @@ class FakeCloneModel:
 def download_model_file(repo, filename, **options):
     """Expose real byte progress, including resumed downloads, through /health."""
     import inspect
-    from huggingface_hub import file_download, hf_hub_download
+    from huggingface_hub import file_download, hf_hub_download, try_to_load_from_cache
     from tqdm.auto import tqdm
 
     label = "/".join(filter(None, [options.get("subfolder"), filename]))
+    if not options.get("force_download"):
+        cached = try_to_load_from_cache(repo, label, cache_dir=options.get("cache_dir"),
+                                        revision=options.get("revision"), repo_type=options.get("repo_type"))
+        if isinstance(cached, str) and Path(cached).is_file():
+            STATE.pop("download", None)
+            STATE["detail"] = "Đang nạp file đã lưu trên máy: " + label
+            return cached
     STATE["download"] = {"repo": repo, "file": label, "done": 0, "total": 0, "status": "downloading"}
 
     class DownloadProgress(tqdm):
@@ -253,7 +260,7 @@ class F5Model:
         import shutil
         from f5_tts.api import F5TTS
         self.device, self.device_name = pick_torch_device()
-        STATE["detail"] = "Đang tải mô hình F5-TTS tiếng Việt (~1,4 GB, chỉ lần đầu)…"
+        STATE["detail"] = "Đang tìm mô hình F5-TTS đã lưu trên máy…"
         ckpt = download_model_file(self.REPO, "model_last.pt")
         mdir = Path(ARGS.data) / "models" / "f5"
         mdir.mkdir(parents=True, exist_ok=True)
@@ -261,7 +268,8 @@ class F5Model:
         if not vocab.exists():
             # Repo lưu bảng ký tự dưới tên config.json (theo hướng dẫn của tác giả)
             shutil.copy(download_model_file(self.REPO, "config.json"), vocab)
-        STATE["detail"] = "Đã tải xong file mô hình. Đang nạp F5-TTS…"
+        STATE.pop("download", None)
+        STATE["detail"] = "Đang nạp F5-TTS vào bộ nhớ để sử dụng…"
         self.m = F5TTS(model="F5TTS_Base", ckpt_file=ckpt, vocab_file=str(vocab), device=self.device)
         if self.device == "cuda" and needs_fp32():
             self.m.ema_model.float()
