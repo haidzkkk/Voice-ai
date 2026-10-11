@@ -293,21 +293,26 @@ textarea.inp{min-height:0;font-size:14px;line-height:1.5;resize:vertical}
             <button class="chip on" data-g="female">Nữ</button>
             <button class="chip" data-g="male">Nam</button>
           </div>
-          <label class="fl">Ghi âm 5–12 giây (đọc to, rõ, nơi yên tĩnh)</label>
+          <label class="fl">Ghi âm hoặc tải file giọng nói 5–12 giây</label>
+          <p class="sub">Có thể nói nội dung bất kỳ, không cần đọc theo mẫu. Chọn đoạn chỉ có một người nói rõ, ít tạp âm. VieNeu tự phân tích đặc trưng giọng khi lưu.</p>
+          <div class="sub">Văn bản gợi ý nếu bạn muốn ghi âm:</div>
           <div class="readme" id="pvScript">Xin chào, đây là giọng nói của tôi. Hôm nay trời rất đẹp, tôi muốn kể cho bạn nghe một câu chuyện thú vị về quê hương mình.</div>
           <div class="row" style="margin-top:10px">
-            <button class="btn rec" id="recBtn"><span class="recdot"></span><span id="recLabel">Bắt đầu ghi âm</span></button>
+            <button class="btn rec" id="recBtn"><span class="recdot"></span><span id="recLabel">Ghi âm micro</span></button>
+            <button class="btn rec" id="systemRecBtn"><span class="recdot"></span><span id="systemRecLabel">Ghi âm trong máy</span></button>
             <span class="sub">hoặc</span>
             <button class="btn" id="pvUploadBtn">Chọn file âm thanh</button>
             <input type="file" id="pvFile" accept="audio/*,.wav,.mp3,.m4a,.ogg,.webm" class="hide">
           </div>
+          <div class="sub" style="margin-top:8px">Ghi âm trong máy: chọn tab đang phát giọng nói và bật “Chia sẻ âm thanh”. Trên Mac, hãy dùng Chrome hoặc Edge; thu âm toàn bộ máy/cửa sổ tùy trình duyệt hỗ trợ. Tự dừng sau 12 giây.</div>
           <div class="sub" id="pvInfo" style="margin-top:8px"></div>
           <audio id="pvPreview" controls class="hide"></audio>
-          <label class="fl" for="pvRefText">Lời thoại trong đoạn ghi âm <span class="sub">— gõ đúng lời bạn đã đọc, giúp F5-TTS nhại giọng chuẩn hơn</span></label>
-          <textarea id="pvRefText" class="inp" rows="2" placeholder="Để trống thì F5-TTS sẽ tự nhận dạng (lần đầu tải thêm ~1,6 GB)"></textarea>
+          <label class="fl" for="pvRefText">Lời thoại trong đoạn ghi âm <span class="sub">— không bắt buộc</span></label>
+          <textarea id="pvRefText" class="inp" rows="2" placeholder="Có thể để trống. Nếu nhập, hãy nhập đúng lời nói trong đoạn âm thanh đã chọn."></textarea>
+          <div class="sub">VieNeu không cần lời thoại. F5-TTS tự nhận dạng lời thoại khi dùng giọng lần đầu nếu ô này trống (có thể tải thêm mô hình nhận dạng ~1,6 GB).</div>
           <label class="check" style="margin-top:12px"><input type="checkbox" id="pvConsent"> Đây là giọng của tôi, hoặc tôi đã được người đó đồng ý.</label>
           <div class="row" style="margin-top:12px">
-            <button class="btn primary" id="pvSaveBtn" style="width:auto;padding:10px 18px;font-size:15px">Lưu giọng</button>
+            <button class="btn primary" id="pvSaveBtn" style="width:auto;padding:10px 18px;font-size:15px">Phân tích và lưu giọng</button>
             <button class="btn ghost" id="pvCancelBtn">Hủy</button>
           </div>
           <div class="msg" id="pvMsg"></div>
@@ -739,7 +744,8 @@ chipGroup('#region','r',()=>region,v=>{region=v;store.set('vregion',v)});
 chipGroup('#vgender','g',()=>vgender,v=>{vgender=v;store.set('vgender',v)});
 
 // ----- Giọng cá nhân -----
-let pvGender = 'female', pvWav = null, pvSeconds = 0, rec = null, recChunks = [], recStart = 0, recTick = null;
+let pvGender = 'female', pvWav = null, pvSeconds = 0, rec = null, recStart = 0, recTick = null;
+let recSource = '', recPending = false, recGeneration = 0;
 function renderPv(){
   const list = vnVoices.custom || [];
   $('#pvList').innerHTML = list.length ? list.map(v=>`<li>
@@ -763,7 +769,7 @@ $('#pvList').onclick = async e=>{
   if(t.dataset.pvdel && confirm('Xóa giọng cá nhân này?')){ await fetch('/api/engine/voice-delete?id='+t.dataset.pvdel,{method:'POST'}); loadVnVoices(); }
 };
 document.querySelectorAll('#pvGender .chip').forEach(c=>c.onclick=()=>{ pvGender=c.dataset.g; document.querySelectorAll('#pvGender .chip').forEach(x=>x.classList.toggle('on',x===c)); });
-function resetPv(){ pvWav=null; pvSeconds=0; $('#pvInfo').textContent=''; show('#pvPreview',false); $('#pvMsg').textContent=''; $('#pvMsg').className='msg'; $('#pvConsent').checked=false; $('#pvRefText').value=''; }
+function resetPv(){ stopRec(true); pvWav=null; pvSeconds=0; $('#pvInfo').textContent=''; show('#pvPreview',false); $('#pvMsg').textContent=''; $('#pvMsg').className='msg'; $('#pvConsent').checked=false; $('#pvRefText').value=''; }
 $('#pvNewBtn').onclick = ()=>{ resetPv(); $('#pvName').value=''; show('#pvForm',true); $('#pvName').focus(); };
 $('#pvCancelBtn').onclick = ()=>{ stopRec(true); show('#pvForm',false); };
 
@@ -779,48 +785,104 @@ function encodeWav(buf, maxSec){
   for(let i=0;i<n;i++){ const v=Math.max(-1,Math.min(1,mono[i])); out.setInt16(44+i*2, v<0?v*0x8000:v*0x7fff, true); }
   return {blob:new Blob([out],{type:'audio/wav'}), seconds:n/sr, full:buf.length/sr};
 }
-async function useAudio(blob){
+async function useAudio(blob, generation=null){
+  let ctx;
   try{
-    const ctx = new (window.AudioContext||window.webkitAudioContext)();
+    ctx = new (window.AudioContext||window.webkitAudioContext)();
     const buf = await ctx.decodeAudioData(await blob.arrayBuffer());
-    ctx.close();
+    if(generation!==null && generation!==recGeneration) return;
     const r = encodeWav(buf, 12);
     pvWav = r.blob; pvSeconds = r.seconds;
     $('#pvPreview').src = URL.createObjectURL(pvWav); show('#pvPreview',true);
     let info = `Độ dài: ${r.seconds.toFixed(1)} giây`;
-    if(r.full>12.05) info += ' (đã cắt còn 12 giây đầu — hãy sửa lời thoại cho khớp)';
+    if(r.full>12.05) info += ' (đã lấy 12 giây đầu để phân tích giọng; nếu nhập lời thoại, chỉ nhập lời trong đoạn này)';
     if(r.seconds<3) info += ' — quá ngắn, cần ít nhất 3 giây.';
     else if(r.seconds<5) info += ' — dùng được, nhưng 5–10 giây sẽ giống hơn.';
     else info += ' — tốt.';
     $('#pvInfo').textContent = info;
-  }catch(e){ $('#pvInfo').textContent = 'Không đọc được file âm thanh này. Hãy thử file WAV hoặc MP3.'; pvWav=null; }
+  }catch(e){
+    if(generation===null || generation===recGeneration){ $('#pvInfo').textContent = 'Không đọc được file âm thanh này. Hãy thử file WAV hoặc MP3.'; pvWav=null; }
+  }finally{ if(ctx) await ctx.close(); }
 }
 $('#pvUploadBtn').onclick = ()=> $('#pvFile').click();
-$('#pvFile').onchange = e=>{ const f=e.target.files[0]; if(f){ if($('#pvRefText').value.trim()===$('#pvScript').textContent.trim()) $('#pvRefText').value=''; useAudio(f); } e.target.value=''; };
+$('#pvFile').onchange = e=>{ const f=e.target.files[0]; if(f){ $('#pvRefText').value=''; useAudio(f); } e.target.value=''; };
 
-async function startRec(){
-  if(!$('#pvRefText').value.trim()) $('#pvRefText').value = $('#pvScript').textContent.trim();
-  if(!navigator.mediaDevices || !window.MediaRecorder){ $('#pvInfo').textContent='Trình duyệt này không hỗ trợ ghi âm. Hãy dùng Chrome, Edge hoặc Safari mới, hoặc chọn file âm thanh.'; return; }
+function renderRecording(){
+  const working = recPending || !!rec;
+  for(const source of ['mic', 'system']){
+    const button = $(source==='mic' ? '#recBtn' : '#systemRecBtn');
+    const label = $(source==='mic' ? '#recLabel' : '#systemRecLabel');
+    const active = !!rec && recSource===source;
+    button.disabled = working && (!active || recPending || rec.state!=='recording');
+    button.classList.toggle('on', active && rec.state==='recording');
+    label.textContent = active && rec.state==='recording' ? `Dừng (${Math.floor((Date.now()-recStart)/1000)}s)` : (source==='mic' ? 'Ghi âm micro' : 'Ghi âm trong máy');
+  }
+  $('#pvUploadBtn').disabled = working;
+  $('#pvSaveBtn').disabled = working;
+}
+
+async function startRec(source='mic'){
+  if(rec || recPending) return;
+  if(!navigator.mediaDevices || !window.MediaRecorder){ $('#pvInfo').textContent='Trình duyệt này không hỗ trợ ghi âm. Hãy dùng Chrome hoặc Edge, hoặc chọn file âm thanh.'; return; }
+  if(source==='system' && !navigator.mediaDevices.getDisplayMedia){ $('#pvInfo').textContent='Trình duyệt này không hỗ trợ ghi âm trong máy. Hãy mở ứng dụng bằng Chrome hoặc Edge.'; return; }
+  const generation = ++recGeneration;
+  recPending = true; renderRecording();
   let stream;
-  try{ stream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}}); }
-  catch(e){ $('#pvInfo').textContent='Không truy cập được micro. Hãy cho phép trình duyệt dùng micro rồi thử lại.'; return; }
-  recChunks = []; rec = new MediaRecorder(stream);
-  rec.ondataavailable = e=>{ if(e.data.size) recChunks.push(e.data); };
-  rec.onstop = ()=>{ stream.getTracks().forEach(t=>t.stop()); if(!rec._discard) useAudio(new Blob(recChunks,{type:rec.mimeType})); rec=null; };
-  rec.start(); recStart = Date.now();
-  $('#recBtn').classList.add('on');
-  recTick = setInterval(()=>{
-    const sec = (Date.now()-recStart)/1000;
-    $('#recLabel').textContent = `Dừng (${sec.toFixed(0)}s)`;
-    if(sec>=12) stopRec();
-  }, 250);
-  $('#pvInfo').textContent = 'Đang ghi âm… đọc đoạn văn ở trên, bấm Dừng khi xong.';
+  try{
+    stream = source==='system'
+      ? await navigator.mediaDevices.getDisplayMedia({video:true, audio:true, systemAudio:'include', surfaceSwitching:'exclude'})
+      : await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
+    if(generation!==recGeneration){ stream.getTracks().forEach(t=>t.stop()); return; }
+    const audioTracks = stream.getAudioTracks();
+    if(!audioTracks.length) throw new Error('Nguồn đã chọn không có âm thanh. Chọn tab đang phát tiếng và bật “Chia sẻ âm thanh”. Nếu trình duyệt không hỗ trợ nguồn này, hãy chọn file âm thanh.');
+    const audio = new MediaStream(audioTracks); // Only audio is recorded; no video is saved.
+    const chunks = [];
+    const recorder = new MediaRecorder(audio);
+    rec = recorder; recSource = source;
+    recorder.ondataavailable = e=>{ if(e.data.size) chunks.push(e.data); };
+    recorder.onstop = async ()=>{
+      clearInterval(recTick);
+      stream.getTracks().forEach(t=>t.stop());
+      try{
+        if(!recorder._discard && generation===recGeneration){
+          $('#pvInfo').textContent='Đang chuẩn bị đoạn ghi âm để nghe lại…';
+          await useAudio(new Blob(chunks,{type:recorder.mimeType}), generation);
+        }
+      }finally{
+        if(rec===recorder){ rec=null; recSource=''; renderRecording(); }
+      }
+    };
+    recorder.onerror = ()=>{
+      $('#pvInfo').textContent='Ghi âm bị lỗi. Hãy chọn lại nguồn âm thanh và thử lại.';
+      stopRec(true);
+    };
+    stream.getTracks().forEach(t=>t.onended=()=>{ if(rec===recorder) stopRec(); });
+    recorder.start(); recStart = Date.now();
+    $('#pvRefText').value = ''; pvWav=null; pvSeconds=0; show('#pvPreview',false);
+    recPending = false; renderRecording();
+    recTick = setInterval(()=>{
+      renderRecording();
+      if(Date.now()-recStart>=12000) stopRec();
+    }, 250);
+    $('#pvInfo').textContent = source==='system' ? 'Đang thu âm thanh trong máy… phát đoạn giọng nói rồi bấm Dừng khi xong.' : 'Đang ghi âm micro… bạn có thể nói nội dung bất kỳ, bấm Dừng khi xong.';
+  }catch(e){
+    if(stream) stream.getTracks().forEach(t=>t.stop());
+    if(generation!==recGeneration) return;
+    rec=null; recSource=''; recPending=false; renderRecording();
+    $('#pvInfo').textContent = source==='system'
+      ? (e.name==='NotAllowedError' ? 'Bạn đã hủy hoặc chưa cho phép chia sẻ âm thanh. Bấm Ghi âm trong máy để chọn lại.' : 'Không ghi âm được trong máy: '+e.message)
+      : 'Không truy cập được micro. Hãy cho phép trình duyệt dùng micro rồi thử lại.';
+  }
 }
 function stopRec(discard){
-  clearInterval(recTick); $('#recBtn').classList.remove('on'); $('#recLabel').textContent='Ghi âm lại';
-  if(rec && rec.state!=='inactive'){ rec._discard = !!discard; rec.stop(); }
+  clearInterval(recTick);
+  if(discard){ ++recGeneration; recPending=false; if(rec) rec._discard=true; }
+  if(rec && rec.state!=='inactive') rec.stop();
+  renderRecording();
 }
-$('#recBtn').onclick = ()=> rec ? stopRec() : startRec();
+$('#recBtn').onclick = ()=> rec ? stopRec() : startRec('mic');
+$('#systemRecBtn').onclick = ()=> rec ? stopRec() : startRec('system');
+window.addEventListener('pagehide', ()=>stopRec(true));
 
 $('#pvSaveBtn').onclick = async ()=>{
   const msg = (t,err)=>{ $('#pvMsg').textContent=t; $('#pvMsg').className='msg'+(err?' err':''); };

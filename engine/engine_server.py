@@ -279,7 +279,18 @@ class F5Model:
     def transcribe(self, path):
         STATE["detail"] = "Đang tải bộ nhận dạng giọng nói (chỉ lần đầu)…"
         try:
-            return normalize_vi(self.m.transcribe(path, language="vi"))
+            import soundfile as sf
+            # App reference clips are WAV. Passing a filename makes Transformers
+            # invoke ffmpeg even for WAV; raw samples bypass that dependency.
+            samples, sample_rate = sf.read(str(path), dtype="float32", always_2d=True)
+            mono = samples.mean(axis=1)
+            if sample_rate != 16000:
+                from math import gcd
+                from scipy.signal import resample_poly
+                factor = gcd(sample_rate, 16000)
+                mono = resample_poly(mono, 16000 // factor, sample_rate // factor)
+            audio = {"raw": mono, "sampling_rate": 16000}
+            return normalize_vi(self.m.transcribe(audio, language="vi"))
         finally:
             STATE["detail"] = ""
 
