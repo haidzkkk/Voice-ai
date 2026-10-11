@@ -53,6 +53,7 @@ func snapshot(j *job) job {
 }
 
 var badName = regexp.MustCompile(`[<>:"/\\|?*\x00-\x1f]+`)
+var emotionCuePattern = regexp.MustCompile(`(?i)\[(?:cười|cuoi|chuckle|thở dài|tho dai|sigh|hắng giọng|hang giong|clear throat)\]|<\|emotion_[123]\|>`)
 
 func fileNameFor(text string) string {
 	words := strings.Fields(text)
@@ -219,6 +220,10 @@ func handler(quit chan struct{}) http.Handler {
 		}
 		if strings.TrimSpace(in.Text) == "" || in.Voice == "" {
 			http.Error(w, "thiếu văn bản hoặc giọng", 400)
+			return
+		}
+		if in.Engine != "vieneu" && emotionCuePattern.MatchString(in.Text) {
+			http.Error(w, "Thẻ biểu cảm chỉ dùng với VieNeu. Chọn VieNeu hoặc bỏ thẻ khỏi nội dung.", 400)
 			return
 		}
 		if (in.Engine == "vieneu" || in.Engine == "f5") && currentEngine(in.Engine) == nil {

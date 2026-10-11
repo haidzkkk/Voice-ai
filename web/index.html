@@ -255,6 +255,11 @@ button:focus-visible,summary:focus-visible{outline:3px solid var(--accent-soft);
       <section class="card editor-card" aria-labelledby="textHeading">
         <div class="section-heading"><span class="step">02</span><h2 id="textHeading">Thêm nội dung</h2><div class="spacer"></div><button class="btn ghost" id="loadBtn">Mở file .txt</button><button class="btn ghost" id="clearBtn">Xóa</button><input type="file" id="fileIn" accept=".txt,.srt,.md,text/plain" class="hide"></div>
         <div class="sample-row"><select id="sampleSelect" aria-label="Chọn văn bản mẫu"><option value="">Thử một văn bản mẫu…</option></select><button class="btn" id="insertSampleBtn">Chèn mẫu</button></div>
+        <details class="disclosure" open style="margin:0 0 14px;border-top:0;padding-top:0">
+          <summary>Thẻ biểu cảm</summary>
+          <div class="sample-row" style="margin:10px 0 6px"><select id="emotionCue" aria-label="Chọn thẻ biểu cảm"><option value="[cười]">Cười nhẹ · [cười]</option><option value="[thở dài]">Thở dài · [thở dài]</option><option value="[hắng giọng]">Hắng giọng · [hắng giọng]</option></select><button class="btn" id="insertEmotionBtn">Chèn tại con trỏ</button></div>
+          <div class="sub" id="emotionHint" style="font-size:12px"></div>
+        </details>
         <textarea id="text" aria-label="Nội dung cần đọc" placeholder="Viết một câu chuyện, bản tin hoặc bất cứ điều gì bạn muốn kể…"></textarea>
         <div class="editor-meta"><span id="count">0 ký tự · 0 từ</span><span id="shortcutHint">⌘ / Ctrl + Enter để tạo</span></div>
         <div class="create-actions">
@@ -448,6 +453,25 @@ for(const k in sliders){
 $('#resetBtn').onclick = ()=>{ for(const k in sliders){ $('#'+k).value=0; showSlider(k); store.set(k,0);} };
 
 const ta = $('#text');
+const emotionCuePattern=/\[(?:cười|cuoi|chuckle|thở dài|tho dai|sigh|hắng giọng|hang giong|clear throat)\]|<\|emotion_[123]\|>/i;
+function renderEmotionTools(){
+  const supported=engine==='vieneu' && vmodel==='vieneu';
+  $('#emotionCue').disabled=!supported; $('#insertEmotionBtn').disabled=!supported;
+  $('#emotionHint').textContent=supported
+    ? 'VieNeu hỗ trợ thẻ thử nghiệm. Chèn vào vị trí muốn có biểu cảm, ví dụ: Nghe hay quá [cười]. Hiệu quả tùy giọng và nội dung.'
+    : engine==='vieneu'
+      ? 'F5-TTS lấy sắc thái từ giọng mẫu. Để đọc vui, buồn hoặc hào hứng, chọn mẫu của cùng người nói có sắc thái đó. Chọn VieNeu để dùng các thẻ bên trên.'
+      : 'Các thẻ này dùng với VieNeu. Giọng Microsoft hiện hỗ trợ chỉnh tốc độ, cao độ và âm lượng.';
+}
+$('#insertEmotionBtn').onclick=()=>{
+  if(engine!=='vieneu' || vmodel!=='vieneu') return;
+  const position=ta.selectionStart ?? ta.value.length;
+  const before=ta.value.slice(0,position),after=ta.value.slice(position);
+  const prefix=before && !/\s$/.test(before)?' ':'';
+  const suffix=after && !/^[\s.,!?;:…]/.test(after)?' ':'';
+  ta.setRangeText(prefix+$('#emotionCue').value+suffix,position,position,'end');
+  ta.oninput(); ta.focus();
+};
 ta.value = store.get('text','');
 function updCount(){ const t=ta.value; const w=t.trim()?t.trim().split(/\s+/).length:0;
   $('#count').textContent = t.length.toLocaleString('vi-VN')+' ký tự · '+w.toLocaleString('vi-VN')+' từ'; }
@@ -472,6 +496,9 @@ async function generate(){
   if(currentJob) return;
   const text = ta.value.trim();
   if(!text){ setMsg('Bạn chưa nhập văn bản.', true); ta.focus(); return; }
+  if(emotionCuePattern.test(text) && !(engine==='vieneu' && vmodel==='vieneu')){
+    setMsg('Thẻ biểu cảm chỉ dùng với VieNeu. Chọn VieNeu hoặc bỏ thẻ khỏi nội dung để dùng mô hình hiện tại.',true); ta.focus(); return;
+  }
   let body;
   if(engine==='vieneu'){
     if(!vnReady){ setMsg('Giọng AI nâng cao chưa sẵn sàng.', true); return; }
@@ -564,6 +591,7 @@ let currentView='create';
 
 function setEngine(e){
   engine = e; store.set('engine', e);
+  renderEmotionTools();
   $('#engineSelect').value=e==='ms'?'ms':vmodel;
   $('#engineHint').textContent=e==='ms'?'Có sẵn nhiều ngôn ngữ. Cần kết nối Internet.':vmodel==='f5'?'Dùng giọng mẫu để đọc nội dung mới. Chạy trên máy của bạn.':'Giọng tiếng Việt có sẵn và giọng cá nhân. Chạy trên máy của bạn.';
   $('#statusText').textContent=e==='ms'?'Microsoft · trực tuyến':'Đang kiểm tra mô hình…';
