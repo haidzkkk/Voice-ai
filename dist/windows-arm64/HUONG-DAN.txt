@@ -1,0 +1,21 @@
+﻿GIỌNG AI — WINDOWS
+
+1. Giải nén toàn bộ file ZIP vào một thư mục trên máy.
+2. Mở GiongAI.exe. App sẽ mở giao diện trong trình duyệt.
+   Nếu trình duyệt chưa mở, truy cập http://127.0.0.1:17860.
+3. Giữ cửa sổ ứng dụng đang chạy. Bấm Thoát trong giao diện để tắt.
+
+Không cần cài Go. Giao diện và mã engine đã được nhúng trong EXE.
+Để dùng F5/VieNeu trên máy mới, cài theo hướng dẫn trong giao diện.
+Cần Internet để tải thư viện/model lần đầu. Model sẽ được lưu lại.
+Chế độ Microsoft cần Internet khi tạo giọng.
+
+Dữ liệu mô hình và giọng cá nhân: %LOCALAPPDATA%\GiongAI\engine
+Audio xuất ra: thư mục Documents\GiongAI của tài khoản hiện tại
+(hoặc thư mục GiongAI trong thư mục người dùng nếu không có Documents).
+
+Bản Windows x64: máy dùng chip Intel/AMD 64-bit.
+Bản Windows ARM64: máy dùng chip ARM; thư viện AI trên ARM chưa được
+kiểm thử, nên việc cài F5/VieNeu có thể chưa tương thích.
+
+Bản này được cross-compile trên Mac; chưa chạy thử trên máy Windows.
