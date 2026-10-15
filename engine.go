@@ -116,6 +116,9 @@ func childEnv() []string {
 		"HF_HOME="+filepath.Join(d, "hf"),
 		"HF_HUB_DISABLE_TELEMETRY=1",
 		"HF_HUB_DISABLE_SYMLINKS_WARNING=1",
+		// Mạng nghẽn khi tải file lớn sẽ báo lỗi sau 30s thay vì treo vô hạn;
+		// download_model_file bắt lỗi này để thử lại và resume (xem engine_server.py).
+		"HF_HUB_DOWNLOAD_TIMEOUT=30",
 		"PYTHONUTF8=1",
 		"PYTHONIOENCODING=utf-8",
 		"PYTHONUNBUFFERED=1",

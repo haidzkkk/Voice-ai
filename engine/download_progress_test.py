@@ -74,10 +74,51 @@ class DownloadProgressTest(unittest.TestCase):
             raise OSError("network interrupted")
 
         self.hub.hf_hub_download = fetch
-        with self.assertRaises(OSError):
+        with patch("time.sleep"), self.assertRaises(OSError):
             self.scope["download_model_file"]("repo", "model.pt")
         self.assertNotIn("download", self.scope["STATE"])
         self.assertIs(self.download.tqdm, FakeTqdm)
+
+    def test_transient_error_is_retried_and_resumes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "model.pt"
+            path.write_bytes(b"0123456789")
+            calls = {"n": 0}
+
+            def fetch(repo, filename):
+                calls["n"] += 1
+                if calls["n"] == 1:
+                    raise OSError("network interrupted")
+                self.download.tqdm(total=10, initial=10)
+                return str(path)
+
+            self.hub.hf_hub_download = fetch
+            with patch("time.sleep"):
+                result = self.scope["download_model_file"]("repo", "model.pt")
+            self.assertEqual(result, str(path))
+            self.assertEqual(calls["n"], 2)
+            self.assertEqual(self.scope["STATE"]["download"]["status"], "complete")
+
+    def test_runaway_resend_is_cut_and_retried_clean(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "model.pt"
+            path.write_bytes(b"0123456789")
+            calls = {"n": 0}
+
+            def fetch(repo, filename):
+                calls["n"] += 1
+                progress = self.download.tqdm(total=10, initial=0)
+                if calls["n"] == 1:
+                    progress.update(20)  # server gửi quá dung lượng -> bị cắt (_TooBig)
+                    return str(path)  # không bao giờ tới đây
+                progress.update(10)
+                return str(path)
+
+            self.hub.hf_hub_download = fetch
+            with patch("time.sleep"):
+                result = self.scope["download_model_file"]("repo", "model.pt")
+            self.assertEqual(result, str(path))
+            self.assertEqual(calls["n"], 2)
 
     def test_existing_cache_skips_network_and_download_indicator(self):
         with tempfile.TemporaryDirectory() as directory:

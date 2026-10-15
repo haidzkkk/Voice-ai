@@ -136,10 +136,25 @@ class FakeCloneModel:
 
 
 def download_model_file(repo, filename, **options):
-    """Expose real byte progress, including resumed downloads, through /health."""
+    """Tải file mô hình, báo tiến độ byte thật (kể cả resume) qua /health.
+
+    Mạng ở VN hay nghẽn giữa chừng khi tải file lớn từ huggingface.co, khiến tiến
+    trình đứng im vô hạn. Hàm này làm cho việc tải không bao giờ treo:
+    - Timeout đọc socket (Go đặt HF_HUB_DOWNLOAD_TIMEOUT) biến tình trạng nghẽn
+      thành lỗi thay vì treo; hàm bắt lỗi đó và thử lại, tiếp tục từ chỗ dở.
+    - Nếu máy chủ chính vẫn nghẽn, tự chuyển sang mirror HuggingFace để tải nốt.
+    - Nếu phần đã tải phình vượt dung lượng thật (resume hỏng, server gửi lại từ
+      đầu), xoá file .incomplete và tải lại sạch thay vì phình mãi tới vài chục GB.
+    - Hết lượt thử thì ném lỗi rõ ràng để UI hiện nút "Thử lại" (tải tiếp từ chỗ dở).
+    """
     import inspect
+    import os
+    import time
+    import huggingface_hub
     from huggingface_hub import file_download, hf_hub_download, try_to_load_from_cache
     from tqdm.auto import tqdm
+
+    _log = globals().get("log") or (lambda *a, **k: None)
 
     label = "/".join(filter(None, [options.get("subfolder"), filename]))
     if not options.get("force_download"):
@@ -150,6 +165,9 @@ def download_model_file(repo, filename, **options):
             STATE["detail"] = "Đang nạp file đã lưu trên máy: " + label
             return cached
     STATE["download"] = {"repo": repo, "file": label, "done": 0, "total": 0, "status": "downloading"}
+
+    class _TooBig(Exception):
+        """Đã nhận nhiều hơn dung lượng thật -> file .incomplete hỏng, cần tải lại sạch."""
 
     class DownloadProgress(tqdm):
         def __init__(self, *a, **kw):
@@ -169,26 +187,138 @@ def download_model_file(repo, filename, **options):
 
         def update(self, n=1):
             result = super().update(n)
+            # Server bỏ qua Range và gửi lại từ đầu -> file dở sẽ phình mãi. Cắt sớm.
+            if self.total and self.n > self.total * 1.05:
+                raise _TooBig()
             self.publish()
             return result
 
-    try:
-        if "tqdm_class" in inspect.signature(hf_hub_download).parameters:
-            path = hf_hub_download(repo, filename, tqdm_class=DownloadProgress, **options)
-        else:
-            # Existing F5 installations use hub <1.0, without tqdm_class.
+    def fatal_errors():
+        # Những lỗi không phải do mạng: thử lại cũng vô ích, phải ném ngay để nơi
+        # gọi xử lý (ví dụ VieNeu bỏ qua metadata thiếu nhờ EntryNotFoundError).
+        names = ("EntryNotFoundError", "RepositoryNotFoundError",
+                 "RevisionNotFoundError", "GatedRepoError")
+        out = []
+        for modname in ("huggingface_hub.errors", "huggingface_hub.utils"):
+            try:
+                mod = __import__(modname, fromlist=["x"])
+            except Exception:
+                continue
+            for n in names:
+                cls = getattr(mod, n, None)
+                if isinstance(cls, type) and cls not in out:
+                    out.append(cls)
+        return tuple(out)
+
+    def set_endpoint(url):
+        saved = [("env", os.environ.get("HF_ENDPOINT"))]
+        try:
+            os.environ["HF_ENDPOINT"] = url
+        except Exception:
+            pass
+        for mod in (huggingface_hub, file_download, getattr(huggingface_hub, "constants", None)):
+            try:
+                if mod is not None and hasattr(mod, "ENDPOINT"):
+                    saved.append((mod, mod.ENDPOINT))
+                    mod.ENDPOINT = url
+            except Exception:
+                pass
+        return saved
+
+    def restore_endpoint(saved):
+        for target, val in saved:
+            try:
+                if target == "env":
+                    if val is None:
+                        os.environ.pop("HF_ENDPOINT", None)
+                    else:
+                        os.environ["HF_ENDPOINT"] = val
+                else:
+                    target.ENDPOINT = val
+            except Exception:
+                pass
+
+    def clear_incomplete():
+        try:
+            import glob
+            from huggingface_hub.constants import HF_HUB_CACHE
+            cache = options.get("cache_dir") or HF_HUB_CACHE
+            try:
+                from huggingface_hub.file_download import repo_folder_name
+                folder = repo_folder_name(repo_id=repo, repo_type=options.get("repo_type") or "model")
+            except Exception:
+                folder = "models--" + repo.replace("/", "--")
+            for p in glob.glob(os.path.join(cache, folder, "blobs", "*.incomplete")):
+                try:
+                    os.remove(p)
+                except OSError:
+                    pass
+        except Exception:
+            pass
+
+    sig = inspect.signature(hf_hub_download)
+    use_tqdm = "tqdm_class" in sig.parameters
+    supports_endpoint = "endpoint" in sig.parameters
+
+    def attempt(endpoint):
+        kw = dict(options)
+        patched = None
+        if endpoint:
+            if supports_endpoint:
+                kw["endpoint"] = endpoint
+            else:
+                patched = set_endpoint(endpoint)
+        try:
+            if use_tqdm:
+                return hf_hub_download(repo, filename, tqdm_class=DownloadProgress, **kw)
+            # Bản F5 cũ dùng hub <1.0, không có tqdm_class.
             original = file_download.tqdm
             file_download.tqdm = DownloadProgress
             try:
-                path = hf_hub_download(repo, filename, **options)
+                return hf_hub_download(repo, filename, **kw)
             finally:
                 file_download.tqdm = original
-        size = Path(path).stat().st_size
-        STATE["download"] = {"repo": repo, "file": label, "done": size, "total": size, "status": "complete"}
-        return path
-    except Exception:
-        STATE.pop("download", None)
-        raise
+        finally:
+            if patched is not None:
+                restore_endpoint(patched)
+
+    # Thử CDN chính thức trước (ít lần để chuyển mirror sớm khi nghẽn), rồi mirror.
+    mirror = os.environ.get("GIONGAI_HF_MIRROR", "https://hf-mirror.com").strip()
+    plan = [(None, "máy chủ chính", 2)]
+    if mirror and mirror != "-":
+        plan.append((mirror, "mirror " + mirror, 4))
+
+    fatal = fatal_errors()
+    last = None
+    for endpoint, where, tries in plan:
+        for i in range(tries):
+            try:
+                path = attempt(endpoint)
+                size = Path(path).stat().st_size
+                STATE["download"] = {"repo": repo, "file": label, "done": size,
+                                     "total": size, "status": "complete"}
+                return path
+            except fatal:
+                STATE.pop("download", None)
+                raise
+            except _TooBig:
+                _log("Tải", label, "bị gửi lặp lại ở", where, "- xoá file dở, tải lại sạch")
+                clear_incomplete()
+                last = RuntimeError("tải lại từ đầu vì file dở bị hỏng")
+            except Exception as e:
+                last = e
+                _log("Tải", label, "lỗi ở", where, "-", type(e).__name__,
+                     (str(e) or "")[:200], "- thử lại")
+                time.sleep(min(20, 3 * (i + 1)))
+            d = STATE.get("download") or {}
+            STATE["download"] = {"repo": repo, "file": label,
+                                 "done": int(d.get("done", 0)), "total": int(d.get("total", 0)),
+                                 "status": "downloading"}
+
+    STATE.pop("download", None)
+    if isinstance(last, BaseException):
+        raise last
+    raise RuntimeError("Không tải được " + label)
 
 
 def materialize_model_file(source):
