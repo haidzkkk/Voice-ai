@@ -89,7 +89,7 @@ func previewName(in ttsRequest) string {
 	h := sha256.New()
 	fmt.Fprintf(h, "%s|%s|%v|%d|%d|%d|%s", in.Engine, in.Voice, in.Custom, in.Rate, in.Pitch, in.Volume, in.Text)
 	if in.Custom && validVoiceID(in.Voice) && (in.Engine == "vieneu" || in.Engine == "f5") {
-		if metadata, err := os.ReadFile(filepath.Join(engineDir(), "voices", in.Voice+".json")); err == nil {
+		if metadata, err := os.ReadFile(filepath.Join(voiceStorageDir(), in.Voice+".json")); err == nil {
 			h.Write(metadata)
 			var profile struct {
 				EmotionSamples map[string]string `json:"emotion_samples"`
@@ -103,7 +103,7 @@ func previewName(in ttsRequest) string {
 				for _, tag := range keys {
 					id := profile.EmotionSamples[tag]
 					if validVoiceID(id) {
-						if sample, err := os.ReadFile(filepath.Join(engineDir(), "voices", id+".json")); err == nil {
+						if sample, err := os.ReadFile(filepath.Join(voiceStorageDir(), id+".json")); err == nil {
 							h.Write([]byte(tag))
 							h.Write(sample)
 						}
@@ -350,12 +350,22 @@ func handler(quit chan struct{}) http.Handler {
 	})
 
 	registerEngineAPI(mux)
+	registerStorageAPI(mux)
+	registerStorageMoveAPI(mux)
 
 	// Chỉ chấp nhận truy cập từ chính máy này qua localhost
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		host, _, _ := net.SplitHostPort(r.Host)
 		if host != "127.0.0.1" && host != "localhost" {
 			http.Error(w, "forbidden", 403)
+			return
+		}
+		if storageMoving() && strings.HasPrefix(r.URL.Path, "/api/") && r.URL.Path != "/api/settings/storage-move" && r.URL.Path != "/api/settings/storage" {
+			http.Error(w, "Đang chuyển dữ liệu. Vui lòng chờ hoàn tất.", 503)
+			return
+		}
+		if storageMoving() && r.URL.Path == "/api/settings/storage" && r.Method != "GET" {
+			http.Error(w, "Đang chuyển dữ liệu", 409)
 			return
 		}
 		mux.ServeHTTP(w, r)
@@ -400,6 +410,9 @@ func pickOutDir() string {
 	if d := os.Getenv("GIONGAI_OUT"); d != "" {
 		return d
 	}
+	if activeStorage.Audio != "" {
+		return activeStorage.Audio
+	}
 	if home, err := os.UserHomeDir(); err == nil {
 		docs := filepath.Join(home, "Documents")
 		if st, err := os.Stat(docs); err == nil && st.IsDir() {
@@ -412,6 +425,7 @@ func pickOutDir() string {
 }
 
 func main() {
+	loadStorageSettings()
 	outDir = pickOutDir()
 	if err := os.MkdirAll(outDir, 0o755); err != nil {
 		fmt.Println("Khong tao duoc thu muc luu file:", err)

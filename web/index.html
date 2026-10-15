@@ -137,6 +137,7 @@ button:focus-visible,summary:focus-visible{outline:3px solid var(--accent-soft);
 #textHighlights{position:absolute;inset:0;pointer-events:none;overflow:hidden;white-space:pre-wrap;overflow-wrap:break-word;color:transparent;padding:16px;font:inherit;font-size:15px;line-height:1.8}
 #textHighlights mark{color:transparent;background:var(--emotion-color);border-radius:3px}
 .text-highlight-wrap #text{position:relative;background:transparent;display:block;margin:0}
+.row input[id^="storage"]{flex:1;min-width:200px;width:auto}
 .emotion-legend{display:flex;flex-wrap:wrap;gap:8px 14px;margin-top:10px;font-size:12px;color:var(--muted)}
 .emotion-legend span{display:inline-flex;align-items:center;gap:6px}.emotion-legend i{width:12px;height:12px;border-radius:3px;background:var(--emotion-color);border:1px solid #8885}
 </style>
@@ -154,8 +155,22 @@ button:focus-visible,summary:focus-visible{outline:3px solid var(--accent-soft);
     <button class="nav-item on" data-view="create" aria-current="page">Tạo audio</button>
     <button class="nav-item" data-view="library">Giọng cá nhân</button>
     <button class="nav-item" data-view="history">Thư viện audio</button>
+    <button class="nav-item" data-view="settings">Cài đặt</button>
   </nav>
   <main>
+  <section id="settingsView" class="hide card">
+    <div class="section-heading"><h2>Nơi lưu dữ liệu</h2></div>
+    <p class="sub">Chọn thư mục trên ổ C, D, E hoặc ổ ngoài. Lựa chọn được lưu trên máy và có hiệu lực sau khi thoát rồi mở lại ứng dụng.</p>
+    <div style="margin:20px 0"><label class="fl" for="storageEngine">Model &amp; thư viện tải về</label><div class="row"><input class="inp" id="storageEngine" placeholder="Ví dụ: D:\GiongAI\engine"><button class="btn" data-storage-browse="storageEngine">Chọn thư mục…</button></div><p class="sub">Chứa model, Python, thư viện AI và cache tải về.</p></div>
+    <div style="margin:20px 0"><label class="fl" for="storageAudio">Audio đã tạo</label><div class="row"><input class="inp" id="storageAudio" placeholder="Ví dụ: D:\GiongAI\audio"><button class="btn" data-storage-browse="storageAudio">Chọn thư mục…</button></div></div>
+    <div style="margin:20px 0"><label class="fl" for="storageVoices">Giọng cá nhân</label><div class="row"><input class="inp" id="storageVoices" placeholder="Ví dụ: D:\GiongAI\voices"><button class="btn" data-storage-browse="storageVoices">Chọn thư mục…</button></div><p class="sub">Chứa file mẫu giọng và thông tin giọng/cảm xúc.</p></div>
+    <p class="wizard-note">Đổi đường dẫn không tự di chuyển dữ liệu cũ. Để dùng dữ liệu cũ, sao chép giọng và audio sang thư mục mới trước khi mở lại. Model trong cache có thể có đường dẫn liên kết; môi trường Python cần cài lại ở nơi mới. Bạn có thể để đường dẫn giọng cũ để tiếp tục dùng giọng đã lưu.</p>
+    <p class="sub">Để trống một ô sẽ dùng vị trí mặc định. Khi giọng cá nhân để trống, app dùng thư mục voices bên trong nơi lưu model.</p>
+    <label class="check" style="margin:16px 0"><input type="checkbox" id="storageMoveExisting"> Chuyển dữ liệu đã có sang nơi mới (sao chép và giữ bản cũ)</label>
+    <p class="sub">Khi chuyển, model/cache, audio và giọng được sao chép. Môi trường Python/thư viện cần cài lại tại nơi mới. Không tắt app hoặc rút ổ đĩa trong lúc chuyển.</p>
+    <div id="storageMoveProgress" class="hide"><progress id="storageMoveBar" max="100" style="width:100%"></progress><p class="sub" id="storageMoveText" style="overflow-wrap:anywhere" aria-live="polite"></p></div>
+    <div class="row"><button class="btn primary compact" id="storageSave">Lưu cài đặt</button><button class="btn" id="storageReload">Tải lại cài đặt</button></div><div class="msg" id="storageMessage" aria-live="polite"></div><div class="sub" id="storageActive" style="white-space:pre-wrap;overflow-wrap:anywhere"></div>
+  </section>
   <div id="createView">
     <div class="page-intro"><div><h2>Biến nội dung thành giọng nói.</h2><p>Chọn giọng yêu thích, thêm nội dung và để Giọng AI đọc giúp bạn.</p></div><div class="layout-controls"><button class="btn ghost" id="resetLayoutBtn">Đặt lại bố cục</button><span class="sub">Kéo thanh giữa hai cột để chỉnh độ rộng</span></div></div>
     <div class="workspace" id="workspace">
@@ -201,7 +216,7 @@ button:focus-visible,summary:focus-visible{outline:3px solid var(--accent-soft);
             <div id="f5Box" class="hide">
               <div id="f5Setup" class="hide">
                 <p class="lead">F5-TTS tiếng Việt được huấn luyện trên ~1.000 giờ giọng nói: đọc rõ hơn, ngắt nghỉ tự nhiên hơn và nhại giọng cá nhân giống hơn VieNeu. Đổi lại chạy chậm hơn. Dùng cá nhân, không thương mại.</p>
-                <ul class="facts"><li>Tải khoảng <b id="f5Size">3–4 GB</b> (một lần).</li><li id="f5GpuNote" class="hide"></li></ul>
+                <ul class="facts"><li>Tải khoảng <b id="f5Size">tùy chế độ CPU / NVIDIA</b> (một lần).</li><li id="f5GpuNote" class="hide"></li></ul>
                 <label class="check hide" id="f5GpuWrap"><input type="checkbox" id="f5Gpu"> Dùng card NVIDIA (nhanh hơn nhiều)</label>
                 <button class="btn primary" id="f5InstallBtn" style="margin-top:12px">Cài F5-TTS</button>
               </div>
@@ -707,7 +722,7 @@ $('#engineSelect').onchange=()=>{
 };
 function setView(view){
   currentView=view;
-  for(const name of ['create','library','history']) show('#'+name+'View',name===view);
+  for(const name of ['create','library','history','settings']) show('#'+name+'View',name===view);
   if(view==='create') applyWorkspaceWidth();
   document.querySelectorAll('[data-view]').forEach(button=>{
     button.classList.toggle('on',button.dataset.view===view);
@@ -718,6 +733,7 @@ function setView(view){
     show('#voiceLibraryNotice',!vnReady);
   }
   if(view==='history') loadHistory();
+  if(view==='settings'){loadStorage();pollStorageMove();}
 }
 document.querySelectorAll('[data-view]').forEach(button=>button.onclick=()=>setView(button.dataset.view));
 document.querySelectorAll('[data-switch-create]').forEach(button=>button.onclick=()=>setView('create'));
@@ -756,6 +772,14 @@ function modelErrorText(error){
   return error;
 }
 
+function renderInstallProgress(prefix, progress){
+ show('#'+prefix+'Download',true);
+ const bar=$('#'+prefix+'DownloadBar'),p=progress||{},total=Number(p.total)||0,done=Number(p.done)||0;
+ if(total){bar.value=done/total*100;}else bar.removeAttribute('value');
+ const age=p.updated?Math.max(0,Math.floor(Date.now()/1000-p.updated)):0;
+ $('#'+prefix+'DownloadText').textContent=(total?`${(done/total*100).toFixed(0)}% gói tải hoàn tất · ${done}/${total} gói đã phát hiện (tổng có thể tăng). `:'Đang chuẩn bị / giải quyết thư viện; chưa có tổng để tính %. ')+(p.activity||'Đang khởi động cài đặt…')+(age>60?` · ${age}s chưa có log mới`:'');
+}
+
 function renderModelDownload(prefix, model, visible){
   const download = model.download;
   show('#'+prefix+'Download', visible && !!download);
@@ -787,6 +811,7 @@ function renderEngine(st){
   const err = st.installErr || (st.installed && !st.running && st.engineErr) || (eng.state==='error' && eng.error);
   const busy = st.installing || (st.installed && !vnReady && !err);
   renderModelDownload('vn', eng, busy && !st.installing);
+  if(st.installing) renderInstallProgress('vn',st.installProgress);
   show('#vnSetup', !st.installed && !st.installing && !err);
   show('#vnBusy', busy); show('#vnError', !!err && !st.installing); show('#vnReady', vnReady);
   show('#pvCard', vnReady); show('#voiceLibraryNotice',!vnReady);
@@ -831,6 +856,7 @@ function renderF5(st){
   const otherInstalling = st.installingModel && st.installingModel!=='f5';
   const busy = f.installing || (f.installed && !f5Ready && !err);
   renderModelDownload('f5', fe, onF5 && busy && !f.installing);
+  if(onF5 && f.installing) renderInstallProgress('f5',f.installProgress);
   show('#f5Box', onF5 && !f5Ready);
   show('#f5Setup', onF5 && !f.installed && !f.installing && !err);
   show('#f5Busy', onF5 && busy); show('#f5Error', onF5 && !!err && !f.installing);
@@ -839,8 +865,8 @@ function renderF5(st){
   if(onF5 && !f.installed){
     const canGpu = st.os==='windows' || st.os==='linux';
     show('#f5GpuWrap', canGpu);
-    if(gpu && gpu.nvidia && !$('#f5Gpu').dataset.touched) $('#f5Gpu').checked = true;
-    $('#f5Size').textContent = (canGpu && $('#f5Gpu').checked) ? '3,5–4 GB' : '1,5–2 GB';
+    // CPU is the default; NVIDIA downloads are explicitly selected by the user.
+    $('#f5Size').textContent = (canGpu && $('#f5Gpu').checked) ? 'nhiều GB gồm thư viện CUDA và model' : 'vài GB gồm thư viện CPU và model';
     const n = $('#f5GpuNote'); let t = '';
     if(st.os==='darwin') t = 'Máy Mac: chạy bằng GPU của chip Apple.';
     else if(gpu && gpu.nvidia){
@@ -1358,6 +1384,53 @@ function returnToEmotionSetup(id){
  if(id){if(kind==='base'){emotionDraft.baseId=id;emotionDraft.step=1;}else{emotionDraft.sampleId=id;emotionDraft.step=3;}}
  renderEmotionWizard();$('#f5EmotionDialog').showModal();return true;
 }
+
+let storageCurrent=null,storageMoveTimer;
+async function loadStorage(){
+ try{
+  const r=await fetch('/api/settings/storage');if(!r.ok)throw Error(await r.text());const data=await r.json();storageCurrent=data;
+  for(const [key,id] of [['engine','storageEngine'],['audio','storageAudio'],['voices','storageVoices']]){
+   $('#'+id).value=data.saved[key]||'';$('#'+id).placeholder=data.active[key];
+  }
+  $('#storageActive').textContent='Đang sử dụng:\nModel: '+data.active.engine+'\nAudio: '+data.active.audio+'\nGiọng: '+data.active.voices;
+  $('#storageMessage').textContent=(data.restart_required?'Đã lưu. Thoát rồi mở lại app để áp dụng.':'')+((data.engine_env||data.audio_env)?' Biến môi trường GIONGAI_ENGINE_DIR / GIONGAI_OUT đang ưu tiên hơn cài đặt tương ứng.':'');
+ }catch(error){$('#storageMessage').textContent=error.message;}
+}
+document.querySelectorAll('[data-storage-browse]').forEach(button=>button.onclick=async()=>{
+ button.disabled=true;$('#storageMessage').textContent='Chọn thư mục trong hộp thoại hệ thống…';
+ try{const r=await fetch('/api/settings/choose-folder',{method:'POST'});if(!r.ok)throw Error(await r.text());const data=await r.json();if(data.path)$('#'+button.dataset.storageBrowse).value=data.path;$('#storageMessage').textContent=data.path?'Bấm Lưu cài đặt để giữ lựa chọn.':'Đã hủy chọn thư mục.';}catch(error){$('#storageMessage').textContent=error.message;}finally{button.disabled=false;}
+});
+$('#storageReload').onclick=loadStorage;
+async function pollStorageMove(){
+ clearTimeout(storageMoveTimer);
+ try{const r=await fetch('/api/settings/storage-move');if(!r.ok)return;const p=await r.json();
+ show('#storageMoveProgress',p.running||p.complete||!!p.error);
+ $('#storageSave').disabled=!!p.running;
+ const percent=p.total?Math.min(100,p.done/p.total*100):0;
+ if(p.total)$('#storageMoveBar').value=percent;else if(p.complete)$('#storageMoveBar').value=100;else $('#storageMoveBar').removeAttribute('value');
+ const bytes=n=>(n/1024**3).toFixed(2)+' GB';
+ $('#storageMoveText').textContent=p.error?'Chuyển thất bại: '+p.error+' · Bản cũ và cài đặt cũ được giữ nguyên.':p.complete?'Đã chuyển và lưu đường dẫn. Thoát rồi mở lại app. Bản cũ được giữ lại; tại nơi mới, cài lại thư viện AI để dùng model đã chuyển.':(p.total?percent.toFixed(1)+'% · '+bytes(p.done)+' / '+bytes(p.total):'Đang kiểm tra dữ liệu và file đích…')+' · '+(p.file||'');
+ if(p.running)storageMoveTimer=setTimeout(pollStorageMove,1000);
+ }catch(error){$('#storageMoveText').textContent=error.message;storageMoveTimer=setTimeout(pollStorageMove,2000);}
+}
+$('#storageSave').onclick=async()=>{
+ $('#storageSave').disabled=true;
+ try{
+  const move=$('#storageMoveExisting').checked;
+  const paths={engine:$('#storageEngine').value.trim(),audio:$('#storageAudio').value.trim(),voices:$('#storageVoices').value.trim()};
+  if(move){
+   if(!storageCurrent)await loadStorage();
+   paths.engine=paths.engine||storageCurrent.active.engine;
+   paths.audio=paths.audio||storageCurrent.active.audio;
+   paths.voices=paths.voices||(paths.engine===storageCurrent.active.engine?storageCurrent.active.voices:paths.engine.replace(/[\\/]$/,'')+'/voices');
+  }
+  const r=await fetch(move?'/api/settings/storage-move':'/api/settings/storage',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(paths)});
+  if(!r.ok)throw Error(await r.text());
+  if(move){$('#storageMessage').textContent='Đang chuyển dữ liệu. Chờ thanh tiến độ hoàn tất trước khi thoát.';await pollStorageMove();}else await loadStorage();
+ }catch(error){$('#storageMessage').textContent=error.message;$('#storageSave').disabled=false;}
+ finally{if(!$('#storageMoveExisting').checked)$('#storageSave').disabled=false;}
+};
+
 
 setEngine(engine);
 renderSamples();

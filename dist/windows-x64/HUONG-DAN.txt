@@ -19,3 +19,7 @@ Bản Windows ARM64: máy dùng chip ARM; thư viện AI trên ARM chưa đượ
 kiểm thử, nên việc cài F5/VieNeu có thể chưa tương thích.
 
 Bản này được cross-compile trên Mac; chưa chạy thử trên máy Windows.
+
+Mở Cài đặt để chọn thư mục model, audio và giọng trên ổ khác.
+Bật Chuyển dữ liệu đã có để sao chép dữ liệu cũ, rồi khởi động lại.
+Bản cũ được giữ lại. Thư viện Python cần cài lại; model đã chuyển dùng lại được.

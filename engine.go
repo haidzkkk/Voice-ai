@@ -23,6 +23,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -69,6 +70,9 @@ func getModel(id string) (*modelDef, error) {
 func engineDir() string {
 	if d := os.Getenv("GIONGAI_ENGINE_DIR"); d != "" {
 		return d
+	}
+	if activeStorage.Engine != "" {
+		return activeStorage.Engine
 	}
 	switch runtime.GOOS {
 	case "windows":
@@ -233,11 +237,14 @@ func detectGPU() gpuInfo {
 // ------------------------------------------------------------------ cài đặt
 
 var (
-	instMu       sync.Mutex
-	installing   bool
-	installModel string
-	installStep  string
-	installErr   = map[string]string{}
+	instMu          sync.Mutex
+	installing      bool
+	installModel    string
+	installStep     string
+	installErr      = map[string]string{}
+	installPackages = map[string]bool{}
+	installActivity string
+	installUpdated  int64
 )
 
 func uvURL() (string, error) {
@@ -347,6 +354,7 @@ func runLogged(ctx context.Context, name string, args ...string) error {
 		sc.Split(scanLinesCR)
 		for sc.Scan() {
 			engLog.add(sc.Text())
+			updateInstallActivity(sc.Text())
 		}
 		close(done)
 	}()
@@ -373,24 +381,58 @@ func scanLinesCR(data []byte, atEOF bool) (int, []byte, error) {
 func setStep(s string) {
 	instMu.Lock()
 	installStep = s
+	installPackages = map[string]bool{}
+	installActivity = s
+	installUpdated = time.Now().Unix()
 	instMu.Unlock()
 	engLog.add("== " + s)
 }
 
-func installTorch(ctx context.Context, py string, gpu bool) (bool, error) {
-	uv := uvPath()
-	if gpu {
-		setStep("Tải PyTorch cho card NVIDIA (khoảng 2,5 GB)")
-		err := runLogged(ctx, uv, "pip", "install", "--python", py,
-			"torch==2.8.0", "torchaudio==2.8.0", "--index-url", "https://download.pytorch.org/whl/cu128")
-		if err == nil {
-			return true, nil
-		}
-		engLog.add("CẢNH BÁO: không cài được bản cho card NVIDIA (" + err.Error() + "), chuyển sang chế độ CPU.")
-		runLogged(ctx, uv, "pip", "uninstall", "--python", py, "torch", "torchaudio")
+// Package progress comes from uv output; it is not a byte-download percentage.
+var packageDownloadLine = regexp.MustCompile(`^\s*(Downloading|Downloaded)\s+([^\s(]+)`)
+
+func updateInstallActivity(line string) {
+	instMu.Lock()
+	defer instMu.Unlock()
+	if !installing {
+		return
 	}
-	setStep("Tải PyTorch")
-	return false, runLogged(ctx, uv, "pip", "install", "--python", py, "torch==2.8.0", "torchaudio==2.8.0")
+	installActivity = line
+	installUpdated = time.Now().Unix()
+	if m := packageDownloadLine.FindStringSubmatch(line); len(m) > 0 {
+		installPackages[m[2]] = m[1] == "Downloaded"
+	}
+}
+func torchPackages(gpu bool, platform string) []string {
+	suffix := ""
+	if gpu {
+		suffix = "+cu128"
+	} else if platform == "windows" || platform == "linux" {
+		suffix = "+cpu"
+	}
+	return []string{"torch==2.8.0" + suffix, "torchaudio==2.8.0" + suffix}
+}
+func torchIndex(gpu bool, platform string) string {
+	if gpu {
+		return "https://download.pytorch.org/whl/cu128"
+	}
+	if platform == "windows" || platform == "linux" {
+		return "https://download.pytorch.org/whl/cpu"
+	}
+	return ""
+}
+
+func installTorch(ctx context.Context, py string, gpu bool) (bool, error) {
+	setStep("Cài PyTorch CPU (không tải CUDA)")
+	if gpu {
+		setStep("Cài PyTorch NVIDIA CUDA — dung lượng lớn hơn bản CPU")
+	}
+	args := append([]string{"pip", "install", "--python", py}, torchPackages(gpu, runtime.GOOS)...)
+	if index := torchIndex(gpu, runtime.GOOS); index != "" {
+		args = append(args, "--index-url", index)
+	}
+	err := runLogged(ctx, uvPath(), args...)
+	return gpu, err
 }
 
 func doInstall(m *modelDef, gpu bool) {
@@ -401,7 +443,8 @@ func doInstall(m *modelDef, gpu bool) {
 		installModel = ""
 		instMu.Unlock()
 	}()
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Minute)
+	defer cancel()
 	fail := func(err error) {
 		instMu.Lock()
 		installErr[m.ID] = err.Error()
@@ -457,8 +500,17 @@ func doInstall(m *modelDef, gpu bool) {
 		if v := os.Getenv("GIONGAI_F5_PACKAGE"); v != "" { // chỉ dùng để kiểm thử
 			pkg = v
 		}
-		if err := runLogged(ctx, uv, "pip", "install", "--python", py, pkg,
-			"transformers>=4.45,<4.58", "pyarrow<20", "sea-g2p", "lameenc", "soundfile", "librosa"); err != nil {
+		constraints := filepath.Join(engineDir(), "f5-torch-constraints.txt")
+		if err := os.WriteFile(constraints, []byte(strings.Join(torchPackages(gpu, runtime.GOOS), "\n")+"\n"), 0600); err != nil {
+			fail(err)
+			return
+		}
+		args := []string{"pip", "install", "--python", py, "--constraint", constraints, pkg,
+			"transformers>=4.45,<4.58", "pyarrow<20", "sea-g2p", "lameenc", "soundfile", "librosa"}
+		if index := torchIndex(gpu, runtime.GOOS); index != "" {
+			args = append(args, "--extra-index-url", index)
+		}
+		if err := runLogged(ctx, uv, args...); err != nil {
 			fail(fmt.Errorf("cài F5-TTS: %w", err))
 			return
 		}
@@ -532,7 +584,7 @@ func startEngine(id string) error {
 	}
 	os.WriteFile(scriptPath(), engineScript, 0o644) // luôn dùng bản script đi kèm app
 	p := &engineProc{port: freePort(), token: uuidHex(), exit: make(chan struct{})}
-	args := []string{scriptPath(), "--port", fmt.Sprint(p.port), "--token", p.token, "--data", engineDir(), "--model", m.ID}
+	args := []string{scriptPath(), "--port", fmt.Sprint(p.port), "--token", p.token, "--data", engineDir(), "--voices-dir", voiceStorageDir(), "--model", m.ID}
 	if os.Getenv("GIONGAI_ENGINE_CPU") != "" {
 		args = append(args, "--force-cpu")
 	}
@@ -777,6 +829,17 @@ func modelStatus(m *modelDef, autostart bool) map[string]any {
 	busy := installing && installModel == m.ID
 	instMu.Unlock()
 	st["installing"] = busy
+	if busy {
+		instMu.Lock()
+		done := 0
+		for _, complete := range installPackages {
+			if complete {
+				done++
+			}
+		}
+		st["installProgress"] = map[string]any{"done": done, "total": len(installPackages), "activity": installActivity, "updated": installUpdated}
+		instMu.Unlock()
+	}
 	if mk != nil && !busy && autostart && currentEngine(m.ID) == nil {
 		engMu.Lock()
 		prevErr := engErr[m.ID]
@@ -953,7 +1016,7 @@ func registerEngineAPI(mux *http.ServeMux) {
 			http.Error(w, "dữ liệu cảm xúc không hợp lệ", 400)
 			return
 		}
-		path := filepath.Join(engineDir(), "voices", in.ID+".json")
+		path := filepath.Join(voiceStorageDir(), in.ID+".json")
 		data, err := os.ReadFile(path)
 		var profile map[string]any
 		if err != nil || json.Unmarshal(data, &profile) != nil {
@@ -961,13 +1024,13 @@ func registerEngineAPI(mux *http.ServeMux) {
 			return
 		}
 		if in.SampleID != "" {
-			samplePath := filepath.Join(engineDir(), "voices", in.SampleID+".json")
+			samplePath := filepath.Join(voiceStorageDir(), in.SampleID+".json")
 			data, err := os.ReadFile(samplePath)
 			var sample struct {
 				RefText  string `json:"ref_text"`
 				Verified bool   `json:"ref_text_verified"`
 			}
-			_, audioErr := os.Stat(filepath.Join(engineDir(), "voices", in.SampleID+".wav"))
+			_, audioErr := os.Stat(filepath.Join(voiceStorageDir(), in.SampleID+".wav"))
 			if err != nil || audioErr != nil || json.Unmarshal(data, &sample) != nil {
 				http.Error(w, "không tìm thấy file mẫu cảm xúc", 404)
 				return
@@ -1044,7 +1107,7 @@ func registerEngineAPI(mux *http.ServeMux) {
 			http.Error(w, "dữ liệu không hợp lệ", 400)
 			return
 		}
-		p := filepath.Join(engineDir(), "voices", in.ID+".json")
+		p := filepath.Join(voiceStorageDir(), in.ID+".json")
 		b, err := os.ReadFile(p)
 		if err != nil {
 			http.Error(w, "không tìm thấy giọng", 404)
@@ -1087,8 +1150,8 @@ func registerEngineAPI(mux *http.ServeMux) {
 			http.Error(w, "id", 400)
 			return
 		}
-		os.Remove(filepath.Join(engineDir(), "voices", id+".json"))
-		os.Remove(filepath.Join(engineDir(), "voices", id+".wav"))
+		os.Remove(filepath.Join(voiceStorageDir(), id+".json"))
+		os.Remove(filepath.Join(voiceStorageDir(), id+".wav"))
 		writeJSON(w, map[string]bool{"ok": true})
 	})
 
@@ -1099,7 +1162,7 @@ func registerEngineAPI(mux *http.ServeMux) {
 			return
 		}
 		w.Header().Set("Content-Type", "audio/wav")
-		http.ServeFile(w, r, filepath.Join(engineDir(), "voices", id+".wav"))
+		http.ServeFile(w, r, filepath.Join(voiceStorageDir(), id+".wav"))
 	})
 
 	mux.HandleFunc("/api/engine/open-log", func(w http.ResponseWriter, r *http.Request) {

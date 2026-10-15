@@ -46,3 +46,21 @@ python3 -m unittest discover -s engine -p '*_test.py'
 ```
 
 Các test Python không cần tải mô hình. Kiểm tra chất lượng cảm xúc cần mẫu audio thực tế.
+
+## Cài F5 trên Windows
+
+Bản CPU được chọn mặc định. Chỉ bật NVIDIA khi cần GPU; thư viện CUDA lớn hơn.
+PyTorch và torchaudio được khóa phiên bản/backend trong cả bước cài F5 để tránh tải thêm phiên bản khác.
+Thanh tiến độ khi cài thư viện hiển thị phần trăm **số gói tải xong**, không phải phần trăm dung lượng toàn bộ cài đặt. Tổng số gói có thể tăng khi công cụ phát hiện thêm phụ thuộc. Dòng trạng thái hiển thị log mới nhất và thời gian không có log mới.
+Khi tải model, thanh tiến độ hiển thị số byte đã tải / tổng và phần trăm theo dung lượng.
+Luồng cài có giới hạn 45 phút; khi lỗi, cache được giữ để lần thử sau có thể dùng lại. Không tự chuyển NVIDIA sang CPU rồi tải thêm bộ thư viện thứ hai.
+
+## Chọn thư mục lưu và chuyển sang ổ khác
+
+Mở **Cài đặt**: chọn riêng thư mục model/thư viện, audio xuất và giọng cá nhân bằng nút **Chọn thư mục…**, hoặc nhập đường dẫn tuyệt đối. Bấm **Lưu cài đặt** rồi thoát/mở lại app.
+
+Nếu đã có dữ liệu, bật **Chuyển dữ liệu đã có sang nơi mới** trước khi lưu. App sao chép model/cache, audio và giọng, hiển thị tiến độ theo dung lượng, kiểm tra bản sao rồi mới lưu đường dẫn. Bản cũ được giữ nguyên; có thể dọn thủ công sau khi kiểm tra bản mới chạy tốt. Không tắt app hoặc rút ổ đĩa khi chuyển. File đích cùng tên nhưng khác nội dung sẽ báo lỗi thay vì ghi đè.
+
+Môi trường Python và marker cài đặt không được chuyển vì không thể di chuyển đáng tin cậy. Tại thư mục mới cần cài lại thư viện AI; model đã chuyển sẽ được dùng lại. Cache thư viện được sao chép khi có thể, nhưng một số thư viện vẫn cần tải lại. Nếu muốn giữ nguyên giọng/audio ở vị trí cũ, nhập chính đường dẫn hiện tại cho chúng.
+
+Cài đặt lưu trong thư mục cấu hình người dùng `GiongAI/storage.json`. Biến môi trường `GIONGAI_ENGINE_DIR` và `GIONGAI_OUT` được ưu tiên hơn cài đặt; cần gỡ chúng trước khi dùng chức năng chuyển.
