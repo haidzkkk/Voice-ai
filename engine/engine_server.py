@@ -1067,12 +1067,45 @@ class H(BaseHTTPRequestHandler):
 
 
 def watch_parent():
+    if os.name == "nt" and watch_parent_pipe_windows():
+        os._exit(0)
     try:
         while sys.stdin.read(1):
             pass
     except Exception:
         pass
     os._exit(0)
+
+
+def watch_parent_pipe_windows():
+    """Chờ app đóng stdin mà KHÔNG đọc chặn trên pipe.
+
+    Trên Windows, một lệnh đọc đồng bộ đang chờ trên pipe stdin làm treo mọi
+    lệnh GetFileType(stdin) khác. Một số DLL (vd. OpenBLAS của scipy) gọi hàm
+    đó khi khởi tạo runtime C trong lúc đang giữ loader lock -> import treo vĩnh
+    viễn, kéo theo cả luồng HTTP (không tạo được luồng mới). Hỏi pipe định kỳ
+    bằng PeekNamedPipe thì không có lệnh đọc nào chờ. Trả False nếu stdin không
+    phải pipe để dùng cách cũ.
+    """
+    try:
+        import ctypes
+        import msvcrt
+        from ctypes import wintypes
+        k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        k32.GetFileType.argtypes = [wintypes.HANDLE]
+        k32.GetFileType.restype = wintypes.DWORD
+        k32.PeekNamedPipe.argtypes = [wintypes.HANDLE, ctypes.c_void_p, wintypes.DWORD,
+                                      ctypes.c_void_p, ctypes.POINTER(wintypes.DWORD), ctypes.c_void_p]
+        k32.PeekNamedPipe.restype = wintypes.BOOL
+        handle = msvcrt.get_osfhandle(sys.stdin.fileno())
+        if k32.GetFileType(handle) != 3:  # FILE_TYPE_PIPE
+            return False
+    except Exception:
+        return False
+    avail = wintypes.DWORD()
+    while k32.PeekNamedPipe(handle, None, 0, None, ctypes.byref(avail), None):
+        time.sleep(0.5)
+    return True  # pipe bị đóng (app tắt engine hoặc app đã thoát)
 
 
 def main():
