@@ -383,29 +383,241 @@ def create_vieneu_model(options):
         OnnxV3LiteEngine._fetch = staticmethod(original)
 
 
+class _TooBigDirect(Exception):
+    """Tải trực tiếp nhận quá dung lượng thật -> file dở bị hỏng, phải tải lại sạch."""
+
+
+def _cleanup_hf_cache(repo):
+    """Dọn cache HuggingFace cũ của repo (file .incomplete phình tới vài chục GB)."""
+    import glob
+    import shutil
+    try:
+        home = os.environ.get("HF_HOME")
+        if not home:
+            return
+        folder = "models--" + repo.replace("/", "--")
+        for base in (os.path.join(home, "hub"), home):
+            path = os.path.join(base, folder)
+            if os.path.isdir(path):
+                shutil.rmtree(path, ignore_errors=True)
+    except Exception:
+        pass
+
+
+def hf_download_direct(repo, filename, dest, label=None, optional=False):
+    """Tải thẳng file lớn từ HuggingFace, tự chủ hoàn toàn để KHÔNG BAO GIỜ treo.
+
+    hf_hub_download của HuggingFace có vòng thử-lại nội bộ: mạng ở VN hay nghẽn khi
+    tải file lớn, và khi máy chủ trả NGUYÊN file (HTTP 200) thay vì phần còn thiếu
+    (206) thì nó GHI NỐI vào file dở -> file phình mãi (đã thấy 24-33 GB cho model
+    chỉ ~5,4 GB) rồi đứng im. Mình không chỉnh được vòng đó, nên tải thẳng bằng
+    urllib: timeout đọc (nghẽn -> lỗi thay vì treo), resume ĐÚNG (ghi đè khi server
+    trả 200), chặn phình theo dung lượng thật, thử lại có giới hạn, tự chuyển mirror.
+    """
+    import time
+    import urllib.error
+    import urllib.request
+
+    label = label or filename
+    dest = Path(dest)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    part = dest.with_name(dest.name + ".part")
+    _log = globals().get("log") or (lambda *a, **k: None)
+
+    mirror = os.environ.get("GIONGAI_HF_MIRROR", "https://hf-mirror.com").strip()
+    bases = ["https://huggingface.co"]
+    if mirror and mirror != "-" and mirror not in bases:
+        bases.append(mirror)
+    urls = [(b, b.rstrip("/") + "/" + repo + "/resolve/main/" + filename) for b in bases]
+
+    def open_url(url, start):
+        req = urllib.request.Request(url, headers={
+            "User-Agent": "GiongAI", "Accept-Encoding": "identity"})
+        if start:
+            req.add_header("Range", "bytes=%d-" % start)
+        return urllib.request.urlopen(req, timeout=30)
+
+    def publish(done, total, status="downloading"):
+        STATE["download"] = {"repo": repo, "file": label, "done": int(done),
+                             "total": int(total or 0), "status": status}
+
+    def probe_size():
+        for _b, url in urls:
+            try:
+                req = urllib.request.Request(url, headers={"User-Agent": "GiongAI"})
+                req.add_header("Range", "bytes=0-0")
+                with urllib.request.urlopen(req, timeout=20) as r:
+                    cr = r.getheader("Content-Range")
+                    if cr and "/" in cr:
+                        tail = cr.rsplit("/", 1)[1].strip()
+                        if tail.isdigit():
+                            return int(tail)
+                    cl = r.getheader("Content-Length")
+                    if cl and cl.isdigit() and getattr(r, "status", 200) == 200:
+                        return int(cl)
+            except Exception:
+                continue
+        return 0
+
+    expected = probe_size()
+    if dest.is_file() and expected and dest.stat().st_size == expected:
+        publish(expected, expected, "complete")
+        return str(dest)
+    # Dọn cache HuggingFace cũ (file .incomplete phình) để lấy lại dung lượng trước khi tải.
+    _cleanup_hf_cache(repo)
+    publish(part.stat().st_size if part.exists() else 0, expected)
+
+    last = None
+    for base, url in urls:
+        official = base.startswith("https://huggingface.co")
+        where = "máy chủ chính" if official else "mirror " + base
+        for attempt in range(2 if official else 5):
+            try:
+                have = part.stat().st_size if part.exists() else 0
+                if expected and have > expected:  # file dở hỏng -> làm lại sạch
+                    part.unlink()
+                    have = 0
+                if expected and have == expected:
+                    os.replace(part, dest)
+                    publish(expected, expected, "complete")
+                    _cleanup_hf_cache(repo)
+                    return str(dest)
+                with open_url(url, have) as r:
+                    resumed = getattr(r, "status", 200) == 206 and have > 0
+                    start = have if resumed else 0
+                    total = expected
+                    cr = r.getheader("Content-Range")
+                    if cr and "/" in cr and cr.rsplit("/", 1)[1].strip().isdigit():
+                        total = int(cr.rsplit("/", 1)[1].strip())
+                    elif not total:
+                        cl = r.getheader("Content-Length")
+                        if cl and cl.isdigit():
+                            total = start + int(cl)
+                    done = start
+                    with open(part, "r+b" if (resumed and part.exists()) else "wb") as f:
+                        f.seek(start)
+                        publish(done, total)
+                        while True:
+                            buf = r.read(1 << 20)
+                            if not buf:
+                                break
+                            f.write(buf)
+                            done += len(buf)
+                            publish(done, total)
+                            cap = total or expected
+                            if cap and done > cap * 1.02:  # server gửi quá -> cắt
+                                raise _TooBigDirect()
+                size = part.stat().st_size
+                if expected and size < expected:
+                    raise IOError("tải thiếu %d/%d byte" % (size, expected))
+                os.replace(part, dest)
+                publish(size, size, "complete")
+                _cleanup_hf_cache(repo)
+                return str(dest)
+            except urllib.error.HTTPError as e:
+                # 404 = file không có trong kho: thử lại hay đổi mirror đều vô ích.
+                if e.code == 404:
+                    STATE.pop("download", None)
+                    if optional:
+                        return None
+                    raise FileNotFoundError(label + " không có trên kho (404)")
+                last = e
+                _log("Tải", label, "lỗi ở", where, "-", type(e).__name__,
+                     (str(e) or "")[:200], "- thử lại")
+                time.sleep(min(20, 3 * (attempt + 1)))
+            except _TooBigDirect:
+                _log("Tải", label, "bị gửi lặp lại ở", where, "- xoá file dở, tải lại sạch")
+                try:
+                    part.unlink()
+                except OSError:
+                    pass
+                last = RuntimeError("tải lại từ đầu vì file dở bị hỏng")
+            except Exception as e:
+                last = e
+                _log("Tải", label, "lỗi ở", where, "-", type(e).__name__,
+                     (str(e) or "")[:200], "- thử lại")
+                time.sleep(min(20, 3 * (attempt + 1)))
+
+    STATE.pop("download", None)
+    if isinstance(last, BaseException):
+        raise last
+    raise RuntimeError("Không tải được " + label)
+
+
 class F5Model:
     REPO = "hynt/F5-TTS-Vietnamese-ViVoice"
+    VOCODER_REPO = "charactr/vocos-mel-24khz"
+    ASR_REPO = "openai/whisper-large-v3-turbo"
 
     def __init__(self):
-        import shutil
         from f5_tts.api import F5TTS
         self.device, self.device_name = pick_torch_device()
-        STATE["detail"] = "Đang tìm mô hình F5-TTS đã lưu trên máy…"
-        ckpt = download_model_file(self.REPO, "model_last.pt")
         mdir = Path(ARGS.data) / "models" / "f5"
         mdir.mkdir(parents=True, exist_ok=True)
+        self._mdir = mdir
+        STATE["detail"] = "Đang tải mô hình F5-TTS (model_last.pt ~5,4 GB, chỉ lần đầu)…"
+        ckpt = hf_download_direct(self.REPO, "model_last.pt", mdir / "model_last.pt")
         vocab = mdir / "vocab.txt"
         if not vocab.exists():
             # Repo lưu bảng ký tự dưới tên config.json (theo hướng dẫn của tác giả)
-            shutil.copy(download_model_file(self.REPO, "config.json"), vocab)
+            STATE["detail"] = "Đang tải bảng ký tự F5-TTS…"
+            hf_download_direct(self.REPO, "config.json", vocab, label="vocab.txt")
+        # Vocoder (vocos): F5TTS tự tải từ HuggingFace khi nạp, nhưng đường tải đó của
+        # thư viện KHÔNG chống-treo -> trên mạng VN hay đứng im vô hạn NGAY LÚC KHỞI
+        # ĐỘNG. Tải trước bằng trình tải chống-treo rồi trỏ vocoder_local_path để
+        # F5TTS nạp thẳng từ đĩa, không còn chạm mạng.
+        vdir = self._fetch_vocoder()
         STATE.pop("download", None)
         STATE["detail"] = "Đang nạp F5-TTS vào bộ nhớ để sử dụng…"
-        self.m = F5TTS(model="F5TTS_Base", ckpt_file=ckpt, vocab_file=str(vocab), device=self.device)
+        self.m = F5TTS(model="F5TTS_Base", ckpt_file=ckpt, vocab_file=str(vocab),
+                       vocoder_local_path=str(vdir), device=self.device)
         if self.device == "cuda" and needs_fp32():
             self.m.ema_model.float()
             self.device_name += " (fp32)"
         self.sample_rate = self.m.target_sample_rate
         self._refs = {}
+        self._asr_ready = False
+
+    def _fetch_vocoder(self):
+        """Tải vocos về đĩa (config.yaml + pytorch_model.bin ~55 MB) để nạp cục bộ."""
+        vdir = self._mdir / "vocos"
+        vdir.mkdir(parents=True, exist_ok=True)
+        STATE["detail"] = "Đang tải bộ tổng hợp âm thanh (vocoder ~55 MB, chỉ lần đầu)…"
+        hf_download_direct(self.VOCODER_REPO, "config.yaml", vdir / "config.yaml",
+                           label="vocoder/config.yaml")
+        hf_download_direct(self.VOCODER_REPO, "pytorch_model.bin", vdir / "pytorch_model.bin",
+                           label="vocoder/pytorch_model.bin")
+        return vdir
+
+    def _ensure_asr(self):
+        """Tải trước Whisper rồi nạp cục bộ, để việc nhận dạng lời thoại không bao
+        giờ kích hoạt đường tải HuggingFace mặc định (hay treo trên mạng VN)."""
+        if self._asr_ready:
+            return
+        import f5_tts.infer.utils_infer as infer
+        if getattr(infer, "asr_pipe", None) is not None:
+            self._asr_ready = True
+            return
+        wdir = self._mdir / "whisper"
+        wdir.mkdir(parents=True, exist_ok=True)
+        STATE["detail"] = "Đang tải bộ nhận dạng giọng nói (Whisper ~1,6 GB, chỉ lần đầu)…"
+        required = ["config.json", "model.safetensors", "preprocessor_config.json",
+                    "tokenizer.json", "tokenizer_config.json"]
+        optional = ["generation_config.json", "vocab.json", "merges.txt",
+                    "special_tokens_map.json", "added_tokens.json", "normalizer.json"]
+        for name in required:
+            hf_download_direct(self.ASR_REPO, name, wdir / name, label="whisper/" + name)
+        for name in optional:
+            hf_download_direct(self.ASR_REPO, name, wdir / name, label="whisper/" + name, optional=True)
+        STATE.pop("download", None)
+        STATE["detail"] = "Đang nạp bộ nhận dạng giọng nói…"
+        import torch
+        from transformers import pipeline
+        dtype = torch.float16 if self.device == "cuda" else torch.float32
+        # Trỏ thẳng vào thư mục đã tải -> transformers nạp cục bộ, không gọi mạng.
+        infer.asr_pipe = pipeline("automatic-speech-recognition", model=str(wdir),
+                                  torch_dtype=dtype, device=torch.device(self.device))
+        self._asr_ready = True
 
     def _ref(self, ref_wav, ref_text):
         from f5_tts.infer.utils_infer import preprocess_ref_audio_text
@@ -417,8 +629,9 @@ class F5Model:
         return self._refs[key]
 
     def transcribe(self, path):
-        STATE["detail"] = "Đang tải bộ nhận dạng giọng nói (chỉ lần đầu)…"
+        STATE["detail"] = "Đang chuẩn bị bộ nhận dạng giọng nói (chỉ lần đầu)…"
         try:
+            self._ensure_asr()
             import soundfile as sf
             # App reference clips are WAV. Passing a filename makes Transformers
             # invoke ffmpeg even for WAV; raw samples bypass that dependency.

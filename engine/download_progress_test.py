@@ -173,3 +173,153 @@ class ModelMaterializationTest(unittest.TestCase):
         self.assertFalse(target.is_symlink())
         self.assertEqual(target.read_bytes(), b"model")
         self.assertEqual(list(target.parent.glob(".model-*")), [])
+
+
+class _FakeResp:
+    def __init__(self, body, status, headers):
+        self._body, self.status, self._headers, self._pos = body, status, headers, 0
+
+    def getheader(self, name, default=None):
+        return self._headers.get(name, default)
+
+    def read(self, n=-1):
+        if n is None or n < 0:
+            chunk, self._pos = self._body[self._pos:], len(self._body)
+            return chunk
+        chunk = self._body[self._pos:self._pos + n]
+        self._pos += len(chunk)
+        return chunk
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+
+def _fake_server(data, honor_range=True):
+    """Giả lập huggingface.co qua urllib: hỗ trợ probe 0-0, resume 206, và ca
+    server bỏ qua Range trả nguyên file 200."""
+    length = len(data)
+
+    def urlopen(req, timeout=None):
+        rng = req.get_header("Range")
+        if rng and rng.startswith("bytes="):
+            start_s, _, end_s = rng[len("bytes="):].partition("-")
+            start = int(start_s or 0)
+            if start == 0 and end_s == "0":  # probe dung lượng
+                return _FakeResp(data[:1], 206,
+                                 {"Content-Range": "bytes 0-0/%d" % length, "Content-Length": "1"})
+            if honor_range:
+                body = data[start:]
+                return _FakeResp(body, 206, {
+                    "Content-Range": "bytes %d-%d/%d" % (start, length - 1, length),
+                    "Content-Length": str(len(body))})
+        return _FakeResp(data, 200, {"Content-Length": str(length)})  # bỏ qua Range
+
+    return urlopen
+
+
+class DirectDownloadTest(unittest.TestCase):
+    def setUp(self):
+        source = Path(__file__).with_name("engine_server.py").read_text()
+        function = next(n for n in ast.parse(source).body
+                        if isinstance(n, ast.FunctionDef) and n.name == "hf_download_direct")
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        self.scope = {
+            "Path": Path, "os": os, "STATE": {},
+            "_TooBigDirect": type("_TooBigDirect", (Exception,), {}),
+            "_cleanup_hf_cache": lambda *a, **k: None,
+        }
+        exec(compile(ast.Module(body=[function], type_ignores=[]), source, "exec"), self.scope)
+        self.data = bytes(range(256)) * 400  # 102400 byte
+        env = patch.dict(os.environ, {"GIONGAI_HF_MIRROR": "-"})  # chỉ dùng máy chủ chính
+        env.start()
+        self.addCleanup(env.stop)
+
+    def run_download(self, honor_range=True):
+        dest = self.root / "model_last.pt"
+        with patch("urllib.request.urlopen", _fake_server(self.data, honor_range)), \
+                patch("time.sleep"):
+            result = self.scope["hf_download_direct"]("repo/name", "model_last.pt", dest)
+        return Path(result), dest
+
+    def test_full_download(self):
+        result, dest = self.run_download()
+        self.assertEqual(result, dest)
+        self.assertEqual(dest.read_bytes(), self.data)
+        self.assertEqual(self.scope["STATE"]["download"]["status"], "complete")
+        self.assertFalse(dest.with_name(dest.name + ".part").exists())
+
+    def test_resume_appends_from_partial(self):
+        part = self.root / "model_last.pt.part"
+        part.write_bytes(self.data[:40000])
+        result, dest = self.run_download(honor_range=True)
+        self.assertEqual(dest.read_bytes(), self.data)  # nối đúng, không hỏng
+
+    def test_server_ignoring_range_overwrites_instead_of_growing(self):
+        # Đây là gốc lỗi 24-33 GB: server trả nguyên file (200) cho yêu cầu resume.
+        part = self.root / "model_last.pt.part"
+        part.write_bytes(self.data[:40000])
+        result, dest = self.run_download(honor_range=False)
+        self.assertEqual(dest.stat().st_size, len(self.data))  # KHÔNG phình
+        self.assertEqual(dest.read_bytes(), self.data)
+
+    def test_oversized_partial_is_discarded(self):
+        part = self.root / "model_last.pt.part"
+        part.write_bytes(self.data + b"x" * 5000)  # lớn hơn dung lượng thật
+        result, dest = self.run_download(honor_range=True)
+        self.assertEqual(dest.stat().st_size, len(self.data))
+        self.assertEqual(dest.read_bytes(), self.data)
+
+    def test_reuses_existing_complete_file_without_network(self):
+        dest = self.root / "model_last.pt"
+        dest.write_bytes(self.data)
+
+        def boom(*a, **k):
+            raise AssertionError("đã có file đủ, không được tải lại")
+
+        # probe_size vẫn gọi mạng một lần để biết dung lượng; cho phép probe, chặn tải.
+        calls = {"n": 0}
+
+        def urlopen(req, timeout=None):
+            calls["n"] += 1
+            rng = req.get_header("Range")
+            if rng == "bytes=0-0":
+                return _FakeResp(self.data[:1], 206,
+                                 {"Content-Range": "bytes 0-0/%d" % len(self.data)})
+            return boom()
+
+        with patch("urllib.request.urlopen", urlopen), patch("time.sleep"):
+            result = self.scope["hf_download_direct"]("repo/name", "model_last.pt", dest)
+        self.assertEqual(Path(result), dest)
+        self.assertEqual(self.scope["STATE"]["download"]["status"], "complete")
+
+    def test_optional_missing_file_returns_none_without_retrying(self):
+        # File phụ (vd. added_tokens.json của Whisper) không tồn tại -> 404. Phải trả
+        # None ngay, không thử lại/đổi mirror, và không ném lỗi làm hỏng cả luồng.
+        import urllib.error
+        calls = {"n": 0}
+
+        def urlopen(req, timeout=None):
+            calls["n"] += 1
+            raise urllib.error.HTTPError(req.full_url, 404, "Not Found", {}, None)
+
+        with patch("urllib.request.urlopen", urlopen), patch("time.sleep"):
+            result = self.scope["hf_download_direct"](
+                "repo/name", "added_tokens.json", self.root / "added_tokens.json", optional=True)
+        self.assertIsNone(result)
+        self.assertLessEqual(calls["n"], 2)  # probe + 1 lần tải, không lặp lại
+
+    def test_required_missing_file_raises_clear_error(self):
+        import urllib.error
+
+        def urlopen(req, timeout=None):
+            raise urllib.error.HTTPError(req.full_url, 404, "Not Found", {}, None)
+
+        with patch("urllib.request.urlopen", urlopen), patch("time.sleep"):
+            with self.assertRaises(FileNotFoundError):
+                self.scope["hf_download_direct"](
+                    "repo/name", "model_last.pt", self.root / "model_last.pt")
