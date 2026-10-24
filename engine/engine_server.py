@@ -23,6 +23,28 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+
+def add_runtime_dll_dirs():
+    """Cho Windows tìm msvcp140.dll do gói msvc-runtime chép vào venv.
+
+    Python không tìm DLL phụ thuộc trong thư mục venv, nên thiếu bước này thì
+    onnxruntime/PyTorch vẫn báo "DLL load failed" trên máy chưa cài VC++
+    Redistributable. Phải chạy trước mọi import thư viện C++ (kể cả numpy).
+    """
+    if os.name != "nt":
+        return []
+    handles = []
+    for d in (sys.prefix, os.path.join(sys.prefix, "Scripts")):
+        if os.path.isfile(os.path.join(d, "msvcp140.dll")):
+            try:
+                handles.append(os.add_dll_directory(d))
+            except OSError:
+                pass
+    return handles
+
+
+DLL_DIRS = add_runtime_dll_dirs()  # giữ tham chiếu: handle bị thu hồi thì thư mục bị gỡ
+
 import numpy as np
 
 ARGS = None

@@ -22,6 +22,14 @@ func TestTorchBackendPinned(t *testing.T) {
 		}
 	}
 }
+func TestMSVCRuntimeOnlyOnWindows(t *testing.T) {
+	if pkgs := runtimePackages("windows"); len(pkgs) != 1 || !strings.HasPrefix(pkgs[0], "msvc-runtime==") {
+		t.Fatalf("windows needs pinned msvc-runtime: %v", pkgs)
+	}
+	if pkgs := runtimePackages("darwin"); len(pkgs) != 0 {
+		t.Fatalf("unexpected packages: %v", pkgs)
+	}
+}
 func TestInstallerProgressTracksCompletedPackages(t *testing.T) {
 	instMu.Lock()
 	oldBusy, oldPackages, oldActivity, oldUpdated := installing, installPackages, installActivity, installUpdated

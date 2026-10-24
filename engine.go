@@ -425,6 +425,16 @@ func torchIndex(gpu bool, platform string) string {
 	return ""
 }
 
+// Thư viện C++ (onnxruntime, PyTorch) cần msvcp140.dll. Máy Windows mới hoặc máy ảo
+// thường chưa cài VC++ Redistributable, nên chép DLL vào venv thay vì bắt người dùng cài.
+// engine_server.py thêm thư mục venv vào đường tìm DLL.
+func runtimePackages(platform string) []string {
+	if platform == "windows" {
+		return []string{"msvc-runtime==14.44.35112"}
+	}
+	return nil
+}
+
 func installTorch(ctx context.Context, py string, gpu bool) (bool, error) {
 	setStep("Cài PyTorch CPU (không tải CUDA)")
 	if gpu {
@@ -488,7 +498,8 @@ func doInstall(m *modelDef, gpu bool) {
 			}
 		}
 		setStep("Cài thư viện giọng VieNeu-TTS")
-		if err := runLogged(ctx, uv, "pip", "install", "--python", py, "vieneu", "lameenc"); err != nil {
+		args := append([]string{"pip", "install", "--python", py, "vieneu", "lameenc"}, runtimePackages(runtime.GOOS)...)
+		if err := runLogged(ctx, uv, args...); err != nil {
 			fail(fmt.Errorf("cài VieNeu-TTS: %w", err))
 			return
 		}
@@ -510,6 +521,7 @@ func doInstall(m *modelDef, gpu bool) {
 		}
 		args := []string{"pip", "install", "--python", py, "--constraint", constraints, pkg,
 			"transformers>=4.45,<4.58", "pyarrow<20", "sea-g2p", "lameenc", "soundfile", "librosa"}
+		args = append(args, runtimePackages(runtime.GOOS)...)
 		if index := torchIndex(gpu, runtime.GOOS); index != "" {
 			args = append(args, "--extra-index-url", index)
 		}
