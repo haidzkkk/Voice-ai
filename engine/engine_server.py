@@ -58,6 +58,10 @@ REGION_ORDER = {"Bắc": 0, "Trung": 1, "Nam": 2}
 FAKE = bool(os.environ.get("GIONGAI_FAKE_ENGINE"))
 LEGACY_REF_TEXT = "Xin chào, đây là giọng nói của tôi. Hôm nay trời rất đẹp, tôi muốn kể cho bạn nghe một câu chuyện thú vị về quê hương mình."
 F5_EMOTIONS = {"vui", "buon", "gian", "haohung", "thitham", "kechuyen"}
+# Khoảng lặng (giây) chèn giữa các cụm theo loại ngắt: cuối đoạn văn, cuối câu, sau dấu phẩy.
+GAP = {"para": 0.45, "sent": 0.2, "comma": 0.12}
+# F5 ra giọng méo khi mẫu quá dài; mẫu dài hơn ngần này (giây) sẽ được cắt ngắn lại.
+REF_MAX_SEC = 15.0
 
 
 def log(*a):
@@ -641,12 +645,32 @@ class F5Model:
                                   torch_dtype=dtype, device=torch.device(self.device))
         self._asr_ready = True
 
+    def _duration(self, path):
+        import soundfile as sf
+        info = sf.info(str(path))
+        return info.frames / float(info.samplerate or 1)
+
     def _ref(self, ref_wav, ref_text):
         from f5_tts.infer.utils_infer import preprocess_ref_audio_text
+        quiet = lambda *a, **k: None
         st = os.stat(ref_wav)
         key = (ref_wav, st.st_mtime, st.st_size, ref_text)
         if key not in self._refs:
-            self._refs[key] = preprocess_ref_audio_text(ref_wav, ref_text, show_info=lambda *a, **k: None,
+            wav_path, text = ref_wav, ref_text
+            # Mẫu quá dài làm F5 ra giọng méo ("ma mị") và dễ đọc thừa chữ. Cắt còn
+            # ~12s theo điểm lặng tự nhiên rồi NHẬN DẠNG LẠI đúng đoạn đã cắt để lời
+            # thoại khớp với audio — đây là nguồn gốc chính của giọng méo và chữ thừa.
+            # Mẫu đã ngắn (kèm lời thoại người dùng tự nhập) giữ nguyên, không đụng tới.
+            try:
+                if self._duration(ref_wav) > REF_MAX_SEC:
+                    clipped, _ = preprocess_ref_audio_text(ref_wav, "x", show_info=quiet,
+                                                            clip_short=True, device=self.device)
+                    detected = self.transcribe(clipped)
+                    if detected.strip():
+                        wav_path, text = clipped, detected
+            except Exception as e:
+                log("không cắt ngắn được giọng mẫu, dùng nguyên bản:", e)
+            self._refs[key] = preprocess_ref_audio_text(wav_path, text, show_info=quiet,
                                                          clip_short=False, device=self.device)
         return self._refs[key]
 
@@ -808,6 +832,35 @@ def split_groups(text, limit=700):
     return groups
 
 
+def f5_fine_groups(text, limit=700):
+    """Chia mịn dành riêng cho F5: mỗi câu, và mỗi vế sau dấu phẩy, là một cụm
+    riêng, để chèn được khoảng lặng đúng chỗ ngắt. F5 vốn sinh từng cụm độc lập
+    rồi nối lại (trộn mờ cross-fade làm mất nhịp), nên tách sẵn ở đây cho ra
+    khoảng nghỉ thật tại dấu chấm, dấu phẩy. Cụm quá ngắn được gộp để tránh vụn.
+
+    Trả (cụm, loại nghỉ sau cụm) với loại trong GAP: "para", "sent", "comma".
+    """
+    out = []
+    for part, para_end in split_groups(text, limit):
+        sents = [s.strip() for s in re.split(r"(?<=[.!?…;:])\s+", part) if s.strip()]
+        for si, sent in enumerate(sents):
+            last_sent = si == len(sents) - 1
+            pieces = [c.strip() for c in re.split(r"(?<=,)\s+", sent) if c.strip()]
+            for pi, piece in enumerate(pieces):
+                if pi < len(pieces) - 1:
+                    kind = "comma"
+                else:
+                    kind = "para" if (last_sent and para_end) else "sent"
+                out.append((piece, kind))
+    merged = []
+    for seg, kind in out:
+        if merged and len(merged[-1][0]) < 6:  # vế quá ngắn ("Dạ,", "Ừ,") gộp vào vế sau
+            merged[-1] = ((merged[-1][0] + " " + seg).strip(), kind)
+        else:
+            merged.append((seg, kind))
+    return merged
+
+
 def encode(wav, sr, fmt="mp3"):
     pcm = (np.clip(wav, -1, 1) * 32767).astype(np.int16)
     if fmt == "mp3":
@@ -864,9 +917,9 @@ def f5_style_groups(text, samples):
             raise ValueError(f"Thẻ [{label}] chưa hỗ trợ. Dùng các thẻ trong mục Cảm xúc F5-TTS.")
         if label != "macdinh" and not samples.get(label):
             raise ValueError(f"Chưa thiết lập mẫu cho [{label}]. Mở Thiết lập cảm xúc để chọn mẫu trước.")
-        groups.extend((part, end, tag) for part, end in split_groups(text[position:match.start()]))
+        groups.extend((part, kind, tag) for part, kind in f5_fine_groups(text[position:match.start()]))
         tag, position = label, match.end()
-    groups.extend((part, end, tag) for part, end in split_groups(text[position:]))
+    groups.extend((part, kind, tag) for part, kind in f5_fine_groups(text[position:]))
     if not groups:
         raise ValueError("Hãy nhập lời cần đọc sau thẻ cảm xúc.")
     return groups
@@ -876,7 +929,7 @@ def synthesize(req, job):
     text = (req.get("text") or "").strip()
     if not text:
         raise ValueError("Văn bản trống")
-    groups = [(part, end, "macdinh") for part, end in split_groups(text)]
+    groups = [(part, "para" if end else "sent", "macdinh") for part, end in split_groups(text)]
     speed_pct = int(req.get("speed") or 0)
     native_speed = 1.0
 
@@ -905,7 +958,7 @@ def synthesize(req, job):
 
     job["total"] = len(groups)
     parts = []
-    for i, (g, para_end, tag) in enumerate(groups):
+    for i, (g, kind, tag) in enumerate(groups):
         if job.get("cancel"):
             raise InterruptedError("đã hủy")
         with MODEL_LOCK:
@@ -913,7 +966,7 @@ def synthesize(req, job):
         sr = MODEL.sample_rate
         parts.append(np.asarray(wav, dtype=np.float32).reshape(-1))
         if i < len(groups) - 1:
-            parts.append(np.zeros(int(sr * (0.45 if para_end else 0.2)), dtype=np.float32))
+            parts.append(np.zeros(int(sr * GAP.get(kind, 0.2)), dtype=np.float32))
         job["done"] = i + 1
     sr = MODEL.sample_rate
     wav = np.concatenate(parts) if parts else np.zeros(1, dtype=np.float32)

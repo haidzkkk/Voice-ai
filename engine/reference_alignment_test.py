@@ -59,14 +59,20 @@ class ReferenceAlignmentTest(unittest.TestCase):
             self.resolve({"ref_text": ""})
         self.assertEqual(json.loads(self.meta.read_text())["ref_text"], "")
 
-    def test_preprocessing_keeps_full_audio_and_rebuilds_when_text_changes(self):
+    def _ref_scope(self):
         model = next(n for n in TREE.body if isinstance(n, ast.ClassDef) and n.name == "F5Model")
         method = next(n for n in model.body if isinstance(n, ast.FunctionDef) and n.name == "_ref")
-        scope = {"os": os}
+        scope = {"os": os, "log": lambda *a, **k: None, "REF_MAX_SEC": 15.0}
         exec(compile(ast.Module(body=[method], type_ignores=[]), "_ref", "exec"), scope)
+        return scope
+
+    def test_preprocessing_keeps_full_audio_and_rebuilds_when_text_changes(self):
+        scope = self._ref_scope()
         preprocess = Mock(side_effect=lambda audio, text, **kw: (audio, text))
         fake_module = types.SimpleNamespace(preprocess_ref_audio_text=preprocess)
-        instance = types.SimpleNamespace(_refs={}, device="cpu")
+        # Mẫu ngắn: không cắt, không nhận dạng lại — giữ nguyên lời thoại người dùng.
+        instance = types.SimpleNamespace(_refs={}, device="cpu", _duration=lambda path: 5.0,
+                                         transcribe=Mock(return_value="không nên gọi"))
         audio = str(self.directory / "abcdef12.wav")
         with patch.dict(sys.modules, {"f5_tts.infer.utils_infer": fake_module}):
             scope["_ref"](instance, audio, "lời cũ")
@@ -75,3 +81,25 @@ class ReferenceAlignmentTest(unittest.TestCase):
         self.assertEqual(preprocess.call_count, 2)
         self.assertEqual(text, "lời đã sửa")
         self.assertFalse(preprocess.call_args.kwargs["clip_short"])
+        instance.transcribe.assert_not_called()
+
+    def test_long_reference_is_clipped_and_retranscribed(self):
+        scope = self._ref_scope()
+        calls = []
+
+        def fake_pre(audio, text, **kw):
+            calls.append((audio, text, kw.get("clip_short")))
+            return (audio + "#clip" if kw.get("clip_short") else audio, text)
+
+        preprocess = Mock(side_effect=fake_pre)
+        fake_module = types.SimpleNamespace(preprocess_ref_audio_text=preprocess)
+        # Mẫu dài (>15s): cắt ngắn rồi nhận dạng lại đúng đoạn đã cắt.
+        instance = types.SimpleNamespace(_refs={}, device="cpu", _duration=lambda path: 30.0,
+                                         transcribe=Mock(return_value="lời trong đoạn đã cắt"))
+        audio = str(self.directory / "abcdef12.wav")
+        with patch.dict(sys.modules, {"f5_tts.infer.utils_infer": fake_module}):
+            clipped_audio, text = scope["_ref"](instance, audio, "lời gốc dài")
+        instance.transcribe.assert_called_once()
+        self.assertEqual([c[2] for c in calls], [True, False])  # cắt trước, rồi dựng bản cuối
+        self.assertEqual(text, "lời trong đoạn đã cắt")
+        self.assertEqual(clipped_audio, audio + "#clip")  # bản cuối dùng đoạn đã cắt

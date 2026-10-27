@@ -21,7 +21,7 @@ class AudioTranscriptionTest(unittest.TestCase):
         soundfile = types.SimpleNamespace(read=Mock(return_value=(samples, 48000)))
         signal = types.SimpleNamespace(resample_poly=Mock(return_value=[0.3]))
         transcriber = Mock(return_value="xin chào")
-        model = types.SimpleNamespace(m=types.SimpleNamespace(transcribe=transcriber))
+        model = types.SimpleNamespace(m=types.SimpleNamespace(transcribe=transcriber), _ensure_asr=lambda: None)
         with patch.dict(sys.modules, {"soundfile": soundfile, "scipy.signal": signal}):
             result = self.scope["transcribe"](model, Path("reference.wav"))
         soundfile.read.assert_called_once_with("reference.wav", dtype="float32", always_2d=True)
@@ -32,7 +32,7 @@ class AudioTranscriptionTest(unittest.TestCase):
         self.assertEqual(self.scope["STATE"]["detail"], "")
 
     def test_read_failure_clears_busy_status(self):
-        model = types.SimpleNamespace(m=Mock())
+        model = types.SimpleNamespace(m=Mock(), _ensure_asr=lambda: None)
         soundfile = types.SimpleNamespace(read=Mock(side_effect=OSError("invalid audio")))
         with patch.dict(sys.modules, {"soundfile": soundfile}):
             with self.assertRaises(OSError):
