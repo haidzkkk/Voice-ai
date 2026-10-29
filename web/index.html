@@ -702,6 +702,10 @@ let vmodel = store.get('vmodel','vieneu'), f5Ready = false;
 // Mô hình nâng cao dạng clone (ref audio + lời thoại + cảm xúc). Mọi mô hình
 // khác 'vieneu' dùng chung UI này; f5Ready = mô hình nâng cao đang chọn đã sẵn sàng.
 const ADV_NAMES={f5:'F5-TTS',voxcpm:'VoxCPM2'};
+const ADV_DESC={
+ f5:'F5-TTS tiếng Việt được huấn luyện trên ~1.000 giờ giọng nói: đọc rõ hơn, ngắt nghỉ tự nhiên hơn và nhại giọng cá nhân giống hơn VieNeu. Đổi lại chạy chậm hơn. Dùng cá nhân, không thương mại.',
+ voxcpm:'VoxCPM2 (OpenBMB) clone giọng đa ngôn ngữ từ mẫu + lời thoại. Mô hình lớn (~2 tỷ tham số): cần máy mạnh, tốt nhất có card NVIDIA; chạy CPU sẽ rất chậm. Giấy phép Apache-2.0 (dùng thương mại được).'
+};
 const isAdv=()=>vmodel!=='vieneu';
 const advName=()=>ADV_NAMES[vmodel]||'Mô hình nâng cao';
 let region = store.get('vregion',''), vgender = store.get('vgender','');
@@ -853,6 +857,11 @@ function renderF5(st){
   const f = (onF5 ? (st.models||{})[vmodel] : {}) || {}, fe = f.engine || {};
   f5Ready = onF5 && !!(f.installed && f.running && fe.state==='ready');
   const name = advName();
+  if(onF5){
+    $('#f5InstallBtn').textContent='Cài '+name;
+    $('#f5Reinstall').textContent='Cài lại '+name;
+    const lead=$('#f5Setup .lead'); if(lead) lead.textContent=ADV_DESC[vmodel]||'';
+  }
   const err = f.installErr || (f.installed && !f.running && f.engineErr) || (fe.state==='error' && fe.error);
   const selectedReady=onF5?f5Ready:vnReady;
   if(engine!=='ms'){

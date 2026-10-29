@@ -515,12 +515,15 @@ func doInstall(m *modelDef, gpu bool) {
 		if v := os.Getenv("GIONGAI_F5_PACKAGE"); v != "" { // chỉ dùng để kiểm thử
 			pkg = v
 		}
-		constraints := filepath.Join(engineDir(), "f5-torch-constraints.txt")
-		if err := os.WriteFile(constraints, []byte(strings.Join(torchPackages(gpu, runtime.GOOS), "\n")+"\n"), 0600); err != nil {
+		// uv cắt đường dẫn --constraint ở dấu cách (lỗi trên máy có dấu cách trong
+		// đường dẫn như "Application Support" hay "C:\Users\Tên Có Dấu Cách"); dùng
+		// tên file tương đối vì runLogged đặt cmd.Dir = engineDir().
+		const constraintName = "f5-torch-constraints.txt"
+		if err := os.WriteFile(filepath.Join(engineDir(), constraintName), []byte(strings.Join(torchPackages(gpu, runtime.GOOS), "\n")+"\n"), 0600); err != nil {
 			fail(err)
 			return
 		}
-		args := []string{"pip", "install", "--python", py, "--constraint", constraints, pkg,
+		args := []string{"pip", "install", "--python", py, "--constraint", constraintName, pkg,
 			"transformers>=4.45,<4.58", "pyarrow<20", "sea-g2p", "lameenc", "soundfile", "librosa"}
 		args = append(args, runtimePackages(runtime.GOOS)...)
 		if index := torchIndex(gpu, runtime.GOOS); index != "" {
@@ -537,12 +540,13 @@ func doInstall(m *modelDef, gpu bool) {
 			return
 		}
 		setStep("Cài thư viện VoxCPM2")
-		constraints := filepath.Join(engineDir(), "voxcpm-torch-constraints.txt")
-		if err := os.WriteFile(constraints, []byte(strings.Join(torchPackages(gpu, runtime.GOOS), "\n")+"\n"), 0600); err != nil {
+		// Dùng tên file tương đối cho --constraint (xem ghi chú ở nhánh f5).
+		const constraintName = "voxcpm-torch-constraints.txt"
+		if err := os.WriteFile(filepath.Join(engineDir(), constraintName), []byte(strings.Join(torchPackages(gpu, runtime.GOOS), "\n")+"\n"), 0600); err != nil {
 			fail(err)
 			return
 		}
-		args := []string{"pip", "install", "--python", py, "--constraint", constraints,
+		args := []string{"pip", "install", "--python", py, "--constraint", constraintName,
 			"voxcpm", "lameenc", "soundfile", "librosa"}
 		args = append(args, runtimePackages(runtime.GOOS)...)
 		if index := torchIndex(gpu, runtime.GOOS); index != "" {
