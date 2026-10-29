@@ -59,7 +59,7 @@ FAKE = bool(os.environ.get("GIONGAI_FAKE_ENGINE"))
 LEGACY_REF_TEXT = "Xin chào, đây là giọng nói của tôi. Hôm nay trời rất đẹp, tôi muốn kể cho bạn nghe một câu chuyện thú vị về quê hương mình."
 F5_EMOTIONS = {"vui", "buon", "gian", "haohung", "thitham", "kechuyen"}
 # Khoảng lặng (giây) chèn giữa các cụm theo loại ngắt: cuối đoạn văn, cuối câu, sau dấu phẩy.
-GAP = {"para": 0.45, "sent": 0.2, "comma": 0.12}
+GAP = {"para": 0.45, "sent": 0.2}
 # F5 ra giọng méo khi mẫu quá dài; mẫu dài hơn ngần này (giây) sẽ được cắt ngắn lại.
 REF_MAX_SEC = 15.0
 
@@ -833,28 +833,24 @@ def split_groups(text, limit=700):
 
 
 def f5_fine_groups(text, limit=700):
-    """Chia mịn dành riêng cho F5: mỗi câu, và mỗi vế sau dấu phẩy, là một cụm
-    riêng, để chèn được khoảng lặng đúng chỗ ngắt. F5 vốn sinh từng cụm độc lập
-    rồi nối lại (trộn mờ cross-fade làm mất nhịp), nên tách sẵn ở đây cho ra
-    khoảng nghỉ thật tại dấu chấm, dấu phẩy. Cụm quá ngắn được gộp để tránh vụn.
+    """Chia theo CÂU cho F5 (không tách theo dấu phẩy): mỗi câu là một cụm và
+    được đưa NGUYÊN VẸN vào mô hình. Tách sẵn theo dấu phẩy khiến F5 sinh những
+    cụm quá ngắn, độc lập → dễ đọc thiếu/thừa chữ; giữ cả câu để mô hình tự xử
+    lý nhịp trong câu. Chỉ chèn khoảng lặng ở ranh giới câu/đoạn. Câu quá ngắn
+    được gộp vào câu sau để tránh vụn.
 
-    Trả (cụm, loại nghỉ sau cụm) với loại trong GAP: "para", "sent", "comma".
+    Trả (cụm, loại nghỉ sau cụm) với loại trong GAP: "para", "sent".
     """
     out = []
     for part, para_end in split_groups(text, limit):
         sents = [s.strip() for s in re.split(r"(?<=[.!?…;:])\s+", part) if s.strip()]
         for si, sent in enumerate(sents):
             last_sent = si == len(sents) - 1
-            pieces = [c.strip() for c in re.split(r"(?<=,)\s+", sent) if c.strip()]
-            for pi, piece in enumerate(pieces):
-                if pi < len(pieces) - 1:
-                    kind = "comma"
-                else:
-                    kind = "para" if (last_sent and para_end) else "sent"
-                out.append((piece, kind))
+            kind = "para" if (last_sent and para_end) else "sent"
+            out.append((sent, kind))
     merged = []
     for seg, kind in out:
-        if merged and len(merged[-1][0]) < 6:  # vế quá ngắn ("Dạ,", "Ừ,") gộp vào vế sau
+        if merged and len(merged[-1][0]) < 6:  # câu quá ngắn ("Dạ.", "Ừ.") gộp vào câu sau
             merged[-1] = ((merged[-1][0] + " " + seg).strip(), kind)
         else:
             merged.append((seg, kind))
