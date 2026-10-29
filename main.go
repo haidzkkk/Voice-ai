@@ -94,7 +94,7 @@ func previewName(in ttsRequest) string {
 			var profile struct {
 				EmotionSamples map[string]string `json:"emotion_samples"`
 			}
-			if in.Engine == "f5" && json.Unmarshal(metadata, &profile) == nil {
+			if (in.Engine == "f5" || in.Engine == "voxcpm") && json.Unmarshal(metadata, &profile) == nil {
 				keys := make([]string, 0, len(profile.EmotionSamples))
 				for tag := range profile.EmotionSamples {
 					keys = append(keys, tag)
@@ -120,7 +120,7 @@ func startJob(in ttsRequest) *job {
 	o := TTSOptions{Voice: in.Voice, Rate: in.Rate, Pitch: in.Pitch, Volume: in.Volume}
 	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Hour)
 	total := 1
-	local := in.Engine == "vieneu" || in.Engine == "f5"
+	local := in.Engine == "vieneu" || in.Engine == "f5" || in.Engine == "voxcpm"
 	if !local {
 		total = len(splitText(cleanText(text), maxChunkBytes))
 	}
@@ -246,11 +246,11 @@ func handler(quit chan struct{}) http.Handler {
 			http.Error(w, "Thẻ biểu cảm chỉ dùng với VieNeu. Chọn VieNeu hoặc bỏ thẻ khỏi nội dung.", 400)
 			return
 		}
-		if f5StylePattern.MatchString(in.Text) && (in.Engine != "f5" || !in.Custom) {
-			http.Error(w, "Thẻ cảm xúc F5-TTS cần chọn F5-TTS và một giọng cá nhân đã thiết lập mẫu cảm xúc.", 400)
+		if f5StylePattern.MatchString(in.Text) && ((in.Engine != "f5" && in.Engine != "voxcpm") || !in.Custom) {
+			http.Error(w, "Thẻ cảm xúc cần chọn F5-TTS hoặc VoxCPM2 và một giọng cá nhân đã thiết lập mẫu cảm xúc.", 400)
 			return
 		}
-		if (in.Engine == "vieneu" || in.Engine == "f5") && currentEngine(in.Engine) == nil {
+		if (in.Engine == "vieneu" || in.Engine == "f5" || in.Engine == "voxcpm") && currentEngine(in.Engine) == nil {
 			http.Error(w, "giọng AI trên máy chưa sẵn sàng", 503)
 			return
 		}

@@ -122,6 +122,8 @@ class MyModel:
 12. **Mapping engine↔vmodel & body** (`~:618–624`, `:700–713`): để `engine='vieneu'` là nhãn "local" và `vmodel` chọn model con, hoặc thêm nhánh riêng. Body gửi lên dùng `engine: <id model>`.
 13. Panel trạng thái/cài đặt, nút cài, kiểm tra `ready`, và (nếu có) menu thẻ cảm xúc tương tự `F5_STYLES`.
 
+> **Ví dụ đã tích hợp: `voxcpm`** (VoxCPM2, OpenBMB, Apache-2.0) — model clone đa ngữ dùng ref audio + lời thoại, tái dùng toàn bộ nhánh ref/cảm xúc của F5. Xem `VoxCPMModel` trong `engine_server.py`, `case "voxcpm"` trong `doInstall`, và lớp UI "mô hình nâng cao" dùng chung (`isAdv()`/`advName()` trong `web/index.html`). Các chỗ phụ thuộc GPU runtime (tên tham số `generate()`, chuyển thiết bị, tên gói PyPI) cần kiểm chứng trên máy có GPU.
+
 ### E. Kiểm thử
 14. Thêm/chỉnh test Go (`*_test.go`) và Python (`engine/*_test.py`).
     ```bash

@@ -702,6 +702,46 @@ class F5Model:
         return np.asarray(wav, dtype=np.float32).reshape(-1)
 
 
+class VoxCPMModel:
+    """VoxCPM2 (OpenBMB, Apache-2.0) — clone giọng đa ngữ từ mẫu + lời thoại.
+    Dùng chung cơ chế giọng cá nhân/cảm xúc với F5 nên interface giống hệt:
+    synth(text, ref_wav, ref_text). Không kèm bộ nhận dạng (ASR) nên không tự
+    transcribe được; lời thoại mẫu phải do người dùng nhập (hoặc dùng F5).
+
+    Lưu ý runtime: tên tham số generate() và cách chuyển thiết bị lấy theo
+    README VoxCPM; có thể cần chỉnh nhẹ theo phiên bản gói cài thực tế (chỉ test
+    được trên máy có GPU)."""
+    REPO = "openbmb/VoxCPM2"
+
+    def __init__(self):
+        from voxcpm import VoxCPM
+        self.device, self.device_name = pick_torch_device()
+        STATE["detail"] = "Đang tải VoxCPM2 (vài GB, chỉ lần đầu)…"
+        try:
+            self.m = VoxCPM.from_pretrained(self.REPO, load_denoiser=False)
+        except TypeError:
+            self.m = VoxCPM.from_pretrained(self.REPO)
+        inner = getattr(self.m, "tts_model", self.m)
+        try:
+            if self.device != "cpu" and hasattr(inner, "to"):
+                inner.to(self.device)
+        except Exception as e:
+            log("VoxCPM: không chuyển được sang", self.device, "- dùng mặc định:", e)
+            self.device_name += " (mặc định)"
+        self.sample_rate = int(getattr(inner, "sample_rate", 16000))
+
+    def synth(self, text, ref_wav, ref_text, speed=1.0):
+        # speed bỏ qua ở đây: VoxCPM không nhận tham số tốc độ; tốc độ do lớp
+        # synthesize() xử lý bằng librosa time-stretch sau khi ghép.
+        wav = self.m.generate(text=text, prompt_wav_path=ref_wav, prompt_text=ref_text,
+                              cfg_value=2.0, inference_timesteps=10, normalize=False, denoise=False)
+        return np.asarray(wav, dtype=np.float32).reshape(-1)
+
+    def transcribe(self, path):
+        raise ValueError("VoxCPM2 không tự nhận dạng lời thoại. Hãy nhập đúng lời "
+                         "của mẫu, hoặc dùng F5-TTS để tự nhận dạng.")
+
+
 def load_meta():
     try:
         import vieneu
@@ -756,6 +796,9 @@ def load_model():
         elif ARGS.model == "f5":
             m = F5Model()
             MODEL, backend, device = m, "f5", m.device_name
+        elif ARGS.model == "voxcpm":
+            m = VoxCPMModel()
+            MODEL, backend, device = m, "voxcpm", m.device_name
         else:
             raise ValueError("mô hình không hợp lệ: " + ARGS.model)
         STATE.update(state="ready", backend=backend, device=device, detail="", error="")
@@ -897,6 +940,8 @@ def resolve_ref(req):
             meta_path.write_text(json.dumps(d, ensure_ascii=False), encoding="utf-8")
     if not ref_wav or not os.path.exists(ref_wav):
         raise ValueError("Không tìm thấy giọng mẫu")
+    if ARGS.model == "voxcpm" and not ref_text:
+        raise ValueError("VoxCPM2 cần lời thoại của mẫu. Hãy nhập đúng lời trong mẫu ở mục Sửa lời thoại.")
     if ARGS.model == "f5":
         ref_text = normalize_vi(ref_text)
     return ref_wav, ref_text
@@ -950,7 +995,9 @@ def synthesize(req, job):
         if ARGS.model == "f5":
             native_speed = max(0.5, min(2.0, 1 + speed_pct / 100.0))
             speed_pct = 0
-        run = lambda g, tag: MODEL.synth(normalize_vi(g), *references[tag], native_speed)
+            run = lambda g, tag: MODEL.synth(normalize_vi(g), *references[tag], native_speed)
+        else:  # voxcpm: đưa text thô (model tự chuẩn hoá đa ngữ); tốc độ xử lý bằng librosa bên dưới
+            run = lambda g, tag: MODEL.synth(g, *references[tag])
 
     job["total"] = len(groups)
     parts = []

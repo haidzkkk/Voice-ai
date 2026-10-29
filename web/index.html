@@ -177,7 +177,7 @@ button:focus-visible,summary:focus-visible{outline:3px solid var(--accent-soft);
       <section class="card voice-card" aria-labelledby="voiceHeading">
         <div class="section-heading"><span class="step">01</span><h2 id="voiceHeading">Chọn giọng đọc</h2></div>
         <label class="fl" for="engineSelect">Công cụ tạo giọng</label>
-        <select id="engineSelect"><option value="ms">Microsoft · trực tuyến</option><option value="vieneu">VieNeu · nhanh, trên máy</option><option value="f5">F5-TTS · clone giọng, trên máy</option></select>
+        <select id="engineSelect"><option value="ms">Microsoft · trực tuyến</option><option value="vieneu">VieNeu · nhanh, trên máy</option><option value="f5">F5-TTS · clone giọng, trên máy</option><option value="voxcpm">VoxCPM2 · clone đa ngữ, trên máy</option></select>
         <div class="sub engine-hint" id="engineHint"></div>
         <div id="msPanel">
           <label class="fl" for="locale">Ngôn ngữ</label><select id="locale"></select>
@@ -512,7 +512,7 @@ const ta = $('#text');
 const EMOTION_COLORS={vui:['Vui','#fbbf2466'],buon:['Buồn','#60a5fa66'],gian:['Giận','#f8717166'],haohung:['Hào hứng','#fb923c66'],thitham:['Thì thầm','#c084fc66'],kechuyen:['Kể chuyện','#34d39966'],'cười':['Cười nhẹ','#fbbf2466'],'thở dài':['Thở dài','#60a5fa66'],'hắng giọng':['Hắng giọng','#c084fc66']};
 let cueRanges=store.get('cueRanges',[]),highlightText=store.get('text','');
 function renderTextHighlights(){
- const text=ta.value,isF5=engine==='vieneu'&&vmodel==='f5';
+ const text=ta.value,isF5=engine==='vieneu'&&isAdv();
  const ranges=[];
  if(isF5){
   const tags=[...text.matchAll(/\[(vui|buon|gian|haohung|thitham|kechuyen|macdinh)\]/gi)];
@@ -538,7 +538,7 @@ new ResizeObserver(()=>{ $('#textHighlights').style.width=ta.clientWidth+'px';re
 const emotionCuePattern=/\[(?:cười|cuoi|chuckle|thở dài|tho dai|sigh|hắng giọng|hang giong|clear throat)\]|<\|emotion_[123]\|>/i;
 function renderEmotionTools(){
  const previous=$('#emotionCue').value;
- const isF5=engine==='vieneu' && vmodel==='f5';
+ const isF5=engine==='vieneu' && isAdv();
  const voice=vnVoices.custom.find(item=>'c:'+item.id===$('#vvoice').value);
  if(isF5){
   const samples=voice?.emotion_samples||{};
@@ -560,7 +560,7 @@ $('#insertEmotionBtn').onclick=()=>{
   const end=ta.selectionEnd ?? position;
   const before=ta.value.slice(0,position),after=ta.value.slice(position);
   const prefix=before && !/\s$/.test(before)?' ':'';
-  if(engine==='vieneu' && vmodel==='f5' && end>position){
+  if(engine==='vieneu' && isAdv() && end>position){
     const previous=[...before.matchAll(/\[(vui|buon|gian|haohung|thitham|kechuyen|macdinh)\]/gi)].pop();
     const restore=previous?'['+previous[1].toLowerCase()+']':'[macdinh]';
     const selected=ta.value.slice(position,end).replace(/\[(vui|buon|gian|haohung|thitham|kechuyen|macdinh)\]/gi,'');
@@ -573,7 +573,7 @@ $('#insertEmotionBtn').onclick=()=>{
   const cue=$('#emotionCue').value;
   ta.setRangeText(prefix+cue+suffix,position,position,'end');
   ta.oninput();
-  if(engine==='vieneu'&&vmodel!=='f5'&&end>position){
+  if(engine==='vieneu'&&!isAdv()&&end>position){
    cueRanges=cueRanges.filter(r=>r.end<=position||r.start>=end+prefix.length+cue.length+suffix.length);
    cueRanges.push({start:position,end:end+prefix.length+cue.length+suffix.length,tag:cue.slice(1,-1)});
    store.set('cueRanges',cueRanges);renderTextHighlights();
@@ -595,7 +595,7 @@ $('#fileIn').onchange = async e=>{
 function setMsg(t, err){ $('#msg').textContent=t||''; $('#msg').className='msg'+(err?' err':''); }
 function setBusy(b){
   $('#goBtn').textContent = b?'Đang tạo audio…':'Tạo audio';
-  $('#goBtn').disabled = b || (typeof engine!=='undefined' && engine==='vieneu' && (!vnReady || (vmodel==='f5' && !f5Ready)));
+  $('#goBtn').disabled = b || (typeof engine!=='undefined' && engine==='vieneu' && (!vnReady || (isAdv() && !f5Ready)));
   $('#prog').style.display=b?'block':'none'; $('#cancelBtn').classList.toggle('hide',!b);
   if(!b) $('#prog i').style.width='0';
 }
@@ -609,7 +609,7 @@ async function generate(){
   }
   const styleTags=[...text.matchAll(/\[(vui|buon|gian|haohung|thitham|kechuyen|macdinh)\]/gi)].map(match=>match[1].toLowerCase());
   if(styleTags.length){
-   if(engine!=='vieneu'||vmodel!=='f5'||!$('#vvoice').value.startsWith('c:')){setMsg('Thẻ cảm xúc F5 cần chọn F5-TTS và giọng cá nhân.',true);openHelp('emotion');return;}
+   if(engine!=='vieneu'||!isAdv()||!$('#vvoice').value.startsWith('c:')){setMsg('Thẻ cảm xúc cần chọn F5-TTS hoặc VoxCPM2 và giọng cá nhân.',true);openHelp('emotion');return;}
    const voice=vnVoices.custom.find(item=>'c:'+item.id===$('#vvoice').value),samples=voice?.emotion_samples||{};
    const missing=styleTags.find(tag=>tag!=='macdinh'&&(!samples[tag]||!vnVoices.custom.some(item=>item.id===samples[tag])));
    if(missing){setMsg('Chưa có mẫu cho ['+missing+']. Hãy thiết lập cảm xúc trước.',true);openEmotionSetup(voice?.id);emotionDraft.tag=missing;renderEmotionWizard();return;}
@@ -620,7 +620,7 @@ async function generate(){
     const v = $('#vvoice').value;
     if(!v){ setMsg('Hãy chọn giọng đọc.', true); return; }
     const custom = v.startsWith('c:');
-    if(vmodel==='f5' && !f5Ready){ setMsg('F5-TTS chưa sẵn sàng.', true); return; }
+    if(isAdv() && !f5Ready){ setMsg(advName()+' chưa sẵn sàng.', true); return; }
     body = {engine: vmodel, text, voice: v.slice(2), custom, rate:+$('#rate').value, volume:+$('#volume').value};
   } else {
     if(!$('#voice').value){ setMsg('Hãy chọn giọng đọc.', true); return; }
@@ -699,6 +699,11 @@ $('#quitBtn').onclick = async ()=>{
 // ===================== Giọng AI nâng cao (VieNeu) =====================
 let engine = store.get('engine','ms'), vnReady = false, vnVoices = {presets:[], custom:[]}, vnTimer = null, gpu = null, lastSt = null;
 let vmodel = store.get('vmodel','vieneu'), f5Ready = false;
+// Mô hình nâng cao dạng clone (ref audio + lời thoại + cảm xúc). Mọi mô hình
+// khác 'vieneu' dùng chung UI này; f5Ready = mô hình nâng cao đang chọn đã sẵn sàng.
+const ADV_NAMES={f5:'F5-TTS',voxcpm:'VoxCPM2'};
+const isAdv=()=>vmodel!=='vieneu';
+const advName=()=>ADV_NAMES[vmodel]||'Mô hình nâng cao';
 let region = store.get('vregion',''), vgender = store.get('vgender','');
 const STYLE = {tu_nhien:'tự nhiên', doc_truyen:'đọc truyện', tin_tuc:'tin tức', ke_chuyen:'kể chuyện'};
 const show = (id, on) => $(id).classList.toggle('hide', !on);
@@ -708,7 +713,7 @@ function setEngine(e){
   engine = e; store.set('engine', e);
   renderEmotionTools();
   $('#engineSelect').value=e==='ms'?'ms':vmodel;
-  $('#engineHint').textContent=e==='ms'?'Có sẵn nhiều ngôn ngữ. Cần kết nối Internet.':vmodel==='f5'?'Dùng giọng mẫu để đọc nội dung mới. Chạy trên máy của bạn.':'Giọng tiếng Việt có sẵn và giọng cá nhân. Chạy trên máy của bạn.';
+  $('#engineHint').textContent=e==='ms'?'Có sẵn nhiều ngôn ngữ. Cần kết nối Internet.':isAdv()?'Dùng giọng mẫu để đọc nội dung mới. Chạy trên máy của bạn.':'Giọng tiếng Việt có sẵn và giọng cá nhân. Chạy trên máy của bạn.';
   $('#statusText').textContent=e==='ms'?'Microsoft · trực tuyến':'Đang kiểm tra mô hình…';
   show('#msPanel', e==='ms'); show('#vnPanel', e==='vieneu'); show('#pitchWrap', e==='ms');
   if(e==='vieneu') pollEngine(true); else { clearTimeout(vnTimer); show('#pvCard', false); updateGo(); }
@@ -740,7 +745,7 @@ document.querySelectorAll('[data-switch-create]').forEach(button=>button.onclick
 $('#manageVoiceBtn').onclick=()=>setView('library');
 
 function updateGo(){
-  const block = engine==='vieneu' && (!vnReady || (vmodel==='f5' && !f5Ready));
+  const block = engine==='vieneu' && (!vnReady || (isAdv() && !f5Ready));
   $('#goBtn').disabled = block || !!currentJob;
   show('#sliders', !block); show('#goBtn', true);
   $('#sliders').closest('details').classList.toggle('hide',block);
@@ -751,14 +756,14 @@ async function pollEngine(first){
   clearTimeout(vnTimer);
   if(engine!=='vieneu') return;
   let st;
-  try{ st = await (await fetch('/api/engine/status?autostart=vieneu'+(vmodel==='f5'?',f5':'')+(first||!gpu?'&probe=1':''))).json(); }
+  try{ st = await (await fetch('/api/engine/status?autostart=vieneu'+(isAdv()?','+vmodel:'')+(first||!gpu?'&probe=1':''))).json(); }
   catch(e){ vnTimer = setTimeout(pollEngine, 2000); return; }
   if(st.gpu) gpu = st.gpu;
   lastSt = st;
   renderEngine(st);
   const settledOne = m => { const e = m.engine||{}; return !m.installing && (!m.installed || e.state==='ready' || e.state==='error' || (!m.running && m.engineErr)); };
-  const f5 = (st.models||{}).f5 || {};
-  const settled = settledOne(st) && (vmodel!=='f5' || settledOne(f5)) && !st.installingModel;
+  const adv = (st.models||{})[vmodel] || {};
+  const settled = settledOne(st) && (!isAdv() || settledOne(adv)) && !st.installingModel;
   vnTimer = setTimeout(pollEngine, settled ? 5000 : 1200);
 }
 
@@ -844,16 +849,17 @@ function renderEngine(st){
 
 function renderF5(st){
   $('#engineSelect').value=engine==='ms'?'ms':vmodel;
-  const f = (st.models||{}).f5 || {}, fe = f.engine || {};
-  f5Ready = !!(f.installed && f.running && fe.state==='ready');
-  const onF5 = vmodel==='f5';
+  const onF5 = isAdv();
+  const f = (onF5 ? (st.models||{})[vmodel] : {}) || {}, fe = f.engine || {};
+  f5Ready = onF5 && !!(f.installed && f.running && fe.state==='ready');
+  const name = advName();
   const err = f.installErr || (f.installed && !f.running && f.engineErr) || (fe.state==='error' && fe.error);
   const selectedReady=onF5?f5Ready:vnReady;
   if(engine!=='ms'){
     $('#dot').className='dot'+(selectedReady?' on':'');
-    $('#statusText').textContent=(onF5?'F5-TTS':'VieNeu')+(selectedReady?' · sẵn sàng':' · đang chuẩn bị');
+    $('#statusText').textContent=(onF5?name:'VieNeu')+(selectedReady?' · sẵn sàng':' · đang chuẩn bị');
   }
-  const otherInstalling = st.installingModel && st.installingModel!=='f5';
+  const otherInstalling = st.installingModel && st.installingModel!==vmodel;
   const busy = f.installing || (f.installed && !f5Ready && !err);
   renderModelDownload('f5', fe, onF5 && busy && !f.installing);
   if(onF5 && f.installing) renderInstallProgress('f5',f.installProgress);
@@ -871,25 +877,25 @@ function renderF5(st){
     if(st.os==='darwin') t = 'Máy Mac: chạy bằng GPU của chip Apple.';
     else if(gpu && gpu.nvidia){
       const gb = gpu.vramMB ? gpu.vramMB/1024 : 0;
-      t = 'Card ' + gpu.name + (gb?' ('+gb.toFixed(0)+' GB)':'') + (gb && gb<3 ? ': hơi ít bộ nhớ, có thể phải dùng CPU.' : ': đủ để chạy F5-TTS.');
-    } else if(st.os==='windows') t = 'Không thấy card NVIDIA: F5-TTS sẽ chạy bằng CPU và khá chậm.';
+      t = 'Card ' + gpu.name + (gb?' ('+gb.toFixed(0)+' GB)':'') + (gb && gb<3 ? ': hơi ít bộ nhớ, có thể phải dùng CPU.' : ': đủ để chạy '+name+'.');
+    } else if(st.os==='windows') t = 'Không thấy card NVIDIA: '+name+' sẽ chạy bằng CPU và khá chậm.';
     n.textContent = t; show('#f5GpuNote', !!t);
   }
   if(onF5 && busy){
-    $('#f5BusyText').textContent = f.installing ? (st.step||'Đang cài F5-TTS…') : (fe.detail || 'Đang khởi động F5-TTS…');
+    $('#f5BusyText').textContent = f.installing ? (st.step||('Đang cài '+name+'…')) : (fe.detail || ('Đang khởi động '+name+'…'));
     $('#f5BusySub').textContent = f.installing ? 'Có thể để tool chạy và làm việc khác. Đừng tắt tool trong lúc cài.' : 'Mỗi lần mở app cần nạp mô hình vào bộ nhớ. File đã lưu được dùng lại; chỉ tải khi còn thiếu.';
     $('#f5Log').textContent = (st.log||[]).join('\n'); $('#f5Log').scrollTop = 1e9;
   }
   if(onF5 && err && !f.installing){
     const t = modelErrorText(err);
-    $('#f5ErrText').textContent = 'Lỗi F5-TTS: ' + t;
+    $('#f5ErrText').textContent = 'Lỗi '+name+': ' + t;
     $('#f5ErrLog').textContent = (st.log||[]).join('\n'); $('#f5ErrLog').scrollTop = 1e9;
     show('#f5Retry', f.installed);
   }
   // thiết bị đang chạy + gợi ý khi card NVIDIA không được dùng
   const cur = onF5 ? f : st, ce = cur.engine || {};
   const dev = ce.device || '';
-  $('#vnDevice').textContent = (onF5 ? 'F5-TTS' : 'VieNeu') + ' đang chạy trên: ' + (dev || 'máy này');
+  $('#vnDevice').textContent = (onF5 ? name : 'VieNeu') + ' đang chạy trên: ' + (dev || 'máy này');
   const gpuIdle = gpu && gpu.nvidia && /^CPU$/i.test(dev) && (onF5 || cur.gpuBuild);
   $('#gpuHint').textContent = gpuIdle ? 'Máy có card ' + gpu.name + ' nhưng mô hình đang chạy bằng CPU (chậm). Hãy cập nhật driver NVIDIA mới nhất (bản 570 trở lên) rồi khởi động lại tool. Nếu vẫn vậy, bấm “Cài lại” và chọn dùng card NVIDIA.' : '';
   show('#gpuHint', !!gpuIdle);
@@ -898,14 +904,14 @@ function renderF5(st){
 $('#f5Gpu').onchange = ()=>{ $('#f5Gpu').dataset.touched = 1; if(lastSt) renderF5(lastSt); };
 $('#f5InstallBtn').onclick = async ()=>{
   const g = !$('#f5GpuWrap').classList.contains('hide') && $('#f5Gpu').checked;
-  const r = await fetch('/api/engine/install',{method:'POST',body:JSON.stringify({model:'f5', gpu:g})});
+  const r = await fetch('/api/engine/install',{method:'POST',body:JSON.stringify({model:vmodel, gpu:g})});
   if(!r.ok) alert(await r.text());
   pollEngine();
 };
-$('#f5Retry').onclick = async ()=>{ await fetch('/api/engine/restart?model=f5',{method:'POST'}); pollEngine(); };
+$('#f5Retry').onclick = async ()=>{ await fetch('/api/engine/restart?model='+vmodel,{method:'POST'}); pollEngine(); };
 $('#f5Reinstall').onclick = async ()=>{
-  if(!confirm('Cài lại F5-TTS?')) return;
-  await fetch('/api/engine/uninstall?model=f5',{method:'POST'}); f5Ready=false; pollEngine(true);
+  if(!confirm('Cài lại '+advName()+'?')) return;
+  await fetch('/api/engine/uninstall?model='+vmodel,{method:'POST'}); f5Ready=false; pollEngine(true);
 };
 
 $('#gpuChk').onchange = ()=>{ $('#gpuChk').dataset.touched = 1; $('#vnSize').textContent = $('#gpuChk').checked ? '3,5 GB' : '1 GB'; };
@@ -961,8 +967,8 @@ function descVn(){
   renderSamples();
   const v = $('#vvoice').value; let d = '';
   if(v.startsWith('p:')){ const p = vnVoices.presets.find(x=>x.id===v.slice(2)); d = p ? (p.description||'') + (p.featured?' · ★ giọng nổi bật':'') : ''; }
-  else if(v.startsWith('c:')){ const c = vnVoices.custom.find(x=>x.id===v.slice(2)); d = 'Giọng cá nhân của bạn' + (vmodel==='f5' && c && !c.ref_text ? ' · chưa có lời thoại: lần đầu F5-TTS sẽ tự nhận dạng' : ''); }
-  if(vmodel==='f5' && v.startsWith('p:')) d += ' · F5-TTS đọc theo giọng mẫu này';
+  else if(v.startsWith('c:')){ const c = vnVoices.custom.find(x=>x.id===v.slice(2)); d = 'Giọng cá nhân của bạn' + (c && !c.ref_text ? (vmodel==='f5' ? ' · chưa có lời thoại: lần đầu F5-TTS sẽ tự nhận dạng' : (vmodel==='voxcpm' ? ' · cần nhập lời thoại mẫu' : '')) : ''); }
+  if(isAdv() && v.startsWith('p:')) d += ' · '+advName()+' đọc theo giọng mẫu này';
   $('#vvoiceDesc').textContent = d; renderEmotionTools();
 }
 $('#vvoice').onchange = ()=>{ store.set('vvoice', $('#vvoice').value); descVn(); };
@@ -1012,7 +1018,7 @@ $('#pvGender').onchange=()=>{pvGender=$('#pvGender').value;};
 function resetPv(){ stopRec(true); ++pvAudioGeneration; pvEditingId=''; pvWav=null; pvSeconds=0; $('#pvInfo').textContent=''; show('#pvPreview',false); $('#pvMsg').textContent=''; $('#pvMsg').className='msg'; $('#pvConsent').checked=false; $('#pvRefText').value=''; $('#pvSaveBtn').textContent='Phân tích và lưu giọng'; show('#pvAudioInputs',true); $('#pvSource').value='file'; renderAudioSource(); pvGender='female'; $('#pvGender').value=pvGender; $('#pvGender').disabled=false; }
 $('#pvNewBtn').onclick = ()=>{ resetPv(); $('#pvName').value=''; openVoiceDialog(pvEditingId ? 'Sửa giọng cá nhân' : 'Thêm giọng mới'); $('#pvName').focus(); };
 function openVoiceDialog(title){
-  $('#pvDialogTitle').textContent=title; $('#pvTranscriptDetails').open=!!pvEditingId || vmodel==='f5';
+  $('#pvDialogTitle').textContent=title; $('#pvTranscriptDetails').open=!!pvEditingId || isAdv();
   if(!$('#pvDialog').open) $('#pvDialog').showModal();
 }
 function closeVoiceDialog(){stopRec(true);++pvAudioGeneration;$('#pvDialog').close();}
@@ -1034,6 +1040,7 @@ $('#pvTranscribeBtn').onclick = async ()=>{
   const msg=(text,error)=>{ $('#pvMsg').textContent=text; $('#pvMsg').className='msg'+(error?' err':''); };
   if(pvTranscribing) return;
   if(!pvEditingId && !pvWav) return msg('Hãy ghi âm hoặc chọn file trước.',true);
+  if(vmodel!=='f5') return msg('Tự nhận dạng chỉ có ở F5-TTS. Hãy nhập đúng lời thoại của mẫu thủ công.',true);
   if(!f5Ready) return msg('Chọn F5-TTS và chờ mô hình sẵn sàng để tự nhận dạng. Bạn cũng có thể nhập đúng lời thoại thủ công.',true);
   const generation=pvAudioGeneration;
   const originalText=$('#pvRefText').value;
@@ -1233,7 +1240,7 @@ let previewAudio = null, previewing = false;
 $('#vPreviewBtn').onclick = async ()=>{
   if(previewing) return;
   const v = $('#vvoice').value; if(!v) return;
-  if(vmodel==='f5' && !f5Ready) return;
+  if(isAdv() && !f5Ready) return;
   previewing = true; $('#vPreviewBtn').disabled = true;
   const pm = t=>{ $('#vPreviewMsg').textContent = t; };
   pm('Đang tạo đoạn nghe thử…');
@@ -1281,7 +1288,7 @@ function refreshEmotionReadiness(){
  show('#emotionPrerequisites',!f5Ready);
  $('#emotionNextBtn').disabled=emotionBusy || !f5Ready || !selectedBase() || (emotionDraft.step>=2&&!selectedEmotionSample()) || (emotionDraft.step===3&&(!$('#emotionRefText').value.trim()||!$('#emotionSameSpeaker').checked||!$('#emotionTranscriptChecked').checked));
  $('#emotionRefText').disabled=emotionBusy; $('#emotionBackBtn').disabled=emotionBusy;$('#emotionCloseBtn').disabled=emotionSaving;
- $('#emotionTranscribeBtn').disabled=emotionBusy||!f5Ready;$('#emotionPreviewBtn').disabled=emotionBusy||!f5Ready||!$('#emotionRefText').value.trim()||!$('#emotionTranscriptChecked').checked;
+ $('#emotionTranscribeBtn').disabled=emotionBusy||!f5Ready||vmodel!=='f5';$('#emotionTranscribeBtn').title=vmodel!=='f5'?'Tự nhận dạng chỉ có ở F5-TTS':'';$('#emotionPreviewBtn').disabled=emotionBusy||!f5Ready||!$('#emotionRefText').value.trim()||!$('#emotionTranscriptChecked').checked;
  $('#emotionRemoveBtn').disabled=emotionBusy;
 }
 function renderEmotionWizard(){
@@ -1308,7 +1315,7 @@ function openEmotionSetup(baseId){
  const current=$('#vvoice').value;
  const chosen=baseId || (current.startsWith('c:')?current.slice(2):'');
  emotionDraft={baseId:chosen,tag:'vui',sampleId:'',step:1};emotionMessage('');
- if(engine!=='vieneu'||vmodel!=='f5'){vmodel='f5';store.set('vmodel',vmodel);setEngine('vieneu');}
+ if(engine!=='vieneu'||!isAdv()){if(!isAdv())vmodel='f5';store.set('vmodel',vmodel);setEngine('vieneu');}
  renderEmotionWizard();$('#f5EmotionDialog').showModal();
 }
 function closeEmotionSetup(){
@@ -1357,7 +1364,7 @@ $('#emotionPreviewBtn').onclick=async()=>{
  const epoch=emotionEpoch;emotionBusy=true;refreshEmotionReadiness();emotionMessage('Đang tạo đoạn nghe thử theo mẫu đã chọn…');
  try{
   await emotionRequest('/api/engine/voice-update',{id:emotionDraft.sampleId,ref_text:$('#emotionRefText').value.trim()});
-  const response=await emotionRequest('/api/tts',{engine:'f5',voice:emotionDraft.sampleId,custom:true,preview:true,text:'Xin chào, hôm nay tôi sẽ kể cho bạn nghe một câu chuyện.',rate:0,volume:0});
+  const response=await emotionRequest('/api/tts',{engine:vmodel,voice:emotionDraft.sampleId,custom:true,preview:true,text:'Xin chào, hôm nay tôi sẽ kể cho bạn nghe một câu chuyện.',rate:0,volume:0});
   if(epoch!==emotionEpoch){fetch('/api/cancel?id='+response.id);return;}
   emotionPreviewJob=response.id;
   while(epoch===emotionEpoch){const job=await (await fetch('/api/job?id='+response.id)).json();if(job.status==='running'){await new Promise(resolve=>setTimeout(resolve,700));continue;}if(job.status!=='done')throw new Error(job.error||'Không tạo được đoạn thử');$('#emotionGeneratedPlayer').src='/preview/'+encodeURIComponent(job.file);show('#emotionGeneratedPlayer',true);$('#emotionGeneratedPlayer').play().catch(()=>{});emotionMessage('Nghe thử sắc thái. Nếu chưa phù hợp, quay lại chọn mẫu khác.');break;}

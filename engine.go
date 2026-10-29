@@ -52,6 +52,7 @@ type modelDef struct {
 var modelDefs = map[string]*modelDef{
 	"vieneu": {ID: "vieneu", Name: "VieNeu-TTS", Venv: "venv", Marker: "installed.json", Python: "3.12"},
 	"f5":     {ID: "f5", Name: "F5-TTS tiếng Việt", Venv: "venv-f5", Marker: "installed-f5.json", Python: "3.11"},
+	"voxcpm": {ID: "voxcpm", Name: "VoxCPM2", Venv: "venv-voxcpm", Marker: "installed-voxcpm.json", Python: "3.11"},
 }
 
 func getModel(id string) (*modelDef, error) {
@@ -527,6 +528,28 @@ func doInstall(m *modelDef, gpu bool) {
 		}
 		if err := runLogged(ctx, uv, args...); err != nil {
 			fail(fmt.Errorf("cài F5-TTS: %w", err))
+			return
+		}
+	case "voxcpm":
+		var err error
+		if gpu, err = installTorch(ctx, py, gpu); err != nil {
+			fail(fmt.Errorf("cài PyTorch: %w", err))
+			return
+		}
+		setStep("Cài thư viện VoxCPM2")
+		constraints := filepath.Join(engineDir(), "voxcpm-torch-constraints.txt")
+		if err := os.WriteFile(constraints, []byte(strings.Join(torchPackages(gpu, runtime.GOOS), "\n")+"\n"), 0600); err != nil {
+			fail(err)
+			return
+		}
+		args := []string{"pip", "install", "--python", py, "--constraint", constraints,
+			"voxcpm", "lameenc", "soundfile", "librosa"}
+		args = append(args, runtimePackages(runtime.GOOS)...)
+		if index := torchIndex(gpu, runtime.GOOS); index != "" {
+			args = append(args, "--extra-index-url", index)
+		}
+		if err := runLogged(ctx, uv, args...); err != nil {
+			fail(fmt.Errorf("cài VoxCPM2: %w", err))
 			return
 		}
 	}
