@@ -702,6 +702,26 @@ class F5Model:
         return np.asarray(wav, dtype=np.float32).reshape(-1)
 
 
+def voxcpm_snapshot(repo):
+    """Tải snapshot VoxCPM2 (~5 GB) bằng trình tải chống-treo download_model_file
+    cho từng file rồi ghép lại offline. from_pretrained mặc định gọi
+    snapshot_download của HF — KHÔNG chống-treo, trên mạng VN hay đứng im vô hạn
+    khi tải file 4,5 GB. Ở đây tải từng file có timeout + thử lại + mirror + resume,
+    rồi để from_pretrained nạp từ thư mục đã có, không chạm mạng nữa."""
+    from huggingface_hub import list_repo_files, snapshot_download
+    try:
+        files = [f for f in list_repo_files(repo) if f not in {".gitattributes", "README.md"}]
+    except Exception as e:
+        log("VoxCPM: không liệt kê được file repo (sẽ để HF tự tải):", e)
+        files = []
+    for i, name in enumerate(files):
+        STATE["detail"] = f"Đang tải model VoxCPM2 ({i + 1}/{len(files)} file, tổng ~5 GB, chỉ lần đầu)…"
+        download_model_file(repo, name)
+    STATE.pop("download", None)
+    STATE["detail"] = "Đang nạp VoxCPM2 vào bộ nhớ…"
+    return snapshot_download(repo, local_files_only=bool(files))
+
+
 class VoxCPMModel:
     """VoxCPM2 (OpenBMB, Apache-2.0) — clone giọng đa ngữ từ mẫu + lời thoại.
     Dùng chung cơ chế giọng cá nhân/cảm xúc với F5 nên interface giống hệt:
@@ -716,15 +736,16 @@ class VoxCPMModel:
     def __init__(self):
         from voxcpm import VoxCPM
         self.device, self.device_name = pick_torch_device()
-        STATE["detail"] = "Đang tải VoxCPM2 (model ~vài GB, chỉ lần đầu)…"
+        STATE["detail"] = "Đang tải VoxCPM2 (model ~5 GB, chỉ lần đầu)…"
+        local = voxcpm_snapshot(self.REPO)  # tải chống-treo rồi nạp từ thư mục local
         # device truyền thẳng; optimize (torch.compile) chỉ chạy được trên CUDA
         # (trên MPS/CPU nó tự bỏ qua kèm cảnh báo) nên chỉ bật khi có CUDA.
         # load_denoiser=False: bỏ qua ZipEnhancer (ModelScope) vì không dùng khử ồn.
         try:
-            self.m = VoxCPM.from_pretrained(self.REPO, load_denoiser=False,
+            self.m = VoxCPM.from_pretrained(local, load_denoiser=False,
                                             device=self.device, optimize=(self.device == "cuda"))
         except TypeError:
-            self.m = VoxCPM.from_pretrained(self.REPO, load_denoiser=False)
+            self.m = VoxCPM.from_pretrained(local, load_denoiser=False)
         inner = getattr(self.m, "tts_model", self.m)
         self.sample_rate = int(getattr(inner, "sample_rate", 16000))
 
