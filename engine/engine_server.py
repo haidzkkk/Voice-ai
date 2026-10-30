@@ -716,18 +716,16 @@ class VoxCPMModel:
     def __init__(self):
         from voxcpm import VoxCPM
         self.device, self.device_name = pick_torch_device()
-        STATE["detail"] = "Đang tải VoxCPM2 (vài GB, chỉ lần đầu)…"
+        STATE["detail"] = "Đang tải VoxCPM2 (model ~vài GB, chỉ lần đầu)…"
+        # device truyền thẳng; optimize (torch.compile) chỉ chạy được trên CUDA
+        # (trên MPS/CPU nó tự bỏ qua kèm cảnh báo) nên chỉ bật khi có CUDA.
+        # load_denoiser=False: bỏ qua ZipEnhancer (ModelScope) vì không dùng khử ồn.
         try:
-            self.m = VoxCPM.from_pretrained(self.REPO, load_denoiser=False)
+            self.m = VoxCPM.from_pretrained(self.REPO, load_denoiser=False,
+                                            device=self.device, optimize=(self.device == "cuda"))
         except TypeError:
-            self.m = VoxCPM.from_pretrained(self.REPO)
+            self.m = VoxCPM.from_pretrained(self.REPO, load_denoiser=False)
         inner = getattr(self.m, "tts_model", self.m)
-        try:
-            if self.device != "cpu" and hasattr(inner, "to"):
-                inner.to(self.device)
-        except Exception as e:
-            log("VoxCPM: không chuyển được sang", self.device, "- dùng mặc định:", e)
-            self.device_name += " (mặc định)"
         self.sample_rate = int(getattr(inner, "sample_rate", 16000))
 
     def synth(self, text, ref_wav, ref_text, speed=1.0):

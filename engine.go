@@ -120,6 +120,8 @@ func childEnv() []string {
 		// Mạng nghẽn khi tải file lớn sẽ báo lỗi sau 30s thay vì treo vô hạn;
 		// download_model_file bắt lỗi này để thử lại và resume (xem engine_server.py).
 		"HF_HUB_DOWNLOAD_TIMEOUT=30",
+		// Trên Mac (MPS), op nào chưa hỗ trợ sẽ tự chạy bằng CPU thay vì báo lỗi.
+		"PYTORCH_ENABLE_MPS_FALLBACK=1",
 		"PYTHONUTF8=1",
 		"PYTHONIOENCODING=utf-8",
 		"PYTHONUNBUFFERED=1",
