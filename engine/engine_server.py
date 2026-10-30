@@ -1233,7 +1233,7 @@ def main():
     ap.add_argument("--token", required=True)
     ap.add_argument("--data", required=True)
     ap.add_argument("--voices-dir")
-    ap.add_argument("--model", default="vieneu", choices=["vieneu", "f5"])
+    ap.add_argument("--model", default="vieneu", choices=["vieneu", "f5", "voxcpm"])
     ap.add_argument("--force-cpu", action="store_true")
     ap.add_argument("--no-watch", action="store_true")
     ARGS = ap.parse_args()
