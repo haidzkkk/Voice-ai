@@ -761,6 +761,16 @@ class VoxCPMModel:
 
     def __init__(self):
         from voxcpm import VoxCPM
+        try:
+            import importlib.metadata as _md
+            ver = _md.version("voxcpm")
+            log("VoxCPM package version:", ver)
+            if not ver.startswith("2."):
+                raise RuntimeError(f"Cài nhầm voxcpm {ver} (cần 2.x cho VoxCPM2). Hãy bấm Cài lại VoxCPM2.")
+        except RuntimeError:
+            raise
+        except Exception:
+            pass
         self.device, self.device_name = pick_torch_device()
         STATE["detail"] = "Đang tải VoxCPM2 (model ~5 GB, chỉ lần đầu)…"
         local = voxcpm_snapshot(self.REPO)  # tải chống-treo rồi nạp từ thư mục local
