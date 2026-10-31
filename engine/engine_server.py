@@ -702,24 +702,50 @@ class F5Model:
         return np.asarray(wav, dtype=np.float32).reshape(-1)
 
 
+VOXCPM_FILES = ["config.json", "model.safetensors", "audiovae.pth", "tokenizer.json",
+                "tokenizer_config.json", "special_tokens_map.json", "tokenization_voxcpm2.py"]
+
+
 def voxcpm_snapshot(repo):
-    """Tải snapshot VoxCPM2 (~5 GB) bằng trình tải chống-treo download_model_file
-    cho từng file rồi ghép lại offline. from_pretrained mặc định gọi
-    snapshot_download của HF — KHÔNG chống-treo, trên mạng VN hay đứng im vô hạn
-    khi tải file 4,5 GB. Ở đây tải từng file có timeout + thử lại + mirror + resume,
-    rồi để from_pretrained nạp từ thư mục đã có, không chạm mạng nữa."""
-    from huggingface_hub import list_repo_files, snapshot_download
+    """Tải VoxCPM2 (~5 GB) vào MỘT thư mục phẳng (file thật, không symlink/cache).
+
+    from_pretrained mặc định gọi snapshot_download của HF: (1) KHÔNG chống-treo,
+    mạng VN hay đứng im khi tải file 4,5 GB; (2) trên Windows không bật chế độ nhà
+    phát triển, symlink trong cache hỏng khiến file lắp ráp sai -> đọc nhầm sang
+    model V1 (tìm pytorch_model.bin). Ở đây tải thẳng từng file có timeout + thử
+    lại vào local_dir (file thật), kiểm tra đúng VoxCPM2, rồi nạp từ thư mục đó."""
+    from huggingface_hub import hf_hub_download, list_repo_files
+    dest = Path(ARGS.data) / "models" / "voxcpm"
+    dest.mkdir(parents=True, exist_ok=True)
     try:
         files = [f for f in list_repo_files(repo) if f not in {".gitattributes", "README.md"}]
     except Exception as e:
-        log("VoxCPM: không liệt kê được file repo (sẽ để HF tự tải):", e)
-        files = []
+        log("VoxCPM: không liệt kê được file repo, dùng danh sách mặc định:", e)
+        files = list(VOXCPM_FILES)
     for i, name in enumerate(files):
         STATE["detail"] = f"Đang tải model VoxCPM2 ({i + 1}/{len(files)} file, tổng ~5 GB, chỉ lần đầu)…"
-        download_model_file(repo, name)
+        last = None
+        for attempt in range(6):
+            try:
+                hf_hub_download(repo_id=repo, filename=name, local_dir=str(dest))
+                last = None
+                break
+            except Exception as e:  # timeout/nghẽn mạng -> thử lại, tiếp tục từ chỗ dở
+                last = e
+                log(f"VoxCPM: tải {name} lỗi (thử lại {attempt + 1}/6):", e)
+                time.sleep(3 * (attempt + 1))
+        if last is not None:
+            raise RuntimeError(f"Không tải được {name}: {last}")
     STATE.pop("download", None)
+    # Kiểm tra snapshot đúng VoxCPM2 (tránh đọc nhầm sang model V1).
+    try:
+        arch = json.loads((dest / "config.json").read_text(encoding="utf-8")).get("architecture")
+    except Exception as e:
+        raise RuntimeError(f"config.json của VoxCPM2 lỗi, hãy bấm Cài lại: {e}")
+    if arch != "voxcpm2" or not (dest / "model.safetensors").exists():
+        raise RuntimeError("Tải VoxCPM2 chưa đủ/đúng (thiếu model.safetensors hoặc config sai). Hãy bấm Cài lại.")
     STATE["detail"] = "Đang nạp VoxCPM2 vào bộ nhớ…"
-    return snapshot_download(repo, local_files_only=bool(files))
+    return str(dest)
 
 
 class VoxCPMModel:
