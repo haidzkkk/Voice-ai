@@ -553,10 +553,13 @@ func doInstall(m *modelDef, gpu bool) {
 			return
 		}
 		// Ghim voxcpm==2.0.3: PyPI còn dòng cũ 1.x chỉ hỗ trợ model V1 (tìm
-		// pytorch_model.bin). Nếu không ghim, resolver có thể lùi về 1.x khi
-		// phụ thuộc (torchcodec) kẹt với torch đã ghim -> nạp sai model.
-		args := []string{"pip", "install", "--python", py, "--constraint", constraintName,
-			"voxcpm==2.0.3", "lameenc", "soundfile", "librosa"}
+		// pytorch_model.bin). Không ghim thì resolver lùi về 1.x -> nạp sai model.
+		// --index-strategy unsafe-best-match: voxcpm 2.0.3 cần requests>=2.32.2
+		// (qua datasets>=3), nhưng index pytorch (--extra-index-url ở dưới) chỉ có
+		// requests==2.28.1; mặc định uv khoá requests vào index đầu tiên -> xung
+		// đột -> lùi voxcpm về 1.x. Cho phép lấy requests bản mới từ PyPI.
+		args := []string{"pip", "install", "--python", py, "--index-strategy", "unsafe-best-match",
+			"--constraint", constraintName, "voxcpm==2.0.3", "lameenc", "soundfile", "librosa"}
 		args = append(args, runtimePackages(runtime.GOOS)...)
 		if index := torchIndex(gpu, runtime.GOOS); index != "" {
 			args = append(args, "--extra-index-url", index)

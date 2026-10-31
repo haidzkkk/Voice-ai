@@ -1,2 +1,2 @@
-7c48984de79fdbd1823cbe1402acedea5b0886ad434c8801cf43df91f852facd  GiongAI-Windows-arm64.zip
-9da3690340aade5aa1e1f372f18ed7bcdf33d95cb0a3cd929be7c42396f4a47e  GiongAI-Windows-x64.zip
+c24505aeed37cb1af1325195ae10c2e1f738201d960eecce3d7d5b34b06d521e  GiongAI-Windows-arm64.zip
+57e6cebe277a6c04ddb595e93ca44e052bd43dd7f5864857545ec410389f5395  GiongAI-Windows-x64.zip
