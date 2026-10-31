@@ -483,6 +483,10 @@ func doInstall(m *modelDef, gpu bool) {
 		fail(fmt.Errorf("cài Python: %w", err))
 		return
 	}
+	// Xoá venv cũ để lần cài luôn sạch: gói cài dở từ lần trước (ví dụ
+	// soundfile thiếu file METADATA do bị gián đoạn) làm uv đọc lỗi và dừng.
+	// Cache tải (UV_CACHE_DIR) vẫn giữ nên cài lại từ cache, không tải lại.
+	os.RemoveAll(filepath.Join(engineDir(), m.Venv))
 	if err := runLogged(ctx, uv, "venv", "--python", m.Python, "--allow-existing", filepath.Join(engineDir(), m.Venv)); err != nil {
 		fail(fmt.Errorf("tạo môi trường Python: %w", err))
 		return
