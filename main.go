@@ -81,6 +81,7 @@ type ttsRequest struct {
 	Engine  string `json:"engine"`  // "" = Microsoft, "vieneu" | "f5" = giọng AI trên máy
 	Custom  bool   `json:"custom"`  // giọng cá nhân
 	Preview bool   `json:"preview"` // nghe thử: lưu vào bộ nhớ đệm, không vào thư mục kết quả
+	NoSplit bool   `json:"nosplit"` // VoxCPM: đọc nguyên đoạn thay vì cắt từng câu
 }
 
 func previewDir() string { return filepath.Join(engineDir(), "previews") }
@@ -88,6 +89,9 @@ func previewDir() string { return filepath.Join(engineDir(), "previews") }
 func previewName(in ttsRequest) string {
 	h := sha256.New()
 	fmt.Fprintf(h, "%s|%s|%v|%d|%d|%d|%s", in.Engine, in.Voice, in.Custom, in.Rate, in.Pitch, in.Volume, in.Text)
+	if in.Engine == "voxcpm" {
+		fmt.Fprintf(h, "|ns:%v", in.NoSplit) // cache nghe thử phân biệt chế độ cắt
+	}
 	if in.Custom && validVoiceID(in.Voice) && (in.Engine == "vieneu" || in.Engine == "f5") {
 		if metadata, err := os.ReadFile(filepath.Join(voiceStorageDir(), in.Voice+".json")); err == nil {
 			h.Write(metadata)
@@ -151,7 +155,7 @@ func startJob(in ttsRequest) *job {
 		var err error
 		ext := "mp3"
 		if local {
-			mp3, ext, err = synthEngine(ctx, in.Engine, j.ID, text, in.Voice, in.Custom, in.Rate, in.Volume, prog)
+			mp3, ext, err = synthEngine(ctx, in.Engine, j.ID, text, in.Voice, in.Custom, in.Rate, in.Volume, in.NoSplit, prog)
 		} else {
 			mp3, err = Synthesize(ctx, text, o, prog)
 		}

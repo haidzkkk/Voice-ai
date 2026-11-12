@@ -821,12 +821,12 @@ func presetRef(ctx context.Context, voice string) (string, error) {
 }
 
 // synthEngine tạo giọng bằng engine trên máy.
-func synthEngine(ctx context.Context, model, jobID, text, voice string, custom bool, speed, volume int, progress func(d, t int)) ([]byte, string, error) {
+func synthEngine(ctx context.Context, model, jobID, text, voice string, custom bool, speed, volume int, nosplit bool, progress func(d, t int)) ([]byte, string, error) {
 	m, err := getModel(model)
 	if err != nil {
 		return nil, "", err
 	}
-	req := map[string]any{"job": jobID, "text": text, "speed": speed, "volume": volume}
+	req := map[string]any{"job": jobID, "text": text, "speed": speed, "volume": volume, "nosplit": nosplit}
 	if m.ID == "vieneu" {
 		req["voice"], req["custom"] = voice, custom
 	} else if custom {

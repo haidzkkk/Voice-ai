@@ -55,6 +55,21 @@ class ChunkMinLengthTest(unittest.TestCase):
         self.assertEqual(groups[-1][1], "para")
 
 
+class CoarseGroupsTest(unittest.TestCase):
+    def setUp(self):
+        self.scope = _load({"split_groups", "coarse_groups"})
+
+    def test_keeps_whole_paragraph_unsplit(self):
+        # Chế độ không-cắt-câu: nhiều câu trong một đoạn → MỘT cụm (không tách theo ".").
+        groups = self.scope["coarse_groups"]("Câu một. Câu hai. Câu ba.")
+        self.assertEqual(len(groups), 1)
+        self.assertEqual(groups[0][1], "para")
+
+    def test_splits_on_blank_line(self):
+        groups = self.scope["coarse_groups"]("Đoạn một ở đây.\n\nĐoạn hai ở đây.")
+        self.assertEqual(len(groups), 2)
+
+
 @unittest.skipIf(np is None, "numpy không có trong python hệ thống")
 class TrimTrailingSilenceTest(unittest.TestCase):
     def setUp(self):

@@ -252,6 +252,7 @@ button:focus-visible,summary:focus-visible{outline:3px solid var(--accent-soft);
               <button class="btn" id="vPreviewBtn">▶ Nghe thử giọng</button>
               <span class="sub" id="vPreviewMsg"></span>
             </div>
+            <label class="check hide" id="voxcpmNoSplitWrap" style="margin-top:10px"><input type="checkbox" id="voxcpmNoSplit"> Đọc nguyên đoạn, không cắt từng câu <span class="sub">— thử nghiệm: thường ít đọc thừa ở dấu chấm hơn, nhưng đoạn quá dài có thể kém ổn định</span></label>
 
             </div>
           </div>
@@ -507,6 +508,8 @@ for(const k in sliders){
   $('#'+k).oninput = ()=>{ showSlider(k); store.set(k,+$('#'+k).value); };
 }
 $('#resetBtn').onclick = ()=>{ for(const k in sliders){ $('#'+k).value=0; showSlider(k); store.set(k,0);} };
+$('#voxcpmNoSplit').checked = store.get('voxcpmNoSplit', false);
+$('#voxcpmNoSplit').onchange = ()=> store.set('voxcpmNoSplit', $('#voxcpmNoSplit').checked);
 
 const ta = $('#text');
 const EMOTION_COLORS={vui:['Vui','#fbbf2466'],buon:['Buồn','#60a5fa66'],gian:['Giận','#f8717166'],haohung:['Hào hứng','#fb923c66'],thitham:['Thì thầm','#c084fc66'],kechuyen:['Kể chuyện','#34d39966'],'cười':['Cười nhẹ','#fbbf2466'],'thở dài':['Thở dài','#60a5fa66'],'hắng giọng':['Hắng giọng','#c084fc66']};
@@ -622,6 +625,7 @@ async function generate(){
     const custom = v.startsWith('c:');
     if(isAdv() && !f5Ready){ setMsg(advName()+' chưa sẵn sàng.', true); return; }
     body = {engine: vmodel, text, voice: v.slice(2), custom, rate:+$('#rate').value, volume:+$('#volume').value};
+    if(vmodel==='voxcpm') body.nosplit = $('#voxcpmNoSplit').checked;
   } else {
     if(!$('#voice').value){ setMsg('Hãy chọn giọng đọc.', true); return; }
     body = {text, voice:$('#voice').value, rate:+$('#rate').value, pitch:+$('#pitch').value, volume:+$('#volume').value};
@@ -720,6 +724,7 @@ function setEngine(e){
   $('#engineHint').textContent=e==='ms'?'Có sẵn nhiều ngôn ngữ. Cần kết nối Internet.':isAdv()?'Dùng giọng mẫu để đọc nội dung mới. Chạy trên máy của bạn.':'Giọng tiếng Việt có sẵn và giọng cá nhân. Chạy trên máy của bạn.';
   $('#statusText').textContent=e==='ms'?'Microsoft · trực tuyến':'Đang kiểm tra mô hình…';
   show('#msPanel', e==='ms'); show('#vnPanel', e==='vieneu'); show('#pitchWrap', e==='ms');
+  show('#voxcpmNoSplitWrap', e==='vieneu' && vmodel==='voxcpm');
   if(e==='vieneu') pollEngine(true); else { clearTimeout(vnTimer); show('#pvCard', false); updateGo(); }
 }
 $('#engineSelect').onchange=()=>{
@@ -1255,7 +1260,7 @@ $('#vPreviewBtn').onclick = async ()=>{
   pm('Đang tạo đoạn nghe thử…');
   try{
     const r = await fetch('/api/tts',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({engine:vmodel, preview:true, text:previewText(), voice:v.slice(2), custom:v.startsWith('c:'), rate:+$('#rate').value, volume:+$('#volume').value})});
+      body:JSON.stringify({engine:vmodel, preview:true, text:previewText(), voice:v.slice(2), custom:v.startsWith('c:'), rate:+$('#rate').value, volume:+$('#volume').value, nosplit:vmodel==='voxcpm'&&$('#voxcpmNoSplit').checked})});
     if(!r.ok) throw new Error(await r.text());
     const id = (await r.json()).id;
     for(;;){

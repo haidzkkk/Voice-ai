@@ -70,6 +70,10 @@ F5_MIN_BYTES = 12
 # Số bước khử nhiễu của VoxCPM. 10 (mặc định cũ) hơi thấp → dễ ra artifact/đọc thừa;
 # 16 sạch hơn, đổi lại chậm hơn chút. Chỉnh qua GIONGAI_VOXCPM_STEPS để A/B (vd 20–24).
 VOXCPM_TIMESTEPS = max(4, int(os.environ.get("GIONGAI_VOXCPM_STEPS") or 16))
+# Thử nghiệm: với VoxCPM, KHÔNG cắt theo từng câu mà đưa nguyên đoạn (cắt thô ≤700
+# ký tự như VieNeu) vào một lần sinh — ít ranh giới hơn nên có thể bớt đuôi thừa,
+# đổi lại mất kiểm soát khoảng lặng theo câu. Bật bằng GIONGAI_VOXCPM_NOSPLIT=1.
+VOXCPM_NOSPLIT = bool(os.environ.get("GIONGAI_VOXCPM_NOSPLIT"))
 
 
 def log(*a):
@@ -972,6 +976,12 @@ def f5_fine_groups(text, limit=700):
     return merged
 
 
+def coarse_groups(text, limit=700):
+    """Chia THÔ theo đoạn văn/≤limit, KHÔNG tách từng câu (chế độ thử nghiệm
+    VoxCPM không-cắt-câu). Trả (cụm, loại nghỉ sau cụm) như f5_fine_groups."""
+    return [(part, "para" if end else "sent") for part, end in split_groups(text, limit)]
+
+
 def trim_trailing_silence(wav, sr):
     """Cắt phần ĐUÔI năng lượng thấp của một đoạn model clone (F5/VoxCPM) sinh ra.
 
@@ -1044,8 +1054,10 @@ def resolve_ref(req):
     return ref_wav, ref_text
 
 
-def f5_style_groups(text, samples):
-    """Style labels select reference clips; labels never enter model text."""
+def f5_style_groups(text, samples, chunker=f5_fine_groups):
+    """Style labels select reference clips; labels never enter model text.
+    chunker chọn mức cắt: f5_fine_groups (từng câu, mặc định) hay coarse_groups
+    (nguyên đoạn, chế độ thử nghiệm VoxCPM không-cắt-câu)."""
     tag = "macdinh"
     position = 0
     groups = []
@@ -1055,9 +1067,9 @@ def f5_style_groups(text, samples):
             raise ValueError(f"Thẻ [{label}] chưa hỗ trợ. Dùng các thẻ trong mục Cảm xúc F5-TTS.")
         if label != "macdinh" and not samples.get(label):
             raise ValueError(f"Chưa thiết lập mẫu cho [{label}]. Mở Thiết lập cảm xúc để chọn mẫu trước.")
-        groups.extend((part, kind, tag) for part, kind in f5_fine_groups(text[position:match.start()]))
+        groups.extend((part, kind, tag) for part, kind in chunker(text[position:match.start()]))
         tag, position = label, match.end()
-    groups.extend((part, kind, tag) for part, kind in f5_fine_groups(text[position:]))
+    groups.extend((part, kind, tag) for part, kind in chunker(text[position:]))
     if not groups:
         raise ValueError("Hãy nhập lời cần đọc sau thẻ cảm xúc.")
     return groups
@@ -1079,7 +1091,9 @@ def synthesize(req, job):
         if req.get("custom_id"):
             metadata = json.loads((voices_dir() / (check_id(req["custom_id"]) + ".json")).read_text(encoding="utf-8"))
             samples = metadata.get("emotion_samples") or {}
-        groups = f5_style_groups(text, samples)
+        nosplit = bool(req.get("nosplit")) if "nosplit" in req else VOXCPM_NOSPLIT  # UI gửi cờ; env là mặc định
+        chunker = coarse_groups if (ARGS.model == "voxcpm" and nosplit) else f5_fine_groups
+        groups = f5_style_groups(text, samples, chunker)
         references = {}
         for _, _, tag in groups:
             if tag in references:
