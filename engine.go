@@ -558,8 +558,10 @@ func doInstall(m *modelDef, gpu bool) {
 		// (qua datasets>=3), nhưng index pytorch (--extra-index-url ở dưới) chỉ có
 		// requests==2.28.1; mặc định uv khoá requests vào index đầu tiên -> xung
 		// đột -> lùi voxcpm về 1.x. Cho phép lấy requests bản mới từ PyPI.
+		// sea-g2p: chuẩn hoá tiếng Việt (đọc số/ký hiệu thành chữ) như F5 — giảm
+		// đọc thừa/sai ở chỗ có số. Thiếu nó thì normalize_vi chỉ lower-case.
 		args := []string{"pip", "install", "--python", py, "--index-strategy", "unsafe-best-match",
-			"--constraint", constraintName, "voxcpm==2.0.3", "lameenc", "soundfile", "librosa"}
+			"--constraint", constraintName, "voxcpm==2.0.3", "sea-g2p", "lameenc", "soundfile", "librosa"}
 		args = append(args, runtimePackages(runtime.GOOS)...)
 		if index := torchIndex(gpu, runtime.GOOS); index != "" {
 			args = append(args, "--extra-index-url", index)

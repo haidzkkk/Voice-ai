@@ -10,9 +10,10 @@ class F5EmotionRoutingTest(unittest.TestCase):
         tree = ast.parse(Path(__file__).with_name("engine_server.py").read_text())
         names = {"split_groups", "f5_fine_groups", "f5_style_groups"}
         functions = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name in names]
-        assignment = next(n for n in tree.body if isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id == "F5_EMOTIONS" for t in n.targets))
+        consts = {"F5_EMOTIONS", "F5_MIN_BYTES"}
+        assignments = [n for n in tree.body if isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id in consts for t in n.targets)]
         self.scope = {"re": re}
-        exec(compile(ast.Module(body=[assignment, *functions], type_ignores=[]), "style_groups", "exec"), self.scope)
+        exec(compile(ast.Module(body=[*assignments, *functions], type_ignores=[]), "style_groups", "exec"), self.scope)
 
     def groups(self, text):
         return self.scope["f5_style_groups"](text, {"vui": "abcdef12", "buon": "abcdef34"})
