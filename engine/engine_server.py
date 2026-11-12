@@ -62,6 +62,14 @@ F5_EMOTIONS = {"vui", "buon", "gian", "haohung", "thitham", "kechuyen"}
 GAP = {"para": 0.45, "sent": 0.2}
 # F5 ra giọng méo khi mẫu quá dài; mẫu dài hơn ngần này (giây) sẽ được cắt ngắn lại.
 REF_MAX_SEC = 15.0
+# Cụm ngắn hơn ngần này (byte UTF-8) khiến F5 ép local_speed=0.3 → duration thừa →
+# đọc thêm từ/âm lạ. Gộp các câu để không cụm nào ngắn hơn ngưỡng này. F5 dùng mốc
+# 10 (< 10 byte); lấy 12 làm biên an toàn nhỏ trên mốc đó, đủ để không gộp nhầm câu
+# ngắn-nhưng-ổn ("Thật tuyệt!" 15B, "Tôi hiểu." 12B).
+F5_MIN_BYTES = 12
+# Số bước khử nhiễu của VoxCPM. 10 (mặc định cũ) hơi thấp → dễ ra artifact/đọc thừa;
+# 16 sạch hơn, đổi lại chậm hơn chút. Chỉnh qua GIONGAI_VOXCPM_STEPS để A/B (vd 20–24).
+VOXCPM_TIMESTEPS = max(4, int(os.environ.get("GIONGAI_VOXCPM_STEPS") or 16))
 
 
 def log(*a):
@@ -788,8 +796,10 @@ class VoxCPMModel:
     def synth(self, text, ref_wav, ref_text, speed=1.0):
         # speed bỏ qua ở đây: VoxCPM không nhận tham số tốc độ; tốc độ do lớp
         # synthesize() xử lý bằng librosa time-stretch sau khi ghép.
+        # normalize=False: text đã được normalize_vi ở lớp trên, không chuẩn hoá lại.
         wav = self.m.generate(text=text, prompt_wav_path=ref_wav, prompt_text=ref_text,
-                              cfg_value=2.0, inference_timesteps=10, normalize=False, denoise=False)
+                              cfg_value=2.0, inference_timesteps=VOXCPM_TIMESTEPS,
+                              normalize=False, denoise=False)
         return np.asarray(wav, dtype=np.float32).reshape(-1)
 
     def transcribe(self, path):
@@ -946,13 +956,45 @@ def f5_fine_groups(text, limit=700):
             last_sent = si == len(sents) - 1
             kind = "para" if (last_sent and para_end) else "sent"
             out.append((sent, kind))
+    # F5 ép local_speed=0.3 (duration ~x3.3 → đọc thừa/âm lạ ở cuối) cho cụm ngắn
+    # hơn 10 byte UTF-8. Gộp để MỖI cụm đủ dài; đo bằng byte vì tiếng Việt có dấu
+    # nặng byte, và lấy biên 16 cho chắc. Gộp XUÔI xử lý cụm ngắn ở giữa; cụm cuối
+    # (logic xuôi không với tới) được gộp NGƯỢC vào cụm trước.
     merged = []
     for seg, kind in out:
-        if merged and len(merged[-1][0]) < 6:  # câu quá ngắn ("Dạ.", "Ừ.") gộp vào câu sau
+        if merged and len(merged[-1][0].encode("utf-8")) < F5_MIN_BYTES:  # "Dạ.", "Ừ."…
             merged[-1] = ((merged[-1][0] + " " + seg).strip(), kind)
         else:
             merged.append((seg, kind))
+    if len(merged) >= 2 and len(merged[-1][0].encode("utf-8")) < F5_MIN_BYTES:
+        seg, kind = merged.pop()
+        merged[-1] = ((merged[-1][0] + " " + seg).strip(), kind)
     return merged
+
+
+def trim_trailing_silence(wav, sr):
+    """Cắt phần ĐUÔI năng lượng thấp của một đoạn model clone (F5/VoxCPM) sinh ra.
+
+    Dòng model này phải sinh đủ 'duration' đã ước lượng; khi ước lượng dài hơn lời
+    thực, model lấp phần thừa ở cuối bằng hơi thở/âm lí nhí → nghe thừa ở ranh giới
+    câu (chỗ dấu chấm). Cắt bớt đuôi im lặng/âm nhỏ giúp giảm hiện tượng này; sau đó
+    lớp synthesize vẫn chèn khoảng lặng GAP như bình thường. Chỉ đụng ĐUÔI, không
+    đụng đầu; không chắc thì trả nguyên bản (an toàn hơn cắt nhầm lời thật)."""
+    n = int(np.asarray(wav).shape[0])
+    win = max(1, int(sr * 0.02))               # cửa sổ RMS 20ms
+    if n < 4 * win:
+        return wav
+    peak = float(np.max(np.abs(wav)))
+    if peak <= 0:
+        return wav
+    thr = max(0.01, peak * 0.08)               # ngưỡng "còn có tiếng"
+    frames = wav[: (n // win) * win].reshape(-1, win)
+    rms = np.sqrt(np.mean(frames * frames, axis=1))
+    loud = np.nonzero(rms > thr)[0]
+    if loud.size == 0:                         # cả đoạn đều yên lặng → không đụng
+        return wav
+    cut = min(n, int((loud[-1] + 1) * win) + int(sr * 0.04))  # chừa 40ms đuôi tự nhiên
+    return wav[:cut] if cut < n else wav
 
 
 def encode(wav, sr, fmt="mp3"):
@@ -997,7 +1039,7 @@ def resolve_ref(req):
         raise ValueError("Không tìm thấy giọng mẫu")
     if ARGS.model == "voxcpm" and not ref_text:
         raise ValueError("VoxCPM2 cần lời thoại của mẫu. Hãy nhập đúng lời trong mẫu ở mục Sửa lời thoại.")
-    if ARGS.model == "f5":
+    if ARGS.model in ("f5", "voxcpm"):  # lời thoại mẫu cùng "khuôn" chuẩn hoá với text sinh
         ref_text = normalize_vi(ref_text)
     return ref_wav, ref_text
 
@@ -1051,8 +1093,9 @@ def synthesize(req, job):
             native_speed = max(0.5, min(2.0, 1 + speed_pct / 100.0))
             speed_pct = 0
             run = lambda g, tag: MODEL.synth(normalize_vi(g), *references[tag], native_speed)
-        else:  # voxcpm: đưa text thô (model tự chuẩn hoá đa ngữ); tốc độ xử lý bằng librosa bên dưới
-            run = lambda g, tag: MODEL.synth(g, *references[tag])
+        else:  # voxcpm: chuẩn hoá tiếng Việt (số/ký hiệu→chữ) như F5 để bớt đọc
+               # thừa/sai; tốc độ xử lý bằng librosa bên dưới
+            run = lambda g, tag: MODEL.synth(normalize_vi(g), *references[tag])
 
     job["total"] = len(groups)
     parts = []
@@ -1062,7 +1105,10 @@ def synthesize(req, job):
         with MODEL_LOCK:
             wav = run(g) if ARGS.model == "vieneu" else run(g, tag)
         sr = MODEL.sample_rate
-        parts.append(np.asarray(wav, dtype=np.float32).reshape(-1))
+        seg = np.asarray(wav, dtype=np.float32).reshape(-1)
+        if ARGS.model != "vieneu":             # dọn đuôi thừa của F5/VoxCPM
+            seg = trim_trailing_silence(seg, sr)
+        parts.append(seg)
         if i < len(groups) - 1:
             parts.append(np.zeros(int(sr * GAP.get(kind, 0.2)), dtype=np.float32))
         job["done"] = i + 1
