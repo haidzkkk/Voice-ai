@@ -85,6 +85,7 @@ type ttsRequest struct {
 	Mode       string `json:"mode"`
 	PromptB64  string `json:"prompt_b64"`
 	PromptText string `json:"prompt_text"`
+	Desc       string `json:"desc"` // mô tả cách đọc (chỉ reference mode)
 }
 
 func previewDir() string { return filepath.Join(engineDir(), "previews") }
@@ -93,7 +94,7 @@ func previewName(in ttsRequest) string {
 	h := sha256.New()
 	fmt.Fprintf(h, "%s|%s|%v|%d|%d|%d|%s", in.Engine, in.Voice, in.Custom, in.Rate, in.Pitch, in.Volume, in.Text)
 	if in.Engine == "voxcpm" {
-		fmt.Fprintf(h, "|m:%s|pt:%s|pb:%d", in.Mode, in.PromptText, len(in.PromptB64)) // cache phân biệt chế độ + audio nối tiếp
+		fmt.Fprintf(h, "|m:%s|d:%s|pt:%s|pb:%d", in.Mode, in.Desc, in.PromptText, len(in.PromptB64)) // cache phân biệt chế độ + mô tả + audio nối tiếp
 	}
 	if in.Custom && validVoiceID(in.Voice) && (in.Engine == "vieneu" || in.Engine == "voxcpm") {
 		if metadata, err := os.ReadFile(filepath.Join(voiceStorageDir(), in.Voice+".json")); err == nil {
@@ -158,7 +159,7 @@ func startJob(in ttsRequest) *job {
 		var err error
 		ext := "mp3"
 		if local {
-			mp3, ext, err = synthEngine(ctx, in.Engine, j.ID, text, in.Voice, in.Custom, in.Rate, in.Volume, in.Mode, in.PromptB64, in.PromptText, prog)
+			mp3, ext, err = synthEngine(ctx, in.Engine, j.ID, text, in.Voice, in.Custom, in.Rate, in.Volume, in.Mode, in.PromptB64, in.PromptText, in.Desc, prog)
 		} else {
 			mp3, err = Synthesize(ctx, text, o, prog)
 		}

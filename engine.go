@@ -791,7 +791,7 @@ func presetRef(ctx context.Context, voice string) (string, error) {
 // synthEngine tạo giọng bằng engine trên máy.
 // Với VoxCPM, mode ∈ {reference, continuation, ref_continuation}; promptB64/promptText
 // là audio đoạn trước + lời thoại của nó (chỉ dùng cho hai chế độ nối tiếp).
-func synthEngine(ctx context.Context, model, jobID, text, voice string, custom bool, speed, volume int, mode, promptB64, promptText string, progress func(d, t int)) ([]byte, string, error) {
+func synthEngine(ctx context.Context, model, jobID, text, voice string, custom bool, speed, volume int, mode, promptB64, promptText, desc string, progress func(d, t int)) ([]byte, string, error) {
 	m, err := getModel(model)
 	if err != nil {
 		return nil, "", err
@@ -815,6 +815,9 @@ func synthEngine(ctx context.Context, model, jobID, text, voice string, custom b
 		}
 		if promptText != "" {
 			req["prompt_text"] = promptText
+		}
+		if desc != "" {
+			req["desc"] = desc
 		}
 	}
 	body, _ := json.Marshal(req)

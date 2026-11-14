@@ -935,8 +935,15 @@ def synthesize(req, job):
             if mode not in VOXCPM_MODES:
                 mode = "reference"
             prompt_wav, prompt_text = voxcpm_prompt(req, mode, tmp_files)
+            # Mô tả cách đọc: chỉ dùng ở reference mode (VoxCPM cấm ghép mô tả với
+            # prompt_text/nối tiếp). Ghép "(mô tả)" vào ĐẦU text theo cú pháp control
+            # của VoxCPM2 — model đọc theo mô tả, phần mô tả không được phát thành tiếng.
+            desc = (req.get("desc") or "").strip() if mode == "reference" else ""
+            def vox_text(g):
+                t = normalize_vi(g)
+                return f"({desc}){t}" if desc else t
             # chuẩn hoá tiếng Việt (số/ký hiệu→chữ); tốc độ xử lý bằng librosa bên dưới
-            run = lambda g, tag: MODEL.synth(normalize_vi(g), references[tag], mode, prompt_wav, prompt_text)
+            run = lambda g, tag: MODEL.synth(vox_text(g), references[tag], mode, prompt_wav, prompt_text)
 
         job["total"] = len(groups)
         parts = []

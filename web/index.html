@@ -259,6 +259,10 @@ button:focus-visible,summary:focus-visible{outline:3px solid var(--accent-soft);
                 <option value="continuation">Nối tiếp · đọc tiếp từ audio đoạn trước</option>
                 <option value="ref_continuation">Giọng mẫu + nối tiếp</option>
               </select>
+              <div class="hide" id="voxDescWrap" style="margin-top:10px">
+                <label class="fl" for="voxDesc">Mô tả cách đọc <span class="sub">— tùy chọn, mô tả giọng/cảm xúc cho cả đoạn</span></label>
+                <textarea class="inp" id="voxDesc" rows="2" placeholder="Ví dụ: giọng vui, ấm áp, chậm rãi — hoặc tiếng Anh: warm, cheerful, calm. Để trống nếu không cần."></textarea>
+              </div>
               <div class="hide" id="voxPrev" style="margin-top:10px">
                 <label class="fl">Audio đoạn trước (để nối tiếp)</label>
                 <div class="row">
@@ -530,8 +534,11 @@ $('#resetBtn').onclick = ()=>{ for(const k in sliders){ $('#'+k).value=0; showSl
 // --- VoxCPM: chế độ clone + audio đoạn trước (cho chế độ nối tiếp) ---
 let voxPrevBlob = null, voxRecorder = null, voxRecStream = null;
 $('#voxMode').value = store.get('voxMode','reference');
+$('#voxDesc').value = store.get('voxDesc','');
+$('#voxDesc').oninput = ()=> store.set('voxDesc', $('#voxDesc').value);
 function voxNeedsPrev(){ const m=$('#voxMode').value; return m==='continuation'||m==='ref_continuation'; }
 function renderVoxMode(){
+  show('#voxDescWrap', $('#voxMode').value==='reference');  // mô tả chỉ dùng ở reference
   show('#voxPrev', voxNeedsPrev());
   const src = $('#voxPrevSource').value;
   show('#voxPrevPick', src==='file');
@@ -674,7 +681,10 @@ async function generate(){
     body = {engine: vmodel, text, voice: v.slice(2), custom, rate:+$('#rate').value, volume:+$('#volume').value};
     if(vmodel==='voxcpm'){
       body.mode = $('#voxMode').value;
-      if(voxNeedsPrev()){
+      if(body.mode==='reference'){
+        const d = $('#voxDesc').value.trim();
+        if(d) body.desc = d;
+      } else if(voxNeedsPrev()){
         if(!voxPrevBlob){ setMsg('Chế độ nối tiếp cần chọn hoặc ghi một audio đoạn trước.', true); return; }
         const pt = $('#voxPrevText').value.trim();
         if(!pt){ setMsg('Hãy nhập lời thoại của audio đoạn trước.', true); return; }
