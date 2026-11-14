@@ -1,22 +1,22 @@
-"""F5 style routing must strip labels and never silently substitute missing samples."""
+"""Emotion tag routing must strip labels and never silently substitute missing samples."""
 import ast
 import re
 import unittest
 from pathlib import Path
 
 
-class F5EmotionRoutingTest(unittest.TestCase):
+class EmotionRoutingTest(unittest.TestCase):
     def setUp(self):
         tree = ast.parse(Path(__file__).with_name("engine_server.py").read_text())
-        names = {"split_groups", "f5_fine_groups", "f5_style_groups"}
+        names = {"split_groups", "coarse_groups", "style_groups"}
         functions = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name in names]
-        consts = {"F5_EMOTIONS", "F5_MIN_BYTES"}
+        consts = {"EMOTIONS"}
         assignments = [n for n in tree.body if isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id in consts for t in n.targets)]
         self.scope = {"re": re}
         exec(compile(ast.Module(body=[*assignments, *functions], type_ignores=[]), "style_groups", "exec"), self.scope)
 
     def groups(self, text):
-        return self.scope["f5_style_groups"](text, {"vui": "abcdef12", "buon": "abcdef34"})
+        return self.scope["style_groups"](text, {"vui": "abcdef12", "buon": "abcdef34"})
 
     def test_emotion_persists_across_paragraphs_and_can_reset(self):
         groups = self.groups("Xin chào. [vui] Làm được rồi!\nThật tuyệt! [buon] Tôi nhớ bạn. [macdinh] Hẹn gặp lại.")

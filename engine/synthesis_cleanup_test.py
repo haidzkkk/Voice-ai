@@ -22,39 +22,6 @@ def _load(names, const_names=()):
     return scope
 
 
-class ChunkMinLengthTest(unittest.TestCase):
-    def setUp(self):
-        self.scope = _load({"split_groups", "f5_fine_groups"}, {"F5_MIN_BYTES"})
-        self.min_bytes = self.scope["F5_MIN_BYTES"]
-
-    def groups(self, text):
-        return self.scope["f5_fine_groups"](text)
-
-    def test_no_chunk_below_f5_speed_trap(self):
-        # Mọi cụm phải >= ngưỡng để F5 không ép local_speed=0.3.
-        for text in [
-            "Chào các bạn. Ừ.",                       # câu cuối cực ngắn
-            "Dạ. Vâng ạ. Tôi sẽ cố gắng hết sức.",    # nhiều câu ngắn ở đầu
-            "Ừ.",                                      # chỉ một câu ngắn (không gộp được)
-            "Tôi đồng ý với bạn về điều đó. Thật. Chắc chắn.",
-        ]:
-            groups = self.groups(text)
-            self.assertTrue(groups, text)
-            if len(groups) > 1:  # còn nhiều cụm thì không cụm nào được rơi dưới ngưỡng
-                for seg, _ in groups:
-                    self.assertGreaterEqual(len(seg.encode("utf-8")), self.min_bytes, (text, seg))
-
-    def test_short_tail_merges_backward(self):
-        groups = self.groups("Chào các bạn thân mến. Ừ.")
-        self.assertEqual(len(groups), 1)
-        self.assertIn("Ừ.", groups[0][0])
-
-    def test_labels_and_pause_kind_preserved(self):
-        # Gộp giữ loại ngắt của câu cuối trong cụm (para ở cuối đoạn văn).
-        groups = self.groups("Dạ. Tôi hiểu rồi và sẽ làm ngay bây giờ.")
-        self.assertEqual(groups[-1][1], "para")
-
-
 class CoarseGroupsTest(unittest.TestCase):
     def setUp(self):
         self.scope = _load({"split_groups", "coarse_groups"})

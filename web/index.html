@@ -177,7 +177,7 @@ button:focus-visible,summary:focus-visible{outline:3px solid var(--accent-soft);
       <section class="card voice-card" aria-labelledby="voiceHeading">
         <div class="section-heading"><span class="step">01</span><h2 id="voiceHeading">Chọn giọng đọc</h2></div>
         <label class="fl" for="engineSelect">Công cụ tạo giọng</label>
-        <select id="engineSelect"><option value="ms">Microsoft · trực tuyến</option><option value="vieneu">VieNeu · nhanh, trên máy</option><option value="f5">F5-TTS · clone giọng, trên máy</option><option value="voxcpm">VoxCPM2 · clone đa ngữ, trên máy</option></select>
+        <select id="engineSelect"><option value="ms">Microsoft · trực tuyến</option><option value="vieneu">VieNeu · nhanh, trên máy</option><option value="voxcpm">VoxCPM2 · clone đa ngữ, trên máy</option></select>
         <div class="sub engine-hint" id="engineHint"></div>
         <div id="msPanel">
           <label class="fl" for="locale">Ngôn ngữ</label><select id="locale"></select>
@@ -215,10 +215,10 @@ button:focus-visible,summary:focus-visible{outline:3px solid var(--accent-soft);
           <div id="vnReady" class="hide">
             <div id="f5Box" class="hide">
               <div id="f5Setup" class="hide">
-                <p class="lead">F5-TTS tiếng Việt được huấn luyện trên ~1.000 giờ giọng nói: đọc rõ hơn, ngắt nghỉ tự nhiên hơn và nhại giọng cá nhân giống hơn VieNeu. Đổi lại chạy chậm hơn. Dùng cá nhân, không thương mại.</p>
+                <p class="lead">VoxCPM2 (OpenBMB) clone giọng đa ngôn ngữ. Mô hình lớn: cần máy mạnh, tốt nhất có card NVIDIA; chạy CPU sẽ rất chậm. Giấy phép Apache-2.0.</p>
                 <ul class="facts"><li>Tải khoảng <b id="f5Size">tùy chế độ CPU / NVIDIA</b> (một lần).</li><li id="f5GpuNote" class="hide"></li></ul>
                 <label class="check hide" id="f5GpuWrap"><input type="checkbox" id="f5Gpu"> Dùng card NVIDIA (nhanh hơn nhiều)</label>
-                <button class="btn primary" id="f5InstallBtn" style="margin-top:12px">Cài F5-TTS</button>
+                <button class="btn primary" id="f5InstallBtn" style="margin-top:12px">Cài VoxCPM2</button>
               </div>
               <div id="f5Busy" class="hide">
                 <div class="busy"><span class="spin"></span><span id="f5BusyText">Đang cài…</span></div>
@@ -252,7 +252,26 @@ button:focus-visible,summary:focus-visible{outline:3px solid var(--accent-soft);
               <button class="btn" id="vPreviewBtn">▶ Nghe thử giọng</button>
               <span class="sub" id="vPreviewMsg"></span>
             </div>
-            <label class="check hide" id="voxcpmNoSplitWrap" style="margin-top:10px"><input type="checkbox" id="voxcpmNoSplit"> Đọc nguyên đoạn, không cắt từng câu <span class="sub">— thử nghiệm: thường ít đọc thừa ở dấu chấm hơn, nhưng đoạn quá dài có thể kém ổn định</span></label>
+            <div class="hide" id="voxModeBox" style="margin-top:12px">
+              <label class="fl" for="voxMode">Chế độ clone (VoxCPM2)</label>
+              <select id="voxMode">
+                <option value="reference">Reference · chỉ giọng mẫu (ít lỗi đầu đoạn nhất)</option>
+                <option value="continuation">Nối tiếp · đọc tiếp từ audio đoạn trước</option>
+                <option value="ref_continuation">Giọng mẫu + nối tiếp</option>
+              </select>
+              <div class="hide" id="voxPrev" style="margin-top:10px">
+                <label class="fl">Audio đoạn trước (để nối tiếp)</label>
+                <div class="row">
+                  <select id="voxPrevSource"><option value="file">Tải file</option><option value="mic">Ghi âm micro</option><option value="system">Ghi âm trong máy</option></select>
+                  <button class="btn" id="voxPrevPick" type="button">Chọn file…</button>
+                  <button class="btn hide" id="voxPrevRec" type="button">● Ghi âm</button>
+                  <span class="sub" id="voxPrevInfo">Chưa có audio</span>
+                </div>
+                <input type="file" id="voxPrevFile" accept="audio/*,.wav,.mp3,.m4a,.ogg,.webm" class="hide">
+                <label class="fl" for="voxPrevText" style="margin-top:8px">Lời thoại trong audio đó <span class="sub">— bắt buộc, gõ đúng lời đã nói</span></label>
+                <textarea class="inp" id="voxPrevText" rows="2" placeholder="Gõ đúng lời nói trong audio đoạn trước."></textarea>
+              </div>
+            </div>
 
             </div>
           </div>
@@ -340,14 +359,13 @@ button:focus-visible,summary:focus-visible{outline:3px solid var(--accent-soft);
           </div>
           <div class="sub" id="pvInfo" style="margin-top:8px"></div>
           <audio id="pvPreview" controls class="hide"></audio>
-          <details class="disclosure" id="pvTranscriptDetails"><summary>Lời thoại tham chiếu cho F5-TTS</summary>
-          <label class="fl" for="pvRefText">Lời thoại trong đoạn ghi âm <span class="sub">— không bắt buộc</span></label>
+          <details class="disclosure" id="pvTranscriptDetails"><summary>Lời thoại tham chiếu (cho mẫu cảm xúc)</summary>
+          <label class="fl" for="pvRefText">Lời thoại trong đoạn ghi âm <span class="sub">— không bắt buộc với giọng thường</span></label>
           <textarea id="pvRefText" class="inp" rows="2" placeholder="Có thể để trống. Nếu nhập, hãy nhập đúng lời nói trong đoạn âm thanh đã chọn."></textarea>
-          <div class="sub">VieNeu không cần lời thoại. F5-TTS tự nhận dạng lời thoại khi dùng giọng lần đầu nếu ô này trống (có thể tải thêm mô hình nhận dạng ~1,6 GB).</div>
-          <div class="row" style="margin-top:8px">
-            <button class="btn" id="pvTranscribeBtn">Tự nhận dạng lời thoại</button>
+          <div class="sub">VieNeu và VoxCPM (chế độ reference) không cần lời thoại mẫu. Chỉ các mẫu cảm xúc mới cần nhập đúng lời thoại.</div>
+          <div class="row hide" style="margin-top:8px">
+            <button class="btn hide" id="pvTranscribeBtn" type="button">Tự nhận dạng lời thoại</button>
           </div>
-          <div class="sub">Với F5-TTS, nghe lại mẫu và kiểm tra lời thoại nhận dạng có khớp không. Lời thoại sai có thể làm giọng đọc sai nội dung.</div>
           </details></div><div class="dialog-actions">
           <label class="check" style="margin-top:12px"><input type="checkbox" id="pvConsent"> Đây là giọng của tôi, hoặc tôi đã được người đó đồng ý.</label>
           <div class="row" style="margin-top:12px">
@@ -358,10 +376,10 @@ button:focus-visible,summary:focus-visible{outline:3px solid var(--accent-soft);
         </div></div>
 </dialog>
 <dialog id="f5EmotionDialog" aria-labelledby="emotionDialogTitle">
-  <div class="dialog-heading"><div><div class="eyebrow">F5-TTS · BỘ MẪU CẢM XÚC</div><h2 id="emotionDialogTitle">Thiết lập cảm xúc</h2></div><button class="btn ghost" id="emotionCloseBtn" aria-label="Đóng thiết lập cảm xúc">✕</button></div>
+  <div class="dialog-heading"><div><div class="eyebrow">VOXCPM2 · BỘ MẪU CẢM XÚC</div><h2 id="emotionDialogTitle">Thiết lập cảm xúc</h2></div><button class="btn ghost" id="emotionCloseBtn" aria-label="Đóng thiết lập cảm xúc">✕</button></div>
   <div class="wizard-steps"><span data-emotion-step="1">01 · Chọn cảm xúc</span><span data-emotion-step="2">02 · Chọn mẫu</span><span data-emotion-step="3">03 · Kiểm tra &amp; lưu</span></div>
   <div class="dialog-scroll">
-    <div class="wizard-note hide" id="emotionPrerequisites">Cần F5-TTS sẵn sàng để nhận dạng và nghe thử. <button class="btn ghost help-link" id="prepareF5Btn">Mở phần cài mô hình →</button></div>
+    <div class="wizard-note hide" id="emotionPrerequisites">Cần VoxCPM2 sẵn sàng để nghe thử. <button class="btn ghost help-link" id="prepareF5Btn">Mở phần cài mô hình →</button></div>
     <div class="wizard-panel" id="emotionStep1">
       <h3>Bạn muốn giọng nào, sắc thái nào?</h3><button class="btn ghost help-link" data-help="setup">ⓘ Hướng dẫn thiết lập từ đầu</button><button class="btn ghost help-link" data-help="sameSpeaker">ⓘ Vì sao cần mẫu của cùng người?</button>
       <label class="fl" for="emotionBaseVoice">Giọng cá nhân gốc</label><select id="emotionBaseVoice"></select>
@@ -378,8 +396,8 @@ button:focus-visible,summary:focus-visible{outline:3px solid var(--accent-soft);
     <div class="wizard-panel hide" id="emotionStep3">
       <h3>Nghe lại và kiểm tra lời thoại</h3><button class="btn ghost help-link" data-help="transcript">ⓘ Vì sao phải khớp lời thoại?</button>
       <audio id="emotionReviewPlayer" controls></audio>
-      <label class="fl" for="emotionRefText">Đúng lời nói trong đoạn mẫu</label><textarea class="inp" id="emotionRefText" rows="3" placeholder="Nhận dạng tự động rồi sửa các từ chưa đúng, hoặc nhập lời nói trong mẫu."></textarea>
-      <div class="row"><button class="btn" id="emotionTranscribeBtn">Tự nhận dạng</button><button class="btn" id="emotionPreviewBtn">Nghe thử sắc thái</button><button class="btn ghost help-link" data-help="quality">ⓘ Kết quả có giống hoàn toàn không?</button></div>
+      <label class="fl" for="emotionRefText">Đúng lời nói trong đoạn mẫu</label><textarea class="inp" id="emotionRefText" rows="3" placeholder="Nhập đúng lời nói trong đoạn mẫu."></textarea>
+      <div class="row"><button class="btn hide" id="emotionTranscribeBtn" type="button">Tự nhận dạng</button><button class="btn" id="emotionPreviewBtn">Nghe thử sắc thái</button><button class="btn ghost help-link" data-help="quality">ⓘ Kết quả có giống hoàn toàn không?</button></div>
       <audio id="emotionGeneratedPlayer" controls class="hide"></audio>
       <label class="check"><input type="checkbox" id="emotionSameSpeaker"> Mẫu này là của cùng người nói với giọng gốc.</label>
       <label class="check"><input type="checkbox" id="emotionTranscriptChecked"> Tôi đã nghe lại và lời thoại trên khớp với đoạn mẫu.</label>
@@ -508,8 +526,37 @@ for(const k in sliders){
   $('#'+k).oninput = ()=>{ showSlider(k); store.set(k,+$('#'+k).value); };
 }
 $('#resetBtn').onclick = ()=>{ for(const k in sliders){ $('#'+k).value=0; showSlider(k); store.set(k,0);} };
-$('#voxcpmNoSplit').checked = store.get('voxcpmNoSplit', false);
-$('#voxcpmNoSplit').onchange = ()=> store.set('voxcpmNoSplit', $('#voxcpmNoSplit').checked);
+
+// --- VoxCPM: chế độ clone + audio đoạn trước (cho chế độ nối tiếp) ---
+let voxPrevBlob = null, voxRecorder = null, voxRecStream = null;
+$('#voxMode').value = store.get('voxMode','reference');
+function voxNeedsPrev(){ const m=$('#voxMode').value; return m==='continuation'||m==='ref_continuation'; }
+function renderVoxMode(){
+  show('#voxPrev', voxNeedsPrev());
+  const src = $('#voxPrevSource').value;
+  show('#voxPrevPick', src==='file');
+  show('#voxPrevRec', src!=='file');
+}
+function setVoxPrev(blob, label){ voxPrevBlob = blob; $('#voxPrevInfo').textContent = blob ? (label||'Đã có audio') : 'Chưa có audio'; }
+$('#voxMode').onchange = ()=>{ store.set('voxMode',$('#voxMode').value); renderVoxMode(); };
+$('#voxPrevSource').onchange = ()=>{ voxStopRec(); renderVoxMode(); };
+$('#voxPrevPick').onclick = ()=> $('#voxPrevFile').click();
+$('#voxPrevFile').onchange = e=>{ const f=e.target.files[0]; if(f) setVoxPrev(f, f.name); e.target.value=''; };
+function voxStopRec(){ try{ if(voxRecorder && voxRecorder.state!=='inactive') voxRecorder.stop(); }catch(e){} if(voxRecStream){ voxRecStream.getTracks().forEach(t=>t.stop()); voxRecStream=null; } $('#voxPrevRec').textContent='● Ghi âm'; }
+$('#voxPrevRec').onclick = async ()=>{
+  if(voxRecorder && voxRecorder.state==='recording'){ voxStopRec(); return; }
+  if(!navigator.mediaDevices || !window.MediaRecorder){ $('#voxPrevInfo').textContent='Trình duyệt không hỗ trợ ghi âm. Hãy tải file.'; return; }
+  const sys = $('#voxPrevSource').value==='system';
+  try{
+    voxRecStream = sys ? await navigator.mediaDevices.getDisplayMedia({video:true, audio:true, systemAudio:'include'})
+                       : await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
+  }catch(e){ $('#voxPrevInfo').textContent='Không truy cập được thiết bị ghi.'; return; }
+  const chunks=[]; voxRecorder = new MediaRecorder(voxRecStream);
+  voxRecorder.ondataavailable = ev=>{ if(ev.data.size) chunks.push(ev.data); };
+  voxRecorder.onstop = ()=>{ setVoxPrev(new Blob(chunks,{type:chunks[0]?.type||'audio/webm'}), 'Bản ghi'); voxStopRec(); };
+  voxRecorder.start(); $('#voxPrevRec').textContent='■ Dừng'; $('#voxPrevInfo').textContent='Đang ghi…';
+};
+// renderVoxMode() được gọi trong setEngine() (chạy ở cuối, sau khi 'show' đã khai báo).
 
 const ta = $('#text');
 const EMOTION_COLORS={vui:['Vui','#fbbf2466'],buon:['Buồn','#60a5fa66'],gian:['Giận','#f8717166'],haohung:['Hào hứng','#fb923c66'],thitham:['Thì thầm','#c084fc66'],kechuyen:['Kể chuyện','#34d39966'],'cười':['Cười nhẹ','#fbbf2466'],'thở dài':['Thở dài','#60a5fa66'],'hắng giọng':['Hắng giọng','#c084fc66']};
@@ -549,7 +596,7 @@ function renderEmotionTools(){
   $('#emotionHint').textContent=voice?'Bôi đen đoạn văn rồi chèn thẻ để áp dụng riêng cho đoạn đó. Chỉ dùng được cảm xúc đã có mẫu.':'Chọn giọng cá nhân rồi thiết lập bộ mẫu cảm xúc.';
  }else{
   $('#emotionCue').innerHTML='<option value="[cười]">Cười nhẹ · [cười]</option><option value="[thở dài]">Thở dài · [thở dài]</option><option value="[hắng giọng]">Hắng giọng · [hắng giọng]</option>';
-  $('#emotionHint').textContent=engine==='vieneu'?'Bôi đen đoạn rồi chèn biểu cảm để đánh dấu màu. VieNeu tạo biểu cảm tại thẻ chèn; màu không đảm bảo cả đoạn có cùng cảm xúc.':'Chọn VieNeu để dùng biểu cảm, hoặc F5-TTS để thiết lập mẫu cảm xúc.';
+  $('#emotionHint').textContent=engine==='vieneu'?'Bôi đen đoạn rồi chèn biểu cảm để đánh dấu màu. VieNeu tạo biểu cảm tại thẻ chèn; màu không đảm bảo cả đoạn có cùng cảm xúc.':'Chọn VieNeu để dùng biểu cảm, hoặc VoxCPM2 để thiết lập mẫu cảm xúc.';
  }
  if([...$('#emotionCue').options].some(option=>option.value===previous&&!option.disabled))$('#emotionCue').value=previous;
  const supported=engine==='vieneu' && (!isF5||!!voice);
@@ -612,7 +659,7 @@ async function generate(){
   }
   const styleTags=[...text.matchAll(/\[(vui|buon|gian|haohung|thitham|kechuyen|macdinh)\]/gi)].map(match=>match[1].toLowerCase());
   if(styleTags.length){
-   if(engine!=='vieneu'||!isAdv()||!$('#vvoice').value.startsWith('c:')){setMsg('Thẻ cảm xúc cần chọn F5-TTS hoặc VoxCPM2 và giọng cá nhân.',true);openHelp('emotion');return;}
+   if(engine!=='vieneu'||!isAdv()||!$('#vvoice').value.startsWith('c:')){setMsg('Thẻ cảm xúc cần chọn VoxCPM2 và giọng cá nhân.',true);openHelp('emotion');return;}
    const voice=vnVoices.custom.find(item=>'c:'+item.id===$('#vvoice').value),samples=voice?.emotion_samples||{};
    const missing=styleTags.find(tag=>tag!=='macdinh'&&(!samples[tag]||!vnVoices.custom.some(item=>item.id===samples[tag])));
    if(missing){setMsg('Chưa có mẫu cho ['+missing+']. Hãy thiết lập cảm xúc trước.',true);openEmotionSetup(voice?.id);emotionDraft.tag=missing;renderEmotionWizard();return;}
@@ -625,7 +672,16 @@ async function generate(){
     const custom = v.startsWith('c:');
     if(isAdv() && !f5Ready){ setMsg(advName()+' chưa sẵn sàng.', true); return; }
     body = {engine: vmodel, text, voice: v.slice(2), custom, rate:+$('#rate').value, volume:+$('#volume').value};
-    if(vmodel==='voxcpm') body.nosplit = $('#voxcpmNoSplit').checked;
+    if(vmodel==='voxcpm'){
+      body.mode = $('#voxMode').value;
+      if(voxNeedsPrev()){
+        if(!voxPrevBlob){ setMsg('Chế độ nối tiếp cần chọn hoặc ghi một audio đoạn trước.', true); return; }
+        const pt = $('#voxPrevText').value.trim();
+        if(!pt){ setMsg('Hãy nhập lời thoại của audio đoạn trước.', true); return; }
+        body.prompt_b64 = await audioBase64(voxPrevBlob);
+        body.prompt_text = pt;
+      }
+    }
   } else {
     if(!$('#voice').value){ setMsg('Hãy chọn giọng đọc.', true); return; }
     body = {text, voice:$('#voice').value, rate:+$('#rate').value, pitch:+$('#pitch').value, volume:+$('#volume').value};
@@ -703,12 +759,12 @@ $('#quitBtn').onclick = async ()=>{
 // ===================== Giọng AI nâng cao (VieNeu) =====================
 let engine = store.get('engine','ms'), vnReady = false, vnVoices = {presets:[], custom:[]}, vnTimer = null, gpu = null, lastSt = null;
 let vmodel = store.get('vmodel','vieneu'), f5Ready = false;
-// Mô hình nâng cao dạng clone (ref audio + lời thoại + cảm xúc). Mọi mô hình
-// khác 'vieneu' dùng chung UI này; f5Ready = mô hình nâng cao đang chọn đã sẵn sàng.
-const ADV_NAMES={f5:'F5-TTS',voxcpm:'VoxCPM2'};
+if(vmodel!=='vieneu' && vmodel!=='voxcpm'){ vmodel='voxcpm'; store.set('vmodel',vmodel); }  // di trú: F5 đã gỡ
+// Mô hình nâng cao dạng clone (ref audio + cảm xúc). Mọi mô hình khác 'vieneu'
+// dùng chung UI này; f5Ready = mô hình nâng cao đang chọn đã sẵn sàng.
+const ADV_NAMES={voxcpm:'VoxCPM2'};
 const ADV_DESC={
- f5:'F5-TTS tiếng Việt được huấn luyện trên ~1.000 giờ giọng nói: đọc rõ hơn, ngắt nghỉ tự nhiên hơn và nhại giọng cá nhân giống hơn VieNeu. Đổi lại chạy chậm hơn. Dùng cá nhân, không thương mại.',
- voxcpm:'VoxCPM2 (OpenBMB) clone giọng đa ngôn ngữ từ mẫu + lời thoại. Mô hình lớn (~2 tỷ tham số): cần máy mạnh, tốt nhất có card NVIDIA; chạy CPU sẽ rất chậm. Giấy phép Apache-2.0 (dùng thương mại được).'
+ voxcpm:'VoxCPM2 (OpenBMB) clone giọng đa ngôn ngữ. Mô hình lớn (~2 tỷ tham số): cần máy mạnh, tốt nhất có card NVIDIA; chạy CPU sẽ rất chậm. Giấy phép Apache-2.0 (dùng thương mại được).'
 };
 const isAdv=()=>vmodel!=='vieneu';
 const advName=()=>ADV_NAMES[vmodel]||'Mô hình nâng cao';
@@ -724,7 +780,7 @@ function setEngine(e){
   $('#engineHint').textContent=e==='ms'?'Có sẵn nhiều ngôn ngữ. Cần kết nối Internet.':isAdv()?'Dùng giọng mẫu để đọc nội dung mới. Chạy trên máy của bạn.':'Giọng tiếng Việt có sẵn và giọng cá nhân. Chạy trên máy của bạn.';
   $('#statusText').textContent=e==='ms'?'Microsoft · trực tuyến':'Đang kiểm tra mô hình…';
   show('#msPanel', e==='ms'); show('#vnPanel', e==='vieneu'); show('#pitchWrap', e==='ms');
-  show('#voxcpmNoSplitWrap', e==='vieneu' && vmodel==='voxcpm');
+  show('#voxModeBox', e==='vieneu' && vmodel==='voxcpm'); renderVoxMode();
   if(e==='vieneu') pollEngine(true); else { clearTimeout(vnTimer); show('#pvCard', false); updateGo(); }
 }
 $('#engineSelect').onchange=()=>{
@@ -981,7 +1037,7 @@ function descVn(){
   renderSamples();
   const v = $('#vvoice').value; let d = '';
   if(v.startsWith('p:')){ const p = vnVoices.presets.find(x=>x.id===v.slice(2)); d = p ? (p.description||'') + (p.featured?' · ★ giọng nổi bật':'') : ''; }
-  else if(v.startsWith('c:')){ const c = vnVoices.custom.find(x=>x.id===v.slice(2)); d = 'Giọng cá nhân của bạn' + (c && !c.ref_text ? (vmodel==='f5' ? ' · chưa có lời thoại: lần đầu F5-TTS sẽ tự nhận dạng' : (vmodel==='voxcpm' ? ' · cần nhập lời thoại mẫu' : '')) : ''); }
+  else if(v.startsWith('c:')){ d = 'Giọng cá nhân của bạn'; }
   if(isAdv() && v.startsWith('p:')) d += ' · '+advName()+' đọc theo giọng mẫu này';
   $('#vvoiceDesc').textContent = d; renderEmotionTools();
 }
@@ -1260,7 +1316,7 @@ $('#vPreviewBtn').onclick = async ()=>{
   pm('Đang tạo đoạn nghe thử…');
   try{
     const r = await fetch('/api/tts',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({engine:vmodel, preview:true, text:previewText(), voice:v.slice(2), custom:v.startsWith('c:'), rate:+$('#rate').value, volume:+$('#volume').value, nosplit:vmodel==='voxcpm'&&$('#voxcpmNoSplit').checked})});
+      body:JSON.stringify({engine:vmodel, preview:true, text:previewText(), voice:v.slice(2), custom:v.startsWith('c:'), rate:+$('#rate').value, volume:+$('#volume').value, mode:'reference'})});
     if(!r.ok) throw new Error(await r.text());
     const id = (await r.json()).id;
     for(;;){
@@ -1276,16 +1332,16 @@ $('#vPreviewBtn').onclick = async ()=>{
   previewing = false; $('#vPreviewBtn').disabled = false;
 };
 
-// F5 style tags route each text span to a verified reference clip.
+// Thẻ cảm xúc chọn mẫu tham chiếu cho từng đoạn text (VoxCPM2).
 const F5_STYLES={vui:'Vui vẻ',buon:'Buồn, trầm',gian:'Giận, mạnh',haohung:'Hào hứng',thitham:'Thì thầm',kechuyen:'Kể chuyện'};
 let emotionDraft=null,emotionReturn=null,emotionBusy=false,emotionSaving=false,emotionEpoch=0,emotionPreviewJob=null;
 const HELP_NOTES={
- emotion:['Thẻ cảm xúc hoạt động thế nào?','<p>F5-TTS đọc theo <b>audio mẫu và lời thoại của mẫu</b>. Thẻ [vui] chọn mẫu vui đã gán cho giọng gốc, không phải một mệnh lệnh cảm xúc mà mô hình tự hiểu.</p><p>Bôi đen một đoạn rồi chèn thẻ: app tự thêm thẻ cảm xúc ở đầu và khôi phục cảm xúc trước đó ở cuối đoạn. Không bôi đen: thẻ áp dụng từ con trỏ đến thẻ tiếp theo. [macdinh] quay về mẫu giọng gốc.</p><p>VieNeu có ba thẻ riêng: [cười], [thở dài], [hắng giọng]. Đây là biểu cảm tại vị trí chèn, không phải cảm xúc bao phủ cả đoạn được chọn.</p>'],
+ emotion:['Thẻ cảm xúc hoạt động thế nào?','<p>VoxCPM2 đọc theo <b>audio mẫu</b>. Thẻ [vui] chọn mẫu vui đã gán cho giọng gốc, không phải một mệnh lệnh cảm xúc mà mô hình tự hiểu.</p><p>Bôi đen một đoạn rồi chèn thẻ: app tự thêm thẻ cảm xúc ở đầu và khôi phục cảm xúc trước đó ở cuối đoạn. Không bôi đen: thẻ áp dụng từ con trỏ đến thẻ tiếp theo. [macdinh] quay về mẫu giọng gốc.</p><p>VieNeu có ba thẻ riêng: [cười], [thở dài], [hắng giọng]. Đây là biểu cảm tại vị trí chèn, không phải cảm xúc bao phủ cả đoạn được chọn.</p>'],
  sameSpeaker:['Vì sao cần cùng một người nói?','<p>Mẫu tham chiếu mang cả danh tính giọng lẫn cách nói. Nếu mẫu vui và mẫu buồn là hai người khác nhau, audio có thể đổi sang giọng người khác.</p><p>Hãy chọn các đoạn của cùng người với giọng gốc. Ứng dụng không tự xác minh được danh tính người nói.</p>'],
  sample:['Chuẩn bị mẫu cảm xúc','<p>Chọn đoạn rõ tiếng, một người nói, ít nhạc nền và khoảng <b>5–10 giây</b>. Hãy kết thúc trọn câu và để một chút yên lặng ở cuối.</p><p>Nói nội dung tự nhiên bằng đúng sắc thái muốn dùng; không cần đọc theo văn bản gợi ý. File dài hiện lấy 12 giây đầu, nên hãy nghe lại đoạn đã lưu và tránh cắt giữa một từ.</p>'],
- transcript:['Vì sao lời thoại phải khớp?','<p>F5-TTS dùng cặp audio–văn bản làm tham chiếu. Nếu audio nói một câu nhưng lời thoại ghi câu khác, mô hình có thể đọc sai hoặc nói linh tinh.</p><p>Bấm Tự nhận dạng, nghe lại đoạn mẫu đã lưu, sửa từ sai rồi xác nhận. Việc xác nhận này chỉ dành cho <b>lời thoại mẫu</b>, không phải nội dung mới cần đọc.</p>'],
- quality:['Cảm xúc không phải một công tắc tuyệt đối','<p>F5-TTS có thể học theo sắc thái của mẫu, nhưng mức độ thể hiện còn tùy chất lượng mẫu, nội dung và mô hình. Nhãn “vui” tự nó không làm một mẫu trung tính trở nên vui.</p><p>Nghe thử trước khi lưu liên kết. Nếu chưa đạt, chọn mẫu biểu cảm rõ hơn của cùng người. Đổi tốc độ không tương đương đổi cảm xúc.</p>'],
- setup:['Bắt đầu thiết lập','<ol><li>Chọn F5-TTS, cài VieNeu trước nếu chưa có, rồi cài F5-TTS và chờ sẵn sàng.</li><li>Trong Giọng cá nhân, tạo một giọng gốc từ mẫu bạn được phép sử dụng.</li><li>Thiết lập từng cảm xúc bằng mẫu của cùng người, kiểm tra lời thoại và nghe thử.</li><li>Chèn thẻ vào nội dung mới rồi tạo audio.</li></ol><p>Lần đầu nhận dạng lời thoại có thể tải thêm mô hình Whisper. Các mẫu được lưu trên máy, không cần huấn luyện lại F5.</p>']
+ transcript:['Vì sao lời thoại mẫu phải khớp?','<p>Mẫu cảm xúc dùng cặp audio–lời thoại làm tham chiếu. Nếu audio nói một câu nhưng lời thoại ghi câu khác, mô hình có thể đọc sai.</p><p>Nghe lại đoạn mẫu đã lưu, nhập/sửa đúng lời rồi xác nhận. Việc xác nhận này chỉ dành cho <b>lời thoại mẫu</b>, không phải nội dung mới cần đọc.</p>'],
+ quality:['Cảm xúc không phải một công tắc tuyệt đối','<p>VoxCPM2 có thể học theo sắc thái của mẫu, nhưng mức độ thể hiện còn tùy chất lượng mẫu, nội dung và mô hình. Nhãn “vui” tự nó không làm một mẫu trung tính trở nên vui.</p><p>Nghe thử trước khi lưu liên kết. Nếu chưa đạt, chọn mẫu biểu cảm rõ hơn của cùng người. Đổi tốc độ không tương đương đổi cảm xúc.</p>'],
+ setup:['Bắt đầu thiết lập','<ol><li>Chọn VoxCPM2, cài VieNeu trước nếu chưa có, rồi cài VoxCPM2 và chờ sẵn sàng.</li><li>Trong Giọng cá nhân, tạo một giọng gốc từ mẫu bạn được phép sử dụng.</li><li>Thiết lập từng cảm xúc bằng mẫu của cùng người, nhập đúng lời thoại và nghe thử.</li><li>Chèn thẻ vào nội dung mới rồi tạo audio.</li></ol><p>Các mẫu được lưu trên máy.</p>']
 };
 function openHelp(key){
  const note=HELP_NOTES[key]||HELP_NOTES.emotion;

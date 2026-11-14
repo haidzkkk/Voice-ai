@@ -20,7 +20,7 @@ func TestCustomPreviewChangesWhenReferenceTextIsCorrected(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	in := ttsRequest{Engine: "f5", Voice: "abcdef12", Custom: true, Text: "xin chào"}
+	in := ttsRequest{Engine: "voxcpm", Voice: "abcdef12", Custom: true, Text: "xin chào"}
 	write(`{"ref_text":"văn bản mẫu sai"}`)
 	before := previewName(in)
 	if previewName(in) != before {
