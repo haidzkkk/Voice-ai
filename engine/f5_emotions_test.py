@@ -1,43 +1,49 @@
-"""Emotion tag routing must strip labels and never silently substitute missing samples."""
+"""Mô tả cách đọc {…}: tách text theo marker, gắn mô tả cho từng đoạn, marker
+không lọt vào text đọc; {} rỗng về mặc định (ô 'Mô tả cách đọc')."""
 import ast
 import re
 import unittest
 from pathlib import Path
 
 
-class EmotionRoutingTest(unittest.TestCase):
+class DescSpansTest(unittest.TestCase):
     def setUp(self):
         tree = ast.parse(Path(__file__).with_name("engine_server.py").read_text())
-        names = {"split_groups", "coarse_groups", "style_groups"}
+        names = {"split_groups", "coarse_groups", "desc_spans"}
         functions = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name in names]
-        consts = {"EMOTIONS"}
-        assignments = [n for n in tree.body if isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id in consts for t in n.targets)]
         self.scope = {"re": re}
-        exec(compile(ast.Module(body=[*assignments, *functions], type_ignores=[]), "style_groups", "exec"), self.scope)
+        exec(compile(ast.Module(body=[*functions], type_ignores=[]), "desc", "exec"), self.scope)
 
-    def groups(self, text):
-        return self.scope["style_groups"](text, {"vui": "abcdef12", "buon": "abcdef34"})
+    def spans(self, text, global_desc=""):
+        return self.scope["desc_spans"](text, global_desc)
 
-    def test_emotion_persists_across_paragraphs_and_can_reset(self):
-        groups = self.groups("Xin chào. [vui] Làm được rồi!\nThật tuyệt! [buon] Tôi nhớ bạn. [macdinh] Hẹn gặp lại.")
-        self.assertEqual([tag for _, _, tag in groups], ["macdinh", "vui", "vui", "buon", "macdinh"])
-        self.assertTrue(all("[" not in text for text, _, _ in groups))
-        self.assertEqual(groups[-1][0], "Hẹn gặp lại.")
+    def test_no_marker_uses_global_desc(self):
+        groups = self.spans("Xin chào các bạn. Hẹn gặp lại.", "giọng vui")
+        self.assertEqual(len(groups), 1)
+        self.assertEqual(groups[0][2], "giọng vui")
+        self.assertNotIn("{", groups[0][0])
 
-    def test_normal_text_uses_default_reference(self):
-        self.assertEqual(self.groups("Nội dung tự nhiên."), [("Nội dung tự nhiên.", "para", "macdinh")])
+    def test_markers_split_and_carry_descriptions(self):
+        groups = self.spans("{vui vẻ} Làm được rồi! {trầm buồn} Nhưng rồi phải đi.")
+        descs = [d for _, _, d in groups]
+        self.assertEqual(descs, ["vui vẻ", "trầm buồn"])
+        self.assertTrue(all("{" not in text and "}" not in text for text, _, _ in groups))
+        self.assertIn("Làm được rồi!", groups[0][0])
+        self.assertIn("Nhưng rồi phải đi.", groups[1][0])
 
-    def test_unconfigured_emotion_is_rejected(self):
-        with self.assertRaisesRegex(ValueError, "Chưa thiết lập mẫu"):
-            self.groups("[gian] Tôi đang nói.")
+    def test_empty_marker_returns_to_default(self):
+        groups = self.spans("{thì thầm} Bí mật nhé. {} Nói bình thường lại.", "giọng kể chuyện")
+        self.assertEqual([d for _, _, d in groups], ["thì thầm", "giọng kể chuyện"])
 
-    def test_unknown_tag_is_rejected(self):
-        with self.assertRaisesRegex(ValueError, "chưa hỗ trợ"):
-            self.groups("[happy] Xin chào.")
+    def test_text_before_first_marker_uses_global(self):
+        groups = self.spans("Mở đầu đây. {giận dữ} Sao lại thế!", "điềm tĩnh")
+        self.assertEqual(groups[0][2], "điềm tĩnh")
+        self.assertEqual(groups[1][2], "giận dữ")
 
-    def test_tags_without_spoken_text_are_rejected(self):
-        with self.assertRaisesRegex(ValueError, "nhập lời"):
-            self.groups("[vui][buon]")
+    def test_empty_text_raises(self):
+        with self.assertRaisesRegex(ValueError, "Hãy nhập"):
+            self.spans("   ")
 
-    def test_repeated_and_uppercase_tags_preserve_text(self):
-        self.assertEqual(self.groups("[VUI][vui] Một câu."), [("Một câu.", "para", "vui")])
+
+if __name__ == "__main__":
+    unittest.main()

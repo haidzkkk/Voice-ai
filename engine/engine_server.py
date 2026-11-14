@@ -58,7 +58,6 @@ META = {}  # preset name -> metadata (gender, region, style, description, featur
 REGION_ORDER = {"Bắc": 0, "Trung": 1, "Nam": 2}
 FAKE = bool(os.environ.get("GIONGAI_FAKE_ENGINE"))
 LEGACY_REF_TEXT = "Xin chào, đây là giọng nói của tôi. Hôm nay trời rất đẹp, tôi muốn kể cho bạn nghe một câu chuyện thú vị về quê hương mình."
-EMOTIONS = {"vui", "buon", "gian", "haohung", "thitham", "kechuyen"}
 # Khoảng lặng (giây) chèn giữa các cụm theo loại ngắt: cuối đoạn văn, cuối câu.
 GAP = {"para": 0.45, "sent": 0.2}
 # Số bước khử nhiễu của VoxCPM. 10 (mặc định gói) hơi thấp → dễ ra artifact/đọc thừa;
@@ -866,23 +865,23 @@ def resolve_ref(req):
     return ref_wav
 
 
-def style_groups(text, samples):
-    """Thẻ cảm xúc chọn file mẫu cho từng khúc; thẻ không lọt vào text đọc.
-    Cắt THÔ (nguyên đoạn) trong mỗi khúc cùng cảm xúc."""
-    tag = "macdinh"
+def desc_spans(text, global_desc):
+    """Tách text theo marker mô tả {…}: trả [(cụm, loại nghỉ, mô tả)].
+    Mỗi {…} áp mô tả cho phần SAU nó đến {…} kế tiếp; phần trước marker đầu dùng
+    global_desc (ô "Mô tả cách đọc"). {} rỗng = về mặc định (global_desc). Marker
+    không lọt vào text đọc. Mỗi span được cắt thô (nguyên đoạn)."""
+    base = (global_desc or "").strip()
+    desc = base
     position = 0
     groups = []
-    for match in re.finditer(r"\[([\w]+)\]", text):
-        label = match.group(1).lower()
-        if label != "macdinh" and label not in EMOTIONS:
-            raise ValueError(f"Thẻ [{label}] chưa hỗ trợ. Dùng các thẻ trong mục Cảm xúc.")
-        if label != "macdinh" and not samples.get(label):
-            raise ValueError(f"Chưa thiết lập mẫu cho [{label}]. Mở Thiết lập cảm xúc để chọn mẫu trước.")
-        groups.extend((part, kind, tag) for part, kind in coarse_groups(text[position:match.start()]))
-        tag, position = label, match.end()
-    groups.extend((part, kind, tag) for part, kind in coarse_groups(text[position:]))
+    for match in re.finditer(r"\{([^{}]*)\}", text):
+        groups.extend((part, kind, desc) for part, kind in coarse_groups(text[position:match.start()]))
+        inner = match.group(1).strip()
+        desc = base if inner == "" else inner
+        position = match.end()
+    groups.extend((part, kind, desc) for part, kind in coarse_groups(text[position:]))
     if not groups:
-        raise ValueError("Hãy nhập lời cần đọc sau thẻ cảm xúc.")
+        raise ValueError("Hãy nhập lời cần đọc.")
     return groups
 
 
@@ -917,33 +916,25 @@ def synthesize(req, job):
             voice = load_custom_vieneu(req.get("voice")) if req.get("custom") else (req.get("voice") or None)
             run = lambda g: MODEL.synth(g, voice)
         else:  # voxcpm (model clone nâng cao duy nhất) — luôn để nguyên đoạn
-            samples = {}
-            if req.get("custom_id"):
-                metadata = json.loads((voices_dir() / (check_id(req["custom_id"]) + ".json")).read_text(encoding="utf-8"))
-                samples = metadata.get("emotion_samples") or {}
-            groups = style_groups(text, samples)
-            references = {}
-            for _, _, tag in groups:
-                if tag in references:
-                    continue
-                reference = req if tag == "macdinh" else {"custom_id": check_id(samples[tag])}
-                try:
-                    references[tag] = resolve_ref(reference)
-                except FileNotFoundError:
-                    raise ValueError(f"Mẫu cho [{tag}] không còn trên máy. Hãy thiết lập lại cảm xúc này.")
+            ref = resolve_ref(req)   # một giọng mẫu được chọn (preset hoặc cá nhân)
             mode = (req.get("vox_mode") or "reference").strip()
             if mode not in VOXCPM_MODES:
                 mode = "reference"
             prompt_wav, prompt_text = voxcpm_prompt(req, mode, tmp_files)
-            # Mô tả cách đọc: chỉ dùng ở reference mode (VoxCPM cấm ghép mô tả với
-            # prompt_text/nối tiếp). Ghép "(mô tả)" vào ĐẦU text theo cú pháp control
-            # của VoxCPM2 — model đọc theo mô tả, phần mô tả không được phát thành tiếng.
-            desc = (req.get("desc") or "").strip() if mode == "reference" else ""
-            def vox_text(g):
-                t = normalize_vi(g)
+            global_desc = (req.get("desc") or "").strip()
+            if mode == "reference":
+                # Cảm xúc = MÔ TẢ bằng lời: {mô tả} trong text cắt theo từng đoạn,
+                # cộng ô "Mô tả cách đọc" làm mặc định. Ghép "(mô tả)" vào ĐẦU mỗi
+                # cụm theo cú pháp control của VoxCPM2 (mô tả không phát thành tiếng).
+                groups = desc_spans(text, global_desc)
+            else:
+                # Nối tiếp: VoxCPM cấm ghép mô tả; bỏ marker {…} khỏi text.
+                clean = re.sub(r"\{[^{}]*\}", " ", text)
+                groups = [(part, kind, "") for part, kind in coarse_groups(clean)]
+            def vox_text(g, desc):
+                t = normalize_vi(g)   # chuẩn hoá số/ký hiệu→chữ
                 return f"({desc}){t}" if desc else t
-            # chuẩn hoá tiếng Việt (số/ký hiệu→chữ); tốc độ xử lý bằng librosa bên dưới
-            run = lambda g, tag: MODEL.synth(vox_text(g), references[tag], mode, prompt_wav, prompt_text)
+            run = lambda g, desc: MODEL.synth(vox_text(g, desc), ref, mode, prompt_wav, prompt_text)
 
         job["total"] = len(groups)
         parts = []

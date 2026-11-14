@@ -593,22 +593,29 @@ function syncCueRanges(){
 ta.addEventListener('scroll',renderTextHighlights);
 new ResizeObserver(()=>{ $('#textHighlights').style.width=ta.clientWidth+'px';renderTextHighlights(); }).observe(ta);
 const emotionCuePattern=/\[(?:cười|cuoi|chuckle|thở dài|tho dai|sigh|hắng giọng|hang giong|clear throat)\]|<\|emotion_[123]\|>/i;
+// Mô tả cảm xúc có sẵn cho VoxCPM (chèn vào text dạng {mô tả}). User cũng tự nhập được.
+const VOX_DESCS={
+ 'vui vẻ, phấn khởi':'Vui vẻ · {vui vẻ, phấn khởi}',
+ 'trầm, buồn':'Buồn · {trầm, buồn}',
+ 'giận dữ, mạnh mẽ':'Giận · {giận dữ, mạnh mẽ}',
+ 'hào hứng, sôi nổi':'Hào hứng · {hào hứng, sôi nổi}',
+ 'thì thầm, nhẹ nhàng':'Thì thầm · {thì thầm, nhẹ nhàng}',
+ 'kể chuyện, chậm rãi':'Kể chuyện · {kể chuyện, chậm rãi}',
+};
 function renderEmotionTools(){
  const previous=$('#emotionCue').value;
- const isF5=engine==='vieneu' && isAdv();
- const voice=vnVoices.custom.find(item=>'c:'+item.id===$('#vvoice').value);
- if(isF5){
-  const samples=voice?.emotion_samples||{};
-  $('#emotionCue').innerHTML='<option value="[macdinh]">Giọng gốc · [macdinh]</option>'+Object.entries(F5_STYLES).map(([tag,label])=>`<option value="[${tag}]" ${samples[tag]&&vnVoices.custom.some(v=>v.id===samples[tag])?'':'disabled'}>${label} · [${tag}]${samples[tag]?(vnVoices.custom.some(v=>v.id===samples[tag])?'':' · mẫu đã bị xóa'):' · chưa thiết lập'}</option>`).join('');
-  $('#emotionHint').textContent=voice?'Bôi đen đoạn văn rồi chèn thẻ để áp dụng riêng cho đoạn đó. Chỉ dùng được cảm xúc đã có mẫu.':'Chọn giọng cá nhân rồi thiết lập bộ mẫu cảm xúc.';
+ const isVox=engine==='vieneu' && isAdv();
+ if(isVox){
+  $('#emotionCue').innerHTML='<option value="{}">Tùy chỉnh / về mặc định · {}</option>'+Object.entries(VOX_DESCS).map(([phrase,label])=>`<option value="{${phrase}}">${label}</option>`).join('');
+  $('#emotionHint').textContent='Bôi đen đoạn rồi chèn mô tả để đọc đoạn đó theo mô tả; hoặc chèn tại con trỏ (áp đến mô tả kế tiếp). {} = về mô tả mặc định. Chỉ tác dụng ở chế độ Reference.';
  }else{
   $('#emotionCue').innerHTML='<option value="[cười]">Cười nhẹ · [cười]</option><option value="[thở dài]">Thở dài · [thở dài]</option><option value="[hắng giọng]">Hắng giọng · [hắng giọng]</option>';
-  $('#emotionHint').textContent=engine==='vieneu'?'Bôi đen đoạn rồi chèn biểu cảm để đánh dấu màu. VieNeu tạo biểu cảm tại thẻ chèn; màu không đảm bảo cả đoạn có cùng cảm xúc.':'Chọn VieNeu để dùng biểu cảm, hoặc VoxCPM2 để thiết lập mẫu cảm xúc.';
+  $('#emotionHint').textContent=engine==='vieneu'?'Bôi đen đoạn rồi chèn biểu cảm để đánh dấu màu. VieNeu tạo biểu cảm tại thẻ chèn; màu không đảm bảo cả đoạn có cùng cảm xúc.':'Chọn VieNeu để dùng biểu cảm, hoặc VoxCPM2 để mô tả cảm xúc bằng lời.';
  }
  if([...$('#emotionCue').options].some(option=>option.value===previous&&!option.disabled))$('#emotionCue').value=previous;
- const supported=engine==='vieneu' && (!isF5||!!voice);
+ const supported=engine==='vieneu' && (isVox ? !!$('#vvoice').value : true);
  $('#emotionCue').disabled=!supported;$('#insertEmotionBtn').disabled=!supported;
- $('#setupEmotionsBtn').classList.toggle('hide',!isF5);
+ $('#setupEmotionsBtn').classList.add('hide');  // VoxCPM dùng mô tả bằng lời, không thu mẫu
  renderTextHighlights();
 }
 $('#insertEmotionBtn').onclick=()=>{
@@ -618,12 +625,11 @@ $('#insertEmotionBtn').onclick=()=>{
   const before=ta.value.slice(0,position),after=ta.value.slice(position);
   const prefix=before && !/\s$/.test(before)?' ':'';
   if(engine==='vieneu' && isAdv() && end>position){
-    const previous=[...before.matchAll(/\[(vui|buon|gian|haohung|thitham|kechuyen|macdinh)\]/gi)].pop();
-    const restore=previous?'['+previous[1].toLowerCase()+']':'[macdinh]';
-    const selected=ta.value.slice(position,end).replace(/\[(vui|buon|gian|haohung|thitham|kechuyen|macdinh)\]/gi,'');
+    // Bôi đen: bọc đoạn bằng {mô tả} … {} (đóng về mặc định). Bỏ {…} lồng trong đoạn.
+    const selected=ta.value.slice(position,end).replace(/\{[^{}]*\}/g,'');
     const remaining=ta.value.slice(end);
     const suffix=remaining && !/^[\s.,!?;:…]/.test(remaining)?' ':'';
-    ta.setRangeText(prefix+$('#emotionCue').value+' '+selected+' '+restore+suffix,position,end,'end');
+    ta.setRangeText(prefix+$('#emotionCue').value+' '+selected+' {}'+suffix,position,end,'end');
     ta.oninput(); ta.focus(); return;
   }
   const suffix=after && !/^[\s.,!?;:…]/.test(after)?' ':'';
@@ -1346,7 +1352,7 @@ $('#vPreviewBtn').onclick = async ()=>{
 const F5_STYLES={vui:'Vui vẻ',buon:'Buồn, trầm',gian:'Giận, mạnh',haohung:'Hào hứng',thitham:'Thì thầm',kechuyen:'Kể chuyện'};
 let emotionDraft=null,emotionReturn=null,emotionBusy=false,emotionSaving=false,emotionEpoch=0,emotionPreviewJob=null;
 const HELP_NOTES={
- emotion:['Thẻ cảm xúc hoạt động thế nào?','<p>VoxCPM2 đọc theo <b>audio mẫu</b>. Thẻ [vui] chọn mẫu vui đã gán cho giọng gốc, không phải một mệnh lệnh cảm xúc mà mô hình tự hiểu.</p><p>Bôi đen một đoạn rồi chèn thẻ: app tự thêm thẻ cảm xúc ở đầu và khôi phục cảm xúc trước đó ở cuối đoạn. Không bôi đen: thẻ áp dụng từ con trỏ đến thẻ tiếp theo. [macdinh] quay về mẫu giọng gốc.</p><p>VieNeu có ba thẻ riêng: [cười], [thở dài], [hắng giọng]. Đây là biểu cảm tại vị trí chèn, không phải cảm xúc bao phủ cả đoạn được chọn.</p>'],
+ emotion:['Mô tả cảm xúc hoạt động thế nào?','<p><b>VoxCPM2</b> (chế độ Reference) nhận <b>mô tả bằng lời</b>. Dùng <code>{…}</code> trong nội dung để mô tả cách đọc, ví dụ <code>{vui vẻ, nhanh} Cuối cùng cũng xong!</code>. Mỗi <code>{…}</code> áp cho phần SAU nó đến <code>{…}</code> kế tiếp; <code>{}</code> rỗng quay về mô tả mặc định (ô "Mô tả cách đọc").</p><p>Bôi đen một đoạn rồi chèn mô tả: app bọc đoạn đó bằng mô tả và đóng lại bằng <code>{}</code>. Chọn mô tả có sẵn trong danh sách, hoặc "Tùy chỉnh" rồi tự gõ. Mỗi chỗ đổi mô tả là một lần sinh riêng, nên nên đổi theo cụm/câu, đừng theo từng từ.</p><p>VieNeu có ba thẻ riêng: [cười], [thở dài], [hắng giọng] — biểu cảm tại vị trí chèn.</p>'],
  sameSpeaker:['Vì sao cần cùng một người nói?','<p>Mẫu tham chiếu mang cả danh tính giọng lẫn cách nói. Nếu mẫu vui và mẫu buồn là hai người khác nhau, audio có thể đổi sang giọng người khác.</p><p>Hãy chọn các đoạn của cùng người với giọng gốc. Ứng dụng không tự xác minh được danh tính người nói.</p>'],
  sample:['Chuẩn bị mẫu cảm xúc','<p>Chọn đoạn rõ tiếng, một người nói, ít nhạc nền và khoảng <b>5–10 giây</b>. Hãy kết thúc trọn câu và để một chút yên lặng ở cuối.</p><p>Nói nội dung tự nhiên bằng đúng sắc thái muốn dùng; không cần đọc theo văn bản gợi ý. File dài hiện lấy 12 giây đầu, nên hãy nghe lại đoạn đã lưu và tránh cắt giữa một từ.</p>'],
  transcript:['Vì sao lời thoại mẫu phải khớp?','<p>Mẫu cảm xúc dùng cặp audio–lời thoại làm tham chiếu. Nếu audio nói một câu nhưng lời thoại ghi câu khác, mô hình có thể đọc sai.</p><p>Nghe lại đoạn mẫu đã lưu, nhập/sửa đúng lời rồi xác nhận. Việc xác nhận này chỉ dành cho <b>lời thoại mẫu</b>, không phải nội dung mới cần đọc.</p>'],
