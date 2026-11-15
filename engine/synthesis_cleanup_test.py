@@ -38,6 +38,29 @@ class CoarseGroupsTest(unittest.TestCase):
 
 
 @unittest.skipIf(np is None, "numpy không có trong python hệ thống")
+class CrossfadeJoinTest(unittest.TestCase):
+    def setUp(self):
+        self.join = _load({"crossfade_join"})["crossfade_join"]
+
+    def test_joins_without_inserting_silence(self):
+        sr = 24000
+        a = np.ones(sr, dtype=np.float32)
+        b = np.ones(sr, dtype=np.float32)
+        out = self.join([a, b], sr, 0.03)
+        n = int(sr * 0.03)
+        self.assertEqual(len(out), 2 * sr - n)          # chồng crossfade, không chèn lặng
+        self.assertGreater(float(np.min(np.abs(out))), 0.9)  # không có vùng im lặng ở mối nối
+
+    def test_single_segment_unchanged(self):
+        sr = 24000
+        a = np.ones(100, dtype=np.float32)
+        self.assertEqual(len(self.join([a], sr)), 100)
+
+    def test_empty_returns_tiny(self):
+        self.assertEqual(len(self.join([], 24000)), 1)
+
+
+@unittest.skipIf(np is None, "numpy không có trong python hệ thống")
 class TrimTrailingSilenceTest(unittest.TestCase):
     def setUp(self):
         self.trim = _load({"trim_trailing_silence"})["trim_trailing_silence"]

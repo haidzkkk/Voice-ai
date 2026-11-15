@@ -60,9 +60,9 @@ FAKE = bool(os.environ.get("GIONGAI_FAKE_ENGINE"))
 LEGACY_REF_TEXT = "Xin chào, đây là giọng nói của tôi. Hôm nay trời rất đẹp, tôi muốn kể cho bạn nghe một câu chuyện thú vị về quê hương mình."
 # Khoảng lặng (giây) chèn giữa các cụm theo loại ngắt: cuối đoạn văn, cuối câu.
 GAP = {"para": 0.45, "sent": 0.2}
-# Số bước khử nhiễu của VoxCPM. 10 (mặc định gói) hơi thấp → dễ ra artifact/đọc thừa;
-# 16 sạch hơn, đổi lại chậm hơn chút. Chỉnh qua GIONGAI_VOXCPM_STEPS để A/B (vd 20–24).
-VOXCPM_TIMESTEPS = max(4, int(os.environ.get("GIONGAI_VOXCPM_STEPS") or 16))
+# Số bước khử nhiễu của VoxCPM (mặc định gói = 10). Chỉnh qua GIONGAI_VOXCPM_STEPS
+# nếu muốn thử cao hơn (vd 16–24, sạch hơn nhưng chậm hơn).
+VOXCPM_TIMESTEPS = max(4, int(os.environ.get("GIONGAI_VOXCPM_STEPS") or 10))
 # Các chế độ clone của VoxCPM2 (xem build_prompt_cache của gói voxcpm):
 #   reference        : chỉ dùng giọng mẫu (ref_audio tokens) — không "nối tiếp",
 #                      hết lỗi thừa/sai ở đầu đoạn; không cần lời thoại mẫu.
@@ -834,6 +834,25 @@ def trim_trailing_silence(wav, sr):
     return wav[:cut] if cut < n else wav
 
 
+def crossfade_join(segs, sr, fade=0.03):
+    """Nối các đoạn tiếng LIỀN mạch bằng crossfade ngắn (KHÔNG chèn khoảng lặng
+    giữa các đoạn) → nghe không đứt quãng. Đuôi đoạn trước (đã cắt lặng) hoà dần
+    vào đầu đoạn sau trong ~fade giây."""
+    segs = [np.asarray(s, dtype=np.float32).reshape(-1) for s in segs if s is not None and np.asarray(s).size]
+    if not segs:
+        return np.zeros(1, dtype=np.float32)
+    out = segs[0].copy()
+    n = max(1, int(sr * fade))
+    for seg in segs[1:]:
+        m = min(n, len(out), len(seg))
+        if m > 1:
+            out[-m:] = out[-m:] * np.linspace(1.0, 0.0, m, dtype=np.float32) + seg[:m] * np.linspace(0.0, 1.0, m, dtype=np.float32)
+            out = np.concatenate([out, seg[m:]])
+        else:
+            out = np.concatenate([out, seg])
+    return out
+
+
 def encode(wav, sr, fmt="mp3"):
     pcm = (np.clip(wav, -1, 1) * 32767).astype(np.int16)
     if fmt == "mp3":
@@ -937,7 +956,8 @@ def synthesize(req, job):
             run = lambda g, desc: MODEL.synth(vox_text(g, desc), ref, mode, prompt_wav, prompt_text)
 
         job["total"] = len(groups)
-        parts = []
+        parts = []   # VieNeu: xen khoảng lặng GAP
+        segs = []    # model clone: các đoạn tiếng, nối liền bằng crossfade
         for i, (g, kind, tag) in enumerate(groups):
             if job.get("cancel"):
                 raise InterruptedError("đã hủy")
@@ -945,14 +965,18 @@ def synthesize(req, job):
                 wav = run(g) if ARGS.model == "vieneu" else run(g, tag)
             sr = MODEL.sample_rate
             seg = np.asarray(wav, dtype=np.float32).reshape(-1)
-            if ARGS.model != "vieneu":             # dọn đuôi thừa của model clone
-                seg = trim_trailing_silence(seg, sr)
-            parts.append(seg)
-            if i < len(groups) - 1:
-                parts.append(np.zeros(int(sr * GAP.get(kind, 0.2)), dtype=np.float32))
+            if ARGS.model == "vieneu":
+                parts.append(seg)
+                if i < len(groups) - 1:
+                    parts.append(np.zeros(int(sr * GAP.get(kind, 0.2)), dtype=np.float32))
+            else:                                  # dọn đuôi thừa rồi để nối liền
+                segs.append(trim_trailing_silence(seg, sr))
             job["done"] = i + 1
         sr = MODEL.sample_rate
-        wav = np.concatenate(parts) if parts else np.zeros(1, dtype=np.float32)
+        if ARGS.model == "vieneu":
+            wav = np.concatenate(parts) if parts else np.zeros(1, dtype=np.float32)
+        else:
+            wav = crossfade_join(segs, sr)   # các đoạn nối liền, không đứt quãng
 
         if speed_pct:
             try:
