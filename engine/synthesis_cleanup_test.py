@@ -128,10 +128,14 @@ class JoinVoxcpmTest(unittest.TestCase):
         a = np.ones(sr, dtype=np.float32)
         b = np.ones(sr, dtype=np.float32)
         out = self.join([a, b], ["para", "para"], sr, 0.03)
-        # hai đoạn nguyên vẹn + khoảng lặng VOXCPM_PARA_GAP ở giữa
+        # hai đoạn nguyên độ dài + khoảng lặng VOXCPM_PARA_GAP ở giữa
         self.assertEqual(len(out), 2 * sr + int(sr * self.gap))
         mid = out[sr:sr + int(sr * self.gap)]
         self.assertEqual(float(np.max(np.abs(mid))), 0.0)   # giữa là im lặng
+        # đầu đoạn sau được fade-in (mẫu đầu ~0), đuôi đoạn trước fade-out (mẫu cuối ~0)
+        start2 = sr + int(sr * self.gap)
+        self.assertLess(out[start2], 0.1)                   # fade-in đầu đoạn sau
+        self.assertLess(out[sr - 1], 0.1)                   # fade-out đuôi đoạn trước
 
     def test_sent_boundary_crossfades(self):
         sr = 24000

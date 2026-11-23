@@ -957,9 +957,12 @@ def crossfade_join(segs, sr, fade=0.03):
 
 
 def join_voxcpm(segs, kinds, sr, fade=0.03):
-    """Nối các đoạn tiếng của VoxCPM: ở ranh giới ĐOẠN VĂN (kinds[i]=="para") chèn
-    khoảng NGHỈ VOXCPM_PARA_GAP giây (nghỉ như hết đoạn); các ranh giới còn lại nối
-    LIỀN mạch bằng crossfade. kinds[i] là loại nghỉ SAU đoạn i (dùng để nối i→i+1)."""
+    """Nối các đoạn tiếng của VoxCPM. Ở ranh giới ĐOẠN VĂN (kinds[i]=="para") chèn
+    khoảng NGHỈ VOXCPM_PARA_GAP giây, NHƯNG vẫn fade-out đuôi đoạn trước và fade-in
+    đầu đoạn sau y như crossfade cũ (để âm lạ/đuôi rác ở mối nối bị làm mờ, không
+    phát nguyên thành tiếng linh tinh giữa hai đoạn). Các ranh giới còn lại nối LIỀN
+    mạch bằng crossfade — GIỐNG HỆT bản cũ. Đặt VOXCPM_PARA_GAP=0 → y hệt crossfade
+    cũ. kinds[i] là loại nghỉ SAU đoạn i (dùng để nối i→i+1)."""
     clean = [(np.asarray(s, dtype=np.float32).reshape(-1), k)
              for s, k in zip(segs, kinds) if s is not None and np.asarray(s).size]
     if not clean:
@@ -970,6 +973,13 @@ def join_voxcpm(segs, kinds, sr, fade=0.03):
         seg = clean[idx][0]
         prev_kind = clean[idx - 1][1]
         if prev_kind == "para" and VOXCPM_PARA_GAP > 0:   # hết đoạn → chèn nghỉ
+            a = min(n, len(out))
+            if a > 1:                                     # fade-out đuôi (như crossfade)
+                out[-a:] = out[-a:] * np.linspace(1.0, 0.0, a, dtype=np.float32)
+            b = min(n, len(seg))
+            if b > 1:                                     # fade-in đầu đoạn sau
+                seg = seg.copy()
+                seg[:b] = seg[:b] * np.linspace(0.0, 1.0, b, dtype=np.float32)
             gap = np.zeros(int(sr * VOXCPM_PARA_GAP), dtype=np.float32)
             out = np.concatenate([out, gap, seg])
             continue
