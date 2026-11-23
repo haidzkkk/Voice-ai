@@ -1092,6 +1092,38 @@ def voxcpm_prompt(req, mode, tmp_files):
     return tmp.name, prompt_text
 
 
+# Lặng (giây) đệm hai đầu giọng mẫu VoxCPM. Đuôi mẫu (hơi thở/ồn) hay rò vào phần
+# sinh ra -> "từ/âm lạ" ở đầu đoạn; cắt đuôi rồi đệm lặng sạch giúp giảm (xem
+# OpenBMB/VoxCPM #272, #244). Chỉnh qua GIONGAI_VOXCPM_REFPAD nếu muốn thử khác.
+VOXCPM_REFPAD = max(0.0, float(os.environ.get("GIONGAI_VOXCPM_REFPAD") or 0.5))
+
+
+def prep_voxcpm_ref(path, tmp_files):
+    """Dọn giọng mẫu trước khi đưa vào VoxCPM (chế độ reference/ref_continuation):
+    cắt đuôi năng lượng thấp (hơi thở/ồn hay rò ra đầu đoạn) rồi đệm VOXCPM_REFPAD
+    giây lặng sạch ở hai đầu. Ghi file tạm (dọn qua tmp_files); lỗi -> dùng mẫu gốc."""
+    if VOXCPM_REFPAD <= 0:
+        return path
+    try:
+        import soundfile as sf
+        wav, sr = sf.read(path, dtype="float32", always_2d=False)
+        if getattr(wav, "ndim", 1) > 1:
+            wav = wav.mean(axis=1)
+        wav = trim_trailing_silence(np.asarray(wav, dtype=np.float32).reshape(-1), sr)
+        if wav.size < int(sr * 0.3):       # mẫu quá ngắn/cắt hụt -> giữ nguyên bản
+            return path
+        pad = np.zeros(int(sr * VOXCPM_REFPAD), dtype=np.float32)
+        wav = np.concatenate([pad, wav, pad])
+        tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
+        tmp.close()
+        sf.write(tmp.name, wav, sr)
+        tmp_files.append(tmp.name)
+        return tmp.name
+    except Exception as e:
+        log("không dọn được giọng mẫu VoxCPM, dùng nguyên bản:", e)
+        return path
+
+
 def synthesize(req, job):
     text = (req.get("text") or "").strip()
     if not text:
@@ -1115,6 +1147,8 @@ def synthesize(req, job):
             mode = (req.get("vox_mode") or "reference").strip()
             if mode not in VOXCPM_MODES:
                 mode = "reference"
+            if mode in ("reference", "ref_continuation"):  # dọn mẫu để bớt âm lạ đầu đoạn
+                ref = prep_voxcpm_ref(ref, tmp_files)
             prompt_wav, prompt_text = voxcpm_prompt(req, mode, tmp_files)
             global_desc = (req.get("desc") or "").strip()
             if mode == "reference":
