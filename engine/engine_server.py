@@ -69,6 +69,11 @@ VOXCPM_TIMESTEPS = max(4, int(os.environ.get("GIONGAI_VOXCPM_STEPS") or 10))
 # đặt 0 để tắt.
 VOXCPM_MAXGAP = max(0.0, float(os.environ.get("GIONGAI_VOXCPM_MAXGAP") or 0.30))
 VOXCPM_GAP_KEEP = 0.10
+# Khoảng NGHỈ (giây) chèn giữa hai ĐOẠN VĂN (ranh giới "para", tức người dùng
+# tách bằng dòng trống) khi VoxCPM nối các đoạn — để nghỉ như hết đoạn thay vì
+# đọc dính liền. Trong cùng một đoạn vẫn nối liền mạch (crossfade). Chỉnh qua
+# GIONGAI_VOXCPM_PARAGAP; đặt 0 để nối liền như cũ.
+VOXCPM_PARA_GAP = max(0.0, float(os.environ.get("GIONGAI_VOXCPM_PARAGAP") or 0.5))
 # Các chế độ clone của VoxCPM2 (xem build_prompt_cache của gói voxcpm):
 #   reference        : chỉ dùng giọng mẫu (ref_audio tokens) — không "nối tiếp",
 #                      hết lỗi thừa/sai ở đầu đoạn; không cần lời thoại mẫu.
@@ -951,6 +956,32 @@ def crossfade_join(segs, sr, fade=0.03):
     return out
 
 
+def join_voxcpm(segs, kinds, sr, fade=0.03):
+    """Nối các đoạn tiếng của VoxCPM: ở ranh giới ĐOẠN VĂN (kinds[i]=="para") chèn
+    khoảng NGHỈ VOXCPM_PARA_GAP giây (nghỉ như hết đoạn); các ranh giới còn lại nối
+    LIỀN mạch bằng crossfade. kinds[i] là loại nghỉ SAU đoạn i (dùng để nối i→i+1)."""
+    clean = [(np.asarray(s, dtype=np.float32).reshape(-1), k)
+             for s, k in zip(segs, kinds) if s is not None and np.asarray(s).size]
+    if not clean:
+        return np.zeros(1, dtype=np.float32)
+    out = clean[0][0].copy()
+    n = max(1, int(sr * fade))
+    for idx in range(1, len(clean)):
+        seg = clean[idx][0]
+        prev_kind = clean[idx - 1][1]
+        if prev_kind == "para" and VOXCPM_PARA_GAP > 0:   # hết đoạn → chèn nghỉ
+            gap = np.zeros(int(sr * VOXCPM_PARA_GAP), dtype=np.float32)
+            out = np.concatenate([out, gap, seg])
+            continue
+        m = min(n, len(out), len(seg))                    # cùng đoạn → crossfade liền
+        if m > 1:
+            out[-m:] = out[-m:] * np.linspace(1.0, 0.0, m, dtype=np.float32) + seg[:m] * np.linspace(0.0, 1.0, m, dtype=np.float32)
+            out = np.concatenate([out, seg[m:]])
+        else:
+            out = np.concatenate([out, seg])
+    return out
+
+
 def cap_internal_silence(wav, sr):
     """Rút ngắn các khoảng LẶNG DÀI nằm GIỮA đoạn tiếng xuống còn VOXCPM_GAP_KEEP
     giây, để câu dài KHÔNG dấu đọc liền mạch (model hay tự chèn nhịp nghỉ giữa câu
@@ -1132,6 +1163,7 @@ def synthesize(req, job):
         job["total"] = len(groups)
         parts = []   # VieNeu: xen khoảng lặng GAP
         segs = []    # model clone: các đoạn tiếng, nối liền bằng crossfade
+        seg_kinds = []   # loại nghỉ SAU mỗi đoạn clone ("para"/"sent")
         for i, (g, kind, tag) in enumerate(groups):
             if job.get("cancel"):
                 raise InterruptedError("đã hủy")
@@ -1147,12 +1179,13 @@ def synthesize(req, job):
                 if not re.search(r"[.,;:!?…]", g):  # câu dài không dấu → đọc liền mạch
                     seg = cap_internal_silence(seg, sr)
                 segs.append(trim_trailing_silence(seg, sr))
+                seg_kinds.append(kind)             # "para" → nghỉ giữa đoạn khi nối
             job["done"] = i + 1
         sr = MODEL.sample_rate
         if ARGS.model == "vieneu":
             wav = np.concatenate(parts) if parts else np.zeros(1, dtype=np.float32)
         else:
-            wav = crossfade_join(segs, sr)   # các đoạn nối liền, không đứt quãng
+            wav = join_voxcpm(segs, seg_kinds, sr)   # liền trong đoạn, nghỉ giữa các đoạn
 
         if speed_pct:
             try:

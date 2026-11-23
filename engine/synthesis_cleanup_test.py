@@ -112,6 +112,43 @@ class CrossfadeJoinTest(unittest.TestCase):
 
 
 @unittest.skipIf(np is None, "numpy không có trong python hệ thống")
+class JoinVoxcpmTest(unittest.TestCase):
+    def setUp(self):
+        import os
+        consts = [n for n in TREE.body if isinstance(n, ast.Assign)
+                  and any(isinstance(t, ast.Name) and t.id == "VOXCPM_PARA_GAP" for t in n.targets)]
+        fns = [n for n in TREE.body if isinstance(n, ast.FunctionDef) and n.name == "join_voxcpm"]
+        self.scope = {"re": re, "np": np, "os": os}
+        exec(compile(ast.Module(body=[*consts, *fns], type_ignores=[]), "join", "exec"), self.scope)
+        self.join = self.scope["join_voxcpm"]
+        self.gap = self.scope["VOXCPM_PARA_GAP"]
+
+    def test_para_boundary_inserts_pause(self):
+        sr = 24000
+        a = np.ones(sr, dtype=np.float32)
+        b = np.ones(sr, dtype=np.float32)
+        out = self.join([a, b], ["para", "para"], sr, 0.03)
+        # hai đoạn nguyên vẹn + khoảng lặng VOXCPM_PARA_GAP ở giữa
+        self.assertEqual(len(out), 2 * sr + int(sr * self.gap))
+        mid = out[sr:sr + int(sr * self.gap)]
+        self.assertEqual(float(np.max(np.abs(mid))), 0.0)   # giữa là im lặng
+
+    def test_sent_boundary_crossfades(self):
+        sr = 24000
+        a = np.ones(sr, dtype=np.float32)
+        b = np.ones(sr, dtype=np.float32)
+        out = self.join([a, b], ["sent", "sent"], sr, 0.03)
+        n = int(sr * 0.03)
+        self.assertEqual(len(out), 2 * sr - n)              # crossfade, không chèn lặng
+        self.assertGreater(float(np.min(np.abs(out))), 0.9)
+
+    def test_single_segment_unchanged(self):
+        sr = 24000
+        a = np.ones(100, dtype=np.float32)
+        self.assertEqual(len(self.join([a], ["para"], sr)), 100)
+
+
+@unittest.skipIf(np is None, "numpy không có trong python hệ thống")
 class CapInternalSilenceTest(unittest.TestCase):
     def setUp(self):
         import os
