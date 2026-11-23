@@ -65,6 +65,12 @@ REF_MAX_SEC = 15.0
 # Số bước khử nhiễu của VoxCPM (mặc định gói = 10). Chỉnh qua GIONGAI_VOXCPM_STEPS
 # nếu muốn thử cao hơn (vd 16–24, sạch hơn nhưng chậm hơn).
 VOXCPM_TIMESTEPS = max(4, int(os.environ.get("GIONGAI_VOXCPM_STEPS") or 10))
+# Câu dài KHÔNG dấu: model hay tự chèn nhịp nghỉ giữa câu. Khoảng lặng GIỮA đoạn
+# dài hơn VOXCPM_MAXGAP (giây) bị rút xuống VOXCPM_GAP_KEEP để đọc liền mạch. Chỉ
+# áp cho cụm không có dấu câu (xem synthesize). Chỉnh qua GIONGAI_VOXCPM_MAXGAP;
+# đặt 0 để tắt.
+VOXCPM_MAXGAP = max(0.0, float(os.environ.get("GIONGAI_VOXCPM_MAXGAP") or 0.30))
+VOXCPM_GAP_KEEP = 0.10
 # Các chế độ clone của VoxCPM2 (xem build_prompt_cache của gói voxcpm):
 #   reference        : chỉ dùng giọng mẫu (ref_audio tokens) — không "nối tiếp",
 #                      hết lỗi thừa/sai ở đầu đoạn; không cần lời thoại mẫu.
@@ -996,6 +1002,47 @@ def crossfade_join(segs, sr, fade=0.03):
     return out
 
 
+def cap_internal_silence(wav, sr):
+    """Rút ngắn các khoảng LẶNG DÀI nằm GIỮA đoạn tiếng xuống còn VOXCPM_GAP_KEEP
+    giây, để câu dài KHÔNG dấu đọc liền mạch (model hay tự chèn nhịp nghỉ giữa câu
+    dài). Chỉ đụng khoảng lặng dài hơn VOXCPM_MAXGAP; giữ nguyên lặng đầu/đuôi
+    (trim/pad lo) và các ngắt ngắn giữa âm tiết. Lớp synthesize chỉ gọi hàm này cho
+    cụm KHÔNG có dấu câu, nên nhịp nghỉ ở dấu phẩy/chấm của văn bản thường vẫn giữ."""
+    wav = np.asarray(wav, dtype=np.float32).reshape(-1)
+    n = wav.shape[0]
+    win = max(1, int(sr * 0.02))                   # khung 20ms
+    if VOXCPM_MAXGAP <= 0 or n < 4 * win:
+        return wav
+    peak = float(np.max(np.abs(wav)))
+    if peak <= 0:
+        return wav
+    thr = max(0.01, peak * 0.08)
+    nf = n // win
+    frames = wav[: nf * win].reshape(nf, win)
+    loud = np.sqrt(np.mean(frames * frames, axis=1)) > thr
+    idx = np.nonzero(loud)[0]
+    if idx.size == 0:
+        return wav
+    first, last = int(idx[0]), int(idx[-1])
+    gap_fr = max(1, int(VOXCPM_MAXGAP / 0.02))     # ngưỡng "lặng dài" (số khung)
+    keep_fr = max(1, int(VOXCPM_GAP_KEEP / 0.02))
+    out = [wav[: first * win]]                      # giữ nguyên lặng đầu
+    i = first
+    while i <= last:
+        if loud[i]:
+            out.append(frames[i])
+            i += 1
+            continue
+        j = i
+        while j <= last and not loud[j]:
+            j += 1
+        run = frames[i:j]
+        out.append(run[:keep_fr].reshape(-1) if (j - i) > gap_fr else run.reshape(-1))
+        i = j
+    out.append(wav[(last + 1) * win:])              # giữ lặng đuôi + phần dư < 1 khung
+    return np.concatenate(out)
+
+
 def encode(wav, sr, fmt="mp3"):
     pcm = (np.clip(wav, -1, 1) * 32767).astype(np.int16)
     if fmt == "mp3":
@@ -1179,7 +1226,9 @@ def synthesize(req, job):
                 parts.append(seg)
                 if i < len(groups) - 1:
                     parts.append(np.zeros(int(sr * GAP.get(kind, 0.2)), dtype=np.float32))
-            else:                                  # dọn đuôi thừa rồi để nối liền
+            else:                                  # model clone: dọn lặng rồi nối liền
+                if not re.search(r"[.,;:!?…]", g):  # câu dài không dấu → đọc liền mạch
+                    seg = cap_internal_silence(seg, sr)
                 segs.append(trim_trailing_silence(seg, sr))
             job["done"] = i + 1
         sr = MODEL.sample_rate

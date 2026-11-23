@@ -61,6 +61,40 @@ class CrossfadeJoinTest(unittest.TestCase):
 
 
 @unittest.skipIf(np is None, "numpy không có trong python hệ thống")
+class CapInternalSilenceTest(unittest.TestCase):
+    def setUp(self):
+        import os
+        consts = [n for n in TREE.body if isinstance(n, ast.Assign)
+                  and any(isinstance(t, ast.Name) and t.id in {"VOXCPM_MAXGAP", "VOXCPM_GAP_KEEP"} for t in n.targets)]
+        fns = [n for n in TREE.body if isinstance(n, ast.FunctionDef) and n.name == "cap_internal_silence"]
+        self.scope = {"re": re, "np": np, "os": os}
+        exec(compile(ast.Module(body=[*consts, *fns], type_ignores=[]), "cap", "exec"), self.scope)
+        self.cap = self.scope["cap_internal_silence"]
+
+    def _tone(self, sr, secs):
+        return (0.5 * np.sin(np.linspace(0, 300 * secs, int(sr * secs)))).astype(np.float32)
+
+    def test_long_internal_gap_shortened(self):
+        sr = 24000
+        sig = np.concatenate([self._tone(sr, 0.5), np.zeros(int(sr * 0.6), np.float32), self._tone(sr, 0.5)])
+        out = self.cap(sig, sr)
+        self.assertLess(len(out), len(sig))                 # khoảng lặng dài đã bị rút
+        self.assertLess(len(out), int(sr * 1.3))            # ~0.5 + 0.1 + 0.5 + lề
+        self.assertGreaterEqual(len(out), int(sr * 1.05))   # vẫn giữ đủ hai đoạn tiếng
+
+    def test_short_gap_preserved(self):
+        sr = 24000
+        sig = np.concatenate([self._tone(sr, 0.5), np.zeros(int(sr * 0.2), np.float32), self._tone(sr, 0.5)])
+        out = self.cap(sig, sr)
+        self.assertEqual(len(out), len(sig))                # ngắt ngắn (< ngưỡng) giữ nguyên
+
+    def test_pure_tone_unchanged(self):
+        sr = 24000
+        sig = self._tone(sr, 1.0)
+        self.assertEqual(len(self.cap(sig, sr)), len(sig))
+
+
+@unittest.skipIf(np is None, "numpy không có trong python hệ thống")
 class TrimTrailingSilenceTest(unittest.TestCase):
     def setUp(self):
         self.trim = _load({"trim_trailing_silence"})["trim_trailing_silence"]
