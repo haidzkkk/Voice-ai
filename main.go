@@ -128,7 +128,7 @@ func startJob(in ttsRequest) *job {
 	o := TTSOptions{Voice: in.Voice, Rate: in.Rate, Pitch: in.Pitch, Volume: in.Volume}
 	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Hour)
 	total := 1
-	local := in.Engine == "vieneu" || in.Engine == "voxcpm"
+	local := in.Engine == "vieneu" || in.Engine == "voxcpm" || in.Engine == "f5"
 	if !local {
 		total = len(splitText(cleanText(text), maxChunkBytes))
 	}
@@ -258,7 +258,7 @@ func handler(quit chan struct{}) http.Handler {
 			http.Error(w, "Thẻ cảm xúc cần chọn VoxCPM2 và một giọng cá nhân đã thiết lập mẫu cảm xúc.", 400)
 			return
 		}
-		if (in.Engine == "vieneu" || in.Engine == "voxcpm") && currentEngine(in.Engine) == nil {
+		if (in.Engine == "vieneu" || in.Engine == "voxcpm" || in.Engine == "f5") && currentEngine(in.Engine) == nil {
 			http.Error(w, "giọng AI trên máy chưa sẵn sàng", 503)
 			return
 		}

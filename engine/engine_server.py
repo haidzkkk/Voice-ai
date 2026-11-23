@@ -60,6 +60,8 @@ FAKE = bool(os.environ.get("GIONGAI_FAKE_ENGINE"))
 LEGACY_REF_TEXT = "Xin chào, đây là giọng nói của tôi. Hôm nay trời rất đẹp, tôi muốn kể cho bạn nghe một câu chuyện thú vị về quê hương mình."
 # Khoảng lặng (giây) chèn giữa các cụm theo loại ngắt: cuối đoạn văn, cuối câu.
 GAP = {"para": 0.45, "sent": 0.2}
+# F5 ra giọng méo khi mẫu quá dài; mẫu dài hơn ngần này (giây) sẽ được cắt ngắn lại.
+REF_MAX_SEC = 15.0
 # Số bước khử nhiễu của VoxCPM (mặc định gói = 10). Chỉnh qua GIONGAI_VOXCPM_STEPS
 # nếu muốn thử cao hơn (vd 16–24, sạch hơn nhưng chậm hơn).
 VOXCPM_TIMESTEPS = max(4, int(os.environ.get("GIONGAI_VOXCPM_STEPS") or 10))
@@ -620,6 +622,144 @@ def voxcpm_snapshot(repo):
     return str(dest)
 
 
+class F5Model:
+    REPO = "hynt/F5-TTS-Vietnamese-ViVoice"
+    VOCODER_REPO = "charactr/vocos-mel-24khz"
+    ASR_REPO = "openai/whisper-large-v3-turbo"
+
+    def __init__(self):
+        from f5_tts.api import F5TTS
+        self.device, self.device_name = pick_torch_device()
+        mdir = Path(ARGS.data) / "models" / "f5"
+        mdir.mkdir(parents=True, exist_ok=True)
+        self._mdir = mdir
+        STATE["detail"] = "Đang tải mô hình F5-TTS (model_last.pt ~5,4 GB, chỉ lần đầu)…"
+        ckpt = hf_download_direct(self.REPO, "model_last.pt", mdir / "model_last.pt")
+        vocab = mdir / "vocab.txt"
+        if not vocab.exists():
+            # Repo lưu bảng ký tự dưới tên config.json (theo hướng dẫn của tác giả)
+            STATE["detail"] = "Đang tải bảng ký tự F5-TTS…"
+            hf_download_direct(self.REPO, "config.json", vocab, label="vocab.txt")
+        # Vocoder (vocos): F5TTS tự tải từ HuggingFace khi nạp, nhưng đường tải đó của
+        # thư viện KHÔNG chống-treo -> trên mạng VN hay đứng im vô hạn NGAY LÚC KHỞI
+        # ĐỘNG. Tải trước bằng trình tải chống-treo rồi trỏ vocoder_local_path để
+        # F5TTS nạp thẳng từ đĩa, không còn chạm mạng.
+        vdir = self._fetch_vocoder()
+        STATE.pop("download", None)
+        STATE["detail"] = "Đang nạp F5-TTS vào bộ nhớ để sử dụng…"
+        self.m = F5TTS(model="F5TTS_Base", ckpt_file=ckpt, vocab_file=str(vocab),
+                       vocoder_local_path=str(vdir), device=self.device)
+        if self.device == "cuda" and needs_fp32():
+            self.m.ema_model.float()
+            self.device_name += " (fp32)"
+        self.sample_rate = self.m.target_sample_rate
+        self._refs = {}
+        self._asr_ready = False
+
+    def _fetch_vocoder(self):
+        """Tải vocos về đĩa (config.yaml + pytorch_model.bin ~55 MB) để nạp cục bộ."""
+        vdir = self._mdir / "vocos"
+        vdir.mkdir(parents=True, exist_ok=True)
+        STATE["detail"] = "Đang tải bộ tổng hợp âm thanh (vocoder ~55 MB, chỉ lần đầu)…"
+        hf_download_direct(self.VOCODER_REPO, "config.yaml", vdir / "config.yaml",
+                           label="vocoder/config.yaml")
+        hf_download_direct(self.VOCODER_REPO, "pytorch_model.bin", vdir / "pytorch_model.bin",
+                           label="vocoder/pytorch_model.bin")
+        return vdir
+
+    def _ensure_asr(self):
+        """Tải trước Whisper rồi nạp cục bộ, để việc nhận dạng lời thoại không bao
+        giờ kích hoạt đường tải HuggingFace mặc định (hay treo trên mạng VN)."""
+        if self._asr_ready:
+            return
+        import f5_tts.infer.utils_infer as infer
+        if getattr(infer, "asr_pipe", None) is not None:
+            self._asr_ready = True
+            return
+        wdir = self._mdir / "whisper"
+        wdir.mkdir(parents=True, exist_ok=True)
+        STATE["detail"] = "Đang tải bộ nhận dạng giọng nói (Whisper ~1,6 GB, chỉ lần đầu)…"
+        required = ["config.json", "model.safetensors", "preprocessor_config.json",
+                    "tokenizer.json", "tokenizer_config.json"]
+        optional = ["generation_config.json", "vocab.json", "merges.txt",
+                    "special_tokens_map.json", "added_tokens.json", "normalizer.json"]
+        for name in required:
+            hf_download_direct(self.ASR_REPO, name, wdir / name, label="whisper/" + name)
+        for name in optional:
+            hf_download_direct(self.ASR_REPO, name, wdir / name, label="whisper/" + name, optional=True)
+        STATE.pop("download", None)
+        STATE["detail"] = "Đang nạp bộ nhận dạng giọng nói…"
+        import torch
+        from transformers import pipeline
+        dtype = torch.float16 if self.device == "cuda" else torch.float32
+        # Trỏ thẳng vào thư mục đã tải -> transformers nạp cục bộ, không gọi mạng.
+        infer.asr_pipe = pipeline("automatic-speech-recognition", model=str(wdir),
+                                  torch_dtype=dtype, device=torch.device(self.device))
+        self._asr_ready = True
+
+    def _duration(self, path):
+        import soundfile as sf
+        info = sf.info(str(path))
+        return info.frames / float(info.samplerate or 1)
+
+    def _ref(self, ref_wav, ref_text):
+        from f5_tts.infer.utils_infer import preprocess_ref_audio_text
+        quiet = lambda *a, **k: None
+        st = os.stat(ref_wav)
+        key = (ref_wav, st.st_mtime, st.st_size, ref_text)
+        if key not in self._refs:
+            wav_path, text = ref_wav, ref_text
+            # Mẫu quá dài làm F5 ra giọng méo ("ma mị") và dễ đọc thừa chữ. Cắt còn
+            # ~12s theo điểm lặng tự nhiên rồi NHẬN DẠNG LẠI đúng đoạn đã cắt để lời
+            # thoại khớp với audio — đây là nguồn gốc chính của giọng méo và chữ thừa.
+            # Mẫu đã ngắn (kèm lời thoại người dùng tự nhập) giữ nguyên, không đụng tới.
+            try:
+                if self._duration(ref_wav) > REF_MAX_SEC:
+                    clipped, _ = preprocess_ref_audio_text(ref_wav, "x", show_info=quiet,
+                                                            clip_short=True, device=self.device)
+                    detected = self.transcribe(clipped)
+                    if detected.strip():
+                        wav_path, text = clipped, detected
+            except Exception as e:
+                log("không cắt ngắn được giọng mẫu, dùng nguyên bản:", e)
+            self._refs[key] = preprocess_ref_audio_text(wav_path, text, show_info=quiet,
+                                                         clip_short=False, device=self.device)
+        return self._refs[key]
+
+    def transcribe(self, path):
+        STATE["detail"] = "Đang chuẩn bị bộ nhận dạng giọng nói (chỉ lần đầu)…"
+        try:
+            self._ensure_asr()
+            import soundfile as sf
+            # App reference clips are WAV. Passing a filename makes Transformers
+            # invoke ffmpeg even for WAV; raw samples bypass that dependency.
+            samples, sample_rate = sf.read(str(path), dtype="float32", always_2d=True)
+            mono = samples.mean(axis=1)
+            if sample_rate != 16000:
+                from math import gcd
+                from scipy.signal import resample_poly
+                factor = gcd(sample_rate, 16000)
+                mono = resample_poly(mono, 16000 // factor, sample_rate // factor)
+            audio = {"raw": mono, "sampling_rate": 16000}
+            return normalize_vi(self.m.transcribe(audio, language="vi"))
+        finally:
+            STATE["detail"] = ""
+
+    def synth(self, text, ref_wav, ref_text, speed=1.0):
+        # Đọc NGUYÊN ĐOẠN, KHÔNG cắt câu: infer_process() luôn tự chia text theo câu
+        # (chunk_text theo max_chars suy từ độ dài mẫu) rồi ghép lại — đó chính là chỗ
+        # sinh chữ thừa ở ranh giới câu. Gọi thẳng infer_batch_process với MỘT batch
+        # để cả đoạn được sinh trong một lần, không có mối nối nội bộ nào.
+        import torchaudio
+        from f5_tts.infer.utils_infer import infer_batch_process
+        ra, rt = self._ref(ref_wav, ref_text)
+        audio, sr = torchaudio.load(ra)
+        wav, _sr, _spec = next(infer_batch_process(
+            (audio, sr), rt, [text], self.m.ema_model, self.m.vocoder, self.m.mel_spec_type,
+            progress=None, speed=speed, nfe_step=32, cross_fade_duration=0.0, device=self.device))
+        return np.asarray(wav, dtype=np.float32).reshape(-1)
+
+
 class VoxCPMModel:
     """VoxCPM2 (OpenBMB, Apache-2.0) — clone giọng đa ngữ. Hỗ trợ 3 chế độ
     (xem VOXCPM_MODES): reference / continuation / ref_continuation.
@@ -723,6 +863,9 @@ def load_model():
             MODEL, backend, device = load_vieneu()
         elif FAKE:
             MODEL, backend, device = FakeCloneModel(), "fake", "CPU"
+        elif ARGS.model == "f5":
+            m = F5Model()
+            MODEL, backend, device = m, "f5", m.device_name
         elif ARGS.model == "voxcpm":
             m = VoxCPMModel()
             MODEL, backend, device = m, "voxcpm", m.device_name
@@ -884,6 +1027,32 @@ def resolve_ref(req):
     return ref_wav
 
 
+def resolve_ref_f5(req):
+    """Giọng mẫu cho F5: trả (đường dẫn wav, lời thoại mẫu). Lời thoại lấy từ JSON
+    giọng cá nhân; nếu thiếu/để mặc định cũ thì tự nhận dạng bằng Whisper và lưu
+    lại. Giọng dựng sẵn có ref_text do lớp Go gửi kèm."""
+    ref_wav = req.get("ref_wav") or ""
+    ref_text = (req.get("ref_text") or "").strip()
+    vid = req.get("custom_id")
+    if vid:
+        meta_path = voices_dir() / f"{check_id(vid)}.json"
+        ref_wav = str(voices_dir() / f"{vid}.wav")
+        d = json.loads(meta_path.read_text(encoding="utf-8"))
+        ref_text = (d.get("ref_text") or "").strip()
+        legacy = ref_text == LEGACY_REF_TEXT and not d.get("ref_text_verified")
+        if not ref_text or legacy:
+            with MODEL_LOCK:
+                ref_text = MODEL.transcribe(ref_wav)
+            if not ref_text.strip():
+                raise ValueError("Không nhận dạng được lời thoại của mẫu. Hãy nhập đúng lời trong mục Sửa lời thoại.")
+            d["ref_text"] = ref_text
+            d["ref_text_auto"] = True
+            meta_path.write_text(json.dumps(d, ensure_ascii=False), encoding="utf-8")
+    if not ref_wav or not os.path.exists(ref_wav):
+        raise ValueError("Không tìm thấy giọng mẫu")
+    return ref_wav, normalize_vi(ref_text)
+
+
 def desc_spans(text, global_desc):
     """Tách text theo marker mô tả {…}: trả [(cụm, loại nghỉ, mô tả)].
     Mỗi {…} áp mô tả cho phần SAU nó đến {…} kế tiếp; phần trước marker đầu dùng
@@ -934,6 +1103,13 @@ def synthesize(req, job):
         if ARGS.model == "vieneu":
             voice = load_custom_vieneu(req.get("voice")) if req.get("custom") else (req.get("voice") or None)
             run = lambda g: MODEL.synth(g, voice)
+        elif ARGS.model == "f5":
+            # F5 đọc NGUYÊN ĐOẠN (không cắt câu) như VoxCPM. F5 không hỗ trợ mô tả
+            # cảm xúc theo cú pháp (…) nên bỏ mọi marker {…} khỏi text.
+            ref_wav, ref_text = resolve_ref_f5(req)
+            clean = re.sub(r"\{[^{}]*\}", " ", text)
+            groups = [(part, kind, "") for part, kind in coarse_groups(clean)]
+            run = lambda g, desc: MODEL.synth(normalize_vi(g), ref_wav, ref_text)
         else:  # voxcpm (model clone nâng cao duy nhất) — luôn để nguyên đoạn
             ref = resolve_ref(req)   # một giọng mẫu được chọn (preset hoặc cá nhân)
             mode = (req.get("vox_mode") or "reference").strip()
@@ -1178,7 +1354,7 @@ def main():
     ap.add_argument("--token", required=True)
     ap.add_argument("--data", required=True)
     ap.add_argument("--voices-dir")
-    ap.add_argument("--model", default="vieneu", choices=["vieneu", "voxcpm"])
+    ap.add_argument("--model", default="vieneu", choices=["vieneu", "f5", "voxcpm"])
     ap.add_argument("--force-cpu", action="store_true")
     ap.add_argument("--no-watch", action="store_true")
     ARGS = ap.parse_args()

@@ -36,7 +36,9 @@ var engineScript []byte
 
 const engineVersion = "2"
 
-// Câu mẫu để tạo giọng tham chiếu cho VoxCPM từ giọng có sẵn của VieNeu (đã viết thường, không chữ số).
+const f5Package = "f5-tts @ https://github.com/nguyenthienhy/F5-TTS-Vietnamese/archive/e74db9d5a5e521bb930490e7cd7912438bf7ae84.zip"
+
+// Câu mẫu để tạo giọng tham chiếu cho F5/VoxCPM từ giọng có sẵn của VieNeu (đã viết thường, không chữ số).
 const presetRefText = "xin chào các bạn, hôm nay tôi sẽ kể cho các bạn nghe một câu chuyện thú vị về cuộc sống thường ngày."
 
 type modelDef struct {
@@ -49,6 +51,7 @@ type modelDef struct {
 
 var modelDefs = map[string]*modelDef{
 	"vieneu": {ID: "vieneu", Name: "VieNeu-TTS", Venv: "venv", Marker: "installed.json", Python: "3.12"},
+	"f5":     {ID: "f5", Name: "F5-TTS tiếng Việt", Venv: "venv-f5", Marker: "installed-f5.json", Python: "3.11"},
 	"voxcpm": {ID: "voxcpm", Name: "VoxCPM2", Venv: "venv-voxcpm", Marker: "installed-voxcpm.json", Python: "3.11"},
 }
 
@@ -505,6 +508,35 @@ func doInstall(m *modelDef, gpu bool) {
 		args := append([]string{"pip", "install", "--python", py, "vieneu", "lameenc"}, runtimePackages(runtime.GOOS)...)
 		if err := runLogged(ctx, uv, args...); err != nil {
 			fail(fmt.Errorf("cài VieNeu-TTS: %w", err))
+			return
+		}
+	case "f5":
+		var err error
+		if gpu, err = installTorch(ctx, py, gpu); err != nil {
+			fail(fmt.Errorf("cài PyTorch: %w", err))
+			return
+		}
+		setStep("Cài thư viện F5-TTS tiếng Việt")
+		pkg := f5Package
+		if v := os.Getenv("GIONGAI_F5_PACKAGE"); v != "" { // chỉ dùng để kiểm thử
+			pkg = v
+		}
+		// uv cắt đường dẫn --constraint ở dấu cách (lỗi trên máy có dấu cách trong
+		// đường dẫn như "Application Support" hay "C:\Users\Tên Có Dấu Cách"); dùng
+		// tên file tương đối vì runLogged đặt cmd.Dir = engineDir().
+		const f5ConstraintName = "f5-torch-constraints.txt"
+		if err := os.WriteFile(filepath.Join(engineDir(), f5ConstraintName), []byte(strings.Join(torchPackages(gpu, runtime.GOOS), "\n")+"\n"), 0600); err != nil {
+			fail(err)
+			return
+		}
+		args := []string{"pip", "install", "--python", py, "--constraint", f5ConstraintName, pkg,
+			"transformers>=4.45,<4.58", "pyarrow<20", "sea-g2p", "lameenc", "soundfile", "librosa"}
+		args = append(args, runtimePackages(runtime.GOOS)...)
+		if index := torchIndex(gpu, runtime.GOOS); index != "" {
+			args = append(args, "--extra-index-url", index)
+		}
+		if err := runLogged(ctx, uv, args...); err != nil {
+			fail(fmt.Errorf("cài F5-TTS: %w", err))
 			return
 		}
 	case "voxcpm":

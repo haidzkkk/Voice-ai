@@ -177,7 +177,7 @@ button:focus-visible,summary:focus-visible{outline:3px solid var(--accent-soft);
       <section class="card voice-card" aria-labelledby="voiceHeading">
         <div class="section-heading"><span class="step">01</span><h2 id="voiceHeading">Chọn giọng đọc</h2></div>
         <label class="fl" for="engineSelect">Công cụ tạo giọng</label>
-        <select id="engineSelect"><option value="ms">Microsoft · trực tuyến</option><option value="vieneu">VieNeu · nhanh, trên máy</option><option value="voxcpm">VoxCPM2 · clone đa ngữ, trên máy</option></select>
+        <select id="engineSelect"><option value="ms">Microsoft · trực tuyến</option><option value="vieneu">VieNeu · nhanh, trên máy</option><option value="voxcpm">VoxCPM2 · clone đa ngữ, trên máy</option><option value="f5">F5-TTS · clone tiếng Việt, trên máy</option></select>
         <div class="sub engine-hint" id="engineHint"></div>
         <div id="msPanel">
           <label class="fl" for="locale">Ngôn ngữ</label><select id="locale"></select>
@@ -569,19 +569,19 @@ const ta = $('#text');
 const EMOTION_COLORS={vui:['Vui','#fbbf2466'],buon:['Buồn','#60a5fa66'],gian:['Giận','#f8717166'],haohung:['Hào hứng','#fb923c66'],thitham:['Thì thầm','#c084fc66'],kechuyen:['Kể chuyện','#34d39966'],'cười':['Cười nhẹ','#fbbf2466'],'thở dài':['Thở dài','#60a5fa66'],'hắng giọng':['Hắng giọng','#c084fc66']};
 let cueRanges=store.get('cueRanges',[]),highlightText=store.get('text','');
 function renderTextHighlights(){
- const text=ta.value,isF5=engine==='vieneu'&&isAdv();
+ const text=ta.value,isVoxTag=engine==='vieneu'&&vmodel==='voxcpm';
  const ranges=[];
- if(isF5){
+ if(isVoxTag){
   const tags=[...text.matchAll(/\[(vui|buon|gian|haohung|thitham|kechuyen|macdinh)\]/gi)];
   tags.forEach((m,i)=>{const tag=m[1].toLowerCase();if(tag!=='macdinh')ranges.push({start:m.index,end:tags[i+1]?.index??text.length,tag});});
- }else if(engine==='vieneu'){
+ }else if(engine==='vieneu'&&vmodel==='vieneu'){
   ranges.push(...cueRanges.filter(r=>EMOTION_COLORS[r.tag]&&r.start>=0&&r.end<=text.length));
   for(const m of text.matchAll(/\[(cười|thở dài|hắng giọng)\]/g))if(!ranges.some(r=>r.start<=m.index&&r.end>=m.index+m[0].length))ranges.push({start:m.index,end:m.index+m[0].length,tag:m[1]});
  }
  const boundaries=[...new Set([0,text.length,...ranges.flatMap(r=>[r.start,r.end])])].sort((a,b)=>a-b);
  let html='';for(let i=0;i<boundaries.length-1;i++){const start=boundaries[i],end=boundaries[i+1],r=ranges.find(r=>r.start<=start&&r.end>=end);const part=esc(text.slice(start,end));html+=r?'<mark style="--emotion-color:'+EMOTION_COLORS[r.tag][1]+'">'+part+'</mark>':part;}
  $('#textHighlights').innerHTML=html+'\n';
- const keys=isF5?['vui','buon','gian','haohung','thitham','kechuyen']:engine==='vieneu'?['cười','thở dài','hắng giọng']:[];
+ const keys=isVoxTag?['vui','buon','gian','haohung','thitham','kechuyen']:(engine==='vieneu'&&vmodel==='vieneu')?['cười','thở dài','hắng giọng']:[];
  $('#emotionLegend').innerHTML=keys.map(k=>'<span style="--emotion-color:'+EMOTION_COLORS[k][1]+'"><i></i>'+EMOTION_COLORS[k][0]+'</span>').join('');
  $('#textHighlights').scrollTop=ta.scrollTop;$('#textHighlights').scrollLeft=ta.scrollLeft;
 }
@@ -604,16 +604,17 @@ const VOX_DESCS={
 };
 function renderEmotionTools(){
  const previous=$('#emotionCue').value;
- const isVox=engine==='vieneu' && isAdv();
+ const isVox=engine==='vieneu' && vmodel==='voxcpm';
+ const isF5m=engine==='vieneu' && vmodel==='f5';
  if(isVox){
   $('#emotionCue').innerHTML='<option value="{}">Tùy chỉnh / về mặc định · {}</option>'+Object.entries(VOX_DESCS).map(([phrase,label])=>`<option value="{${phrase}}">${label}</option>`).join('');
   $('#emotionHint').textContent='Bôi đen đoạn rồi chèn mô tả để đọc đoạn đó theo mô tả; hoặc chèn tại con trỏ (áp đến mô tả kế tiếp). {} = về mô tả mặc định. Chỉ tác dụng ở chế độ Reference.';
  }else{
   $('#emotionCue').innerHTML='<option value="[cười]">Cười nhẹ · [cười]</option><option value="[thở dài]">Thở dài · [thở dài]</option><option value="[hắng giọng]">Hắng giọng · [hắng giọng]</option>';
-  $('#emotionHint').textContent=engine==='vieneu'?'Bôi đen đoạn rồi chèn biểu cảm để đánh dấu màu. VieNeu tạo biểu cảm tại thẻ chèn; màu không đảm bảo cả đoạn có cùng cảm xúc.':'Chọn VieNeu để dùng biểu cảm, hoặc VoxCPM2 để mô tả cảm xúc bằng lời.';
+  $('#emotionHint').textContent=isF5m?'F5-TTS đọc nguyên đoạn, chưa hỗ trợ chèn cảm xúc. Dùng VoxCPM2 để mô tả cảm xúc bằng lời, hoặc VieNeu để chèn biểu cảm.':engine==='vieneu'?'Bôi đen đoạn rồi chèn biểu cảm để đánh dấu màu. VieNeu tạo biểu cảm tại thẻ chèn; màu không đảm bảo cả đoạn có cùng cảm xúc.':'Chọn VieNeu để dùng biểu cảm, hoặc VoxCPM2 để mô tả cảm xúc bằng lời.';
  }
  if([...$('#emotionCue').options].some(option=>option.value===previous&&!option.disabled))$('#emotionCue').value=previous;
- const supported=engine==='vieneu' && (isVox ? !!$('#vvoice').value : true);
+ const supported=engine==='vieneu' && !isF5m && (isVox ? !!$('#vvoice').value : true);
  $('#emotionCue').disabled=!supported;$('#insertEmotionBtn').disabled=!supported;
  $('#setupEmotionsBtn').classList.add('hide');  // VoxCPM dùng mô tả bằng lời, không thu mẫu
  renderTextHighlights();
@@ -775,12 +776,13 @@ $('#quitBtn').onclick = async ()=>{
 // ===================== Giọng AI nâng cao (VieNeu) =====================
 let engine = store.get('engine','ms'), vnReady = false, vnVoices = {presets:[], custom:[]}, vnTimer = null, gpu = null, lastSt = null;
 let vmodel = store.get('vmodel','vieneu'), f5Ready = false;
-if(vmodel!=='vieneu' && vmodel!=='voxcpm'){ vmodel='voxcpm'; store.set('vmodel',vmodel); }  // di trú: F5 đã gỡ
+if(vmodel!=='vieneu' && vmodel!=='voxcpm' && vmodel!=='f5'){ vmodel='voxcpm'; store.set('vmodel',vmodel); }  // di trú
 // Mô hình nâng cao dạng clone (ref audio + cảm xúc). Mọi mô hình khác 'vieneu'
 // dùng chung UI này; f5Ready = mô hình nâng cao đang chọn đã sẵn sàng.
-const ADV_NAMES={voxcpm:'VoxCPM2'};
+const ADV_NAMES={voxcpm:'VoxCPM2', f5:'F5-TTS'};
 const ADV_DESC={
- voxcpm:'VoxCPM2 (OpenBMB) clone giọng đa ngôn ngữ. Mô hình lớn (~2 tỷ tham số): cần máy mạnh, tốt nhất có card NVIDIA; chạy CPU sẽ rất chậm. Giấy phép Apache-2.0 (dùng thương mại được).'
+ voxcpm:'VoxCPM2 (OpenBMB) clone giọng đa ngôn ngữ. Mô hình lớn (~2 tỷ tham số): cần máy mạnh, tốt nhất có card NVIDIA; chạy CPU sẽ rất chậm. Giấy phép Apache-2.0 (dùng thương mại được).',
+ f5:'F5-TTS tiếng Việt (hynt/F5-TTS-Vietnamese-ViVoice) clone giọng từ mẫu. Đọc nguyên đoạn (không cắt câu) để thử chất lượng. Cần máy mạnh, tốt nhất có card NVIDIA; chạy CPU sẽ chậm.'
 };
 const isAdv=()=>vmodel!=='vieneu';
 const advName=()=>ADV_NAMES[vmodel]||'Mô hình nâng cao';
