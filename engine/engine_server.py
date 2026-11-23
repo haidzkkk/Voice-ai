@@ -3,7 +3,7 @@ Engine giọng AI trên máy cho Giọng AI.
 
 Một tiến trình cho mỗi mô hình (--model):
   vieneu : VieNeu-TTS v3 Turbo — 25 giọng có sẵn + nhân bản giọng (nhanh)
-  f5     : F5-TTS tiếng Việt (hynt/F5-TTS-Vietnamese-ViVoice) — rõ, giống giọng mẫu
+  voxcpm : VoxCPM2 (OpenBMB) — clone giọng đa ngữ (reference/continuation)
 
 Được app chính khởi chạy; tự thoát khi app chính đóng (stdin bị đóng).
 Chỉ lắng nghe trên 127.0.0.1 và yêu cầu token.
@@ -15,6 +15,7 @@ import json
 import os
 import re
 import sys
+import tempfile
 import threading
 import time
 import traceback
@@ -57,23 +58,25 @@ META = {}  # preset name -> metadata (gender, region, style, description, featur
 REGION_ORDER = {"Bắc": 0, "Trung": 1, "Nam": 2}
 FAKE = bool(os.environ.get("GIONGAI_FAKE_ENGINE"))
 LEGACY_REF_TEXT = "Xin chào, đây là giọng nói của tôi. Hôm nay trời rất đẹp, tôi muốn kể cho bạn nghe một câu chuyện thú vị về quê hương mình."
-F5_EMOTIONS = {"vui", "buon", "gian", "haohung", "thitham", "kechuyen"}
-# Khoảng lặng (giây) chèn giữa các cụm theo loại ngắt: cuối đoạn văn, cuối câu, sau dấu phẩy.
+# Khoảng lặng (giây) chèn giữa các cụm theo loại ngắt: cuối đoạn văn, cuối câu.
 GAP = {"para": 0.45, "sent": 0.2}
 # F5 ra giọng méo khi mẫu quá dài; mẫu dài hơn ngần này (giây) sẽ được cắt ngắn lại.
 REF_MAX_SEC = 15.0
-# Cụm ngắn hơn ngần này (byte UTF-8) khiến F5 ép local_speed=0.3 → duration thừa →
-# đọc thêm từ/âm lạ. Gộp các câu để không cụm nào ngắn hơn ngưỡng này. F5 dùng mốc
-# 10 (< 10 byte); lấy 12 làm biên an toàn nhỏ trên mốc đó, đủ để không gộp nhầm câu
-# ngắn-nhưng-ổn ("Thật tuyệt!" 15B, "Tôi hiểu." 12B).
-F5_MIN_BYTES = 12
-# Số bước khử nhiễu của VoxCPM. 10 (mặc định cũ) hơi thấp → dễ ra artifact/đọc thừa;
-# 16 sạch hơn, đổi lại chậm hơn chút. Chỉnh qua GIONGAI_VOXCPM_STEPS để A/B (vd 20–24).
-VOXCPM_TIMESTEPS = max(4, int(os.environ.get("GIONGAI_VOXCPM_STEPS") or 16))
-# Thử nghiệm: với VoxCPM, KHÔNG cắt theo từng câu mà đưa nguyên đoạn (cắt thô ≤700
-# ký tự như VieNeu) vào một lần sinh — ít ranh giới hơn nên có thể bớt đuôi thừa,
-# đổi lại mất kiểm soát khoảng lặng theo câu. Bật bằng GIONGAI_VOXCPM_NOSPLIT=1.
-VOXCPM_NOSPLIT = bool(os.environ.get("GIONGAI_VOXCPM_NOSPLIT"))
+# Số bước khử nhiễu của VoxCPM (mặc định gói = 10). Chỉnh qua GIONGAI_VOXCPM_STEPS
+# nếu muốn thử cao hơn (vd 16–24, sạch hơn nhưng chậm hơn).
+VOXCPM_TIMESTEPS = max(4, int(os.environ.get("GIONGAI_VOXCPM_STEPS") or 10))
+# Câu dài KHÔNG dấu: model hay tự chèn nhịp nghỉ giữa câu. Khoảng lặng GIỮA đoạn
+# dài hơn VOXCPM_MAXGAP (giây) bị rút xuống VOXCPM_GAP_KEEP để đọc liền mạch. Chỉ
+# áp cho cụm không có dấu câu (xem synthesize). Chỉnh qua GIONGAI_VOXCPM_MAXGAP;
+# đặt 0 để tắt.
+VOXCPM_MAXGAP = max(0.0, float(os.environ.get("GIONGAI_VOXCPM_MAXGAP") or 0.30))
+VOXCPM_GAP_KEEP = 0.10
+# Các chế độ clone của VoxCPM2 (xem build_prompt_cache của gói voxcpm):
+#   reference        : chỉ dùng giọng mẫu (ref_audio tokens) — không "nối tiếp",
+#                      hết lỗi thừa/sai ở đầu đoạn; không cần lời thoại mẫu.
+#   continuation     : đọc nối tiếp từ 1 audio đoạn trước + lời thoại của nó.
+#   ref_continuation : giọng mẫu + nối tiếp từ audio đoạn trước.
+VOXCPM_MODES = {"reference", "continuation", "ref_continuation"}
 
 
 def log(*a):
@@ -86,7 +89,7 @@ _NORM = None
 
 
 def normalize_vi(text):
-    """Đọc số, ngày giờ, ký hiệu thành chữ; trả về chữ thường (F5/IndexTTS cần)."""
+    """Đọc số, ngày giờ, ký hiệu thành chữ; trả về chữ thường (cho VoxCPM)."""
     global _NORM
     try:
         if _NORM is None:
@@ -159,18 +162,15 @@ class VieNeuModel:
 
 
 class FakeCloneModel:
-    """Giả lập F5/IndexTTS để kiểm thử."""
+    """Giả lập VoxCPM để kiểm thử (interface synth giống VoxCPMModel)."""
     sample_rate = 24000
 
-    def synth(self, text, ref_wav, ref_text, speed=1.0):
+    def synth(self, text, voice_wav, mode="reference", prompt_wav=None, prompt_text=None, speed=1.0):
         import soundfile as sf
-        sf.info(ref_wav)  # kiểm tra file mẫu đọc được
+        sf.info(prompt_wav if mode == "continuation" else voice_wav)  # kiểm tra file đọc được
         n = int(self.sample_rate * max(0.3, len(text) * 0.06) / max(speed, 0.1))
         t = np.arange(n) / self.sample_rate
         return (0.2 * np.sin(2 * np.pi * 330 * t)).astype(np.float32)
-
-    def transcribe(self, path):
-        return "lời thoại nhận dạng tự động"
 
 
 def download_model_file(repo, filename, **options):
@@ -582,6 +582,52 @@ def hf_download_direct(repo, filename, dest, label=None, optional=False):
     raise RuntimeError("Không tải được " + label)
 
 
+VOXCPM_FILES = ["config.json", "model.safetensors", "audiovae.pth", "tokenizer.json",
+                "tokenizer_config.json", "special_tokens_map.json", "tokenization_voxcpm2.py"]
+
+
+def voxcpm_snapshot(repo):
+    """Tải VoxCPM2 (~5 GB) vào MỘT thư mục phẳng (file thật, không symlink/cache).
+
+    from_pretrained mặc định gọi snapshot_download của HF: (1) KHÔNG chống-treo,
+    mạng VN hay đứng im khi tải file 4,5 GB; (2) trên Windows không bật chế độ nhà
+    phát triển, symlink trong cache hỏng khiến file lắp ráp sai -> đọc nhầm sang
+    model V1 (tìm pytorch_model.bin). Ở đây tải thẳng từng file có timeout + thử
+    lại vào local_dir (file thật), kiểm tra đúng VoxCPM2, rồi nạp từ thư mục đó."""
+    from huggingface_hub import hf_hub_download, list_repo_files
+    dest = Path(ARGS.data) / "models" / "voxcpm"
+    dest.mkdir(parents=True, exist_ok=True)
+    try:
+        files = [f for f in list_repo_files(repo) if f not in {".gitattributes", "README.md"}]
+    except Exception as e:
+        log("VoxCPM: không liệt kê được file repo, dùng danh sách mặc định:", e)
+        files = list(VOXCPM_FILES)
+    for i, name in enumerate(files):
+        STATE["detail"] = f"Đang tải model VoxCPM2 ({i + 1}/{len(files)} file, tổng ~5 GB, chỉ lần đầu)…"
+        last = None
+        for attempt in range(6):
+            try:
+                hf_hub_download(repo_id=repo, filename=name, local_dir=str(dest))
+                last = None
+                break
+            except Exception as e:  # timeout/nghẽn mạng -> thử lại, tiếp tục từ chỗ dở
+                last = e
+                log(f"VoxCPM: tải {name} lỗi (thử lại {attempt + 1}/6):", e)
+                time.sleep(3 * (attempt + 1))
+        if last is not None:
+            raise RuntimeError(f"Không tải được {name}: {last}")
+    STATE.pop("download", None)
+    # Kiểm tra snapshot đúng VoxCPM2 (tránh đọc nhầm sang model V1).
+    try:
+        arch = json.loads((dest / "config.json").read_text(encoding="utf-8")).get("architecture")
+    except Exception as e:
+        raise RuntimeError(f"config.json của VoxCPM2 lỗi, hãy bấm Cài lại: {e}")
+    if arch != "voxcpm2" or not (dest / "model.safetensors").exists():
+        raise RuntimeError("Tải VoxCPM2 chưa đủ/đúng (thiếu model.safetensors hoặc config sai). Hãy bấm Cài lại.")
+    STATE["detail"] = "Đang nạp VoxCPM2 vào bộ nhớ…"
+    return str(dest)
+
+
 class F5Model:
     REPO = "hynt/F5-TTS-Vietnamese-ViVoice"
     VOCODER_REPO = "charactr/vocos-mel-24khz"
@@ -706,65 +752,23 @@ class F5Model:
             STATE["detail"] = ""
 
     def synth(self, text, ref_wav, ref_text, speed=1.0):
-        from f5_tts.infer.utils_infer import infer_process
+        # Đọc NGUYÊN ĐOẠN, KHÔNG cắt câu: infer_process() luôn tự chia text theo câu
+        # (chunk_text theo max_chars suy từ độ dài mẫu) rồi ghép lại — đó chính là chỗ
+        # sinh chữ thừa ở ranh giới câu. Gọi thẳng infer_batch_process với MỘT batch
+        # để cả đoạn được sinh trong một lần, không có mối nối nội bộ nào.
+        import torchaudio
+        from f5_tts.infer.utils_infer import infer_batch_process
         ra, rt = self._ref(ref_wav, ref_text)
-        wav, _sr, _spec = infer_process(ra, rt, text, self.m.ema_model, self.m.vocoder, self.m.mel_spec_type,
-                                        show_info=lambda *a, **k: None, progress=None, speed=speed,
-                                        nfe_step=32, device=self.device)
+        audio, sr = torchaudio.load(ra)
+        wav, _sr, _spec = next(infer_batch_process(
+            (audio, sr), rt, [text], self.m.ema_model, self.m.vocoder, self.m.mel_spec_type,
+            progress=None, speed=speed, nfe_step=32, cross_fade_duration=0.0, device=self.device))
         return np.asarray(wav, dtype=np.float32).reshape(-1)
 
 
-VOXCPM_FILES = ["config.json", "model.safetensors", "audiovae.pth", "tokenizer.json",
-                "tokenizer_config.json", "special_tokens_map.json", "tokenization_voxcpm2.py"]
-
-
-def voxcpm_snapshot(repo):
-    """Tải VoxCPM2 (~5 GB) vào MỘT thư mục phẳng (file thật, không symlink/cache).
-
-    from_pretrained mặc định gọi snapshot_download của HF: (1) KHÔNG chống-treo,
-    mạng VN hay đứng im khi tải file 4,5 GB; (2) trên Windows không bật chế độ nhà
-    phát triển, symlink trong cache hỏng khiến file lắp ráp sai -> đọc nhầm sang
-    model V1 (tìm pytorch_model.bin). Ở đây tải thẳng từng file có timeout + thử
-    lại vào local_dir (file thật), kiểm tra đúng VoxCPM2, rồi nạp từ thư mục đó."""
-    from huggingface_hub import hf_hub_download, list_repo_files
-    dest = Path(ARGS.data) / "models" / "voxcpm"
-    dest.mkdir(parents=True, exist_ok=True)
-    try:
-        files = [f for f in list_repo_files(repo) if f not in {".gitattributes", "README.md"}]
-    except Exception as e:
-        log("VoxCPM: không liệt kê được file repo, dùng danh sách mặc định:", e)
-        files = list(VOXCPM_FILES)
-    for i, name in enumerate(files):
-        STATE["detail"] = f"Đang tải model VoxCPM2 ({i + 1}/{len(files)} file, tổng ~5 GB, chỉ lần đầu)…"
-        last = None
-        for attempt in range(6):
-            try:
-                hf_hub_download(repo_id=repo, filename=name, local_dir=str(dest))
-                last = None
-                break
-            except Exception as e:  # timeout/nghẽn mạng -> thử lại, tiếp tục từ chỗ dở
-                last = e
-                log(f"VoxCPM: tải {name} lỗi (thử lại {attempt + 1}/6):", e)
-                time.sleep(3 * (attempt + 1))
-        if last is not None:
-            raise RuntimeError(f"Không tải được {name}: {last}")
-    STATE.pop("download", None)
-    # Kiểm tra snapshot đúng VoxCPM2 (tránh đọc nhầm sang model V1).
-    try:
-        arch = json.loads((dest / "config.json").read_text(encoding="utf-8")).get("architecture")
-    except Exception as e:
-        raise RuntimeError(f"config.json của VoxCPM2 lỗi, hãy bấm Cài lại: {e}")
-    if arch != "voxcpm2" or not (dest / "model.safetensors").exists():
-        raise RuntimeError("Tải VoxCPM2 chưa đủ/đúng (thiếu model.safetensors hoặc config sai). Hãy bấm Cài lại.")
-    STATE["detail"] = "Đang nạp VoxCPM2 vào bộ nhớ…"
-    return str(dest)
-
-
 class VoxCPMModel:
-    """VoxCPM2 (OpenBMB, Apache-2.0) — clone giọng đa ngữ từ mẫu + lời thoại.
-    Dùng chung cơ chế giọng cá nhân/cảm xúc với F5 nên interface giống hệt:
-    synth(text, ref_wav, ref_text). Không kèm bộ nhận dạng (ASR) nên không tự
-    transcribe được; lời thoại mẫu phải do người dùng nhập (hoặc dùng F5).
+    """VoxCPM2 (OpenBMB, Apache-2.0) — clone giọng đa ngữ. Hỗ trợ 3 chế độ
+    (xem VOXCPM_MODES): reference / continuation / ref_continuation.
 
     Lưu ý runtime: tên tham số generate() và cách chuyển thiết bị lấy theo
     README VoxCPM; có thể cần chỉnh nhẹ theo phiên bản gói cài thực tế (chỉ test
@@ -797,18 +801,21 @@ class VoxCPMModel:
         inner = getattr(self.m, "tts_model", self.m)
         self.sample_rate = int(getattr(inner, "sample_rate", 16000))
 
-    def synth(self, text, ref_wav, ref_text, speed=1.0):
+    def synth(self, text, voice_wav, mode="reference", prompt_wav=None, prompt_text=None, speed=1.0):
         # speed bỏ qua ở đây: VoxCPM không nhận tham số tốc độ; tốc độ do lớp
         # synthesize() xử lý bằng librosa time-stretch sau khi ghép.
         # normalize=False: text đã được normalize_vi ở lớp trên, không chuẩn hoá lại.
-        wav = self.m.generate(text=text, prompt_wav_path=ref_wav, prompt_text=ref_text,
-                              cfg_value=2.0, inference_timesteps=VOXCPM_TIMESTEPS,
-                              normalize=False, denoise=False)
+        kwargs = dict(text=text, cfg_value=2.0, inference_timesteps=VOXCPM_TIMESTEPS,
+                      normalize=False, denoise=False)
+        if mode == "continuation":            # đọc nối tiếp từ audio đoạn trước
+            kwargs.update(prompt_wav_path=prompt_wav, prompt_text=prompt_text)
+        elif mode == "ref_continuation":      # giọng mẫu + nối tiếp
+            kwargs.update(reference_wav_path=voice_wav,
+                          prompt_wav_path=prompt_wav, prompt_text=prompt_text)
+        else:                                 # reference (mặc định): chỉ chất giọng, không nối
+            kwargs.update(reference_wav_path=voice_wav)
+        wav = self.m.generate(**kwargs)
         return np.asarray(wav, dtype=np.float32).reshape(-1)
-
-    def transcribe(self, path):
-        raise ValueError("VoxCPM2 không tự nhận dạng lời thoại. Hãy nhập đúng lời "
-                         "của mẫu, hoặc dùng F5-TTS để tự nhận dạng.")
 
 
 def load_meta():
@@ -944,46 +951,15 @@ def split_groups(text, limit=700):
     return groups
 
 
-def f5_fine_groups(text, limit=700):
-    """Chia theo CÂU cho F5 (không tách theo dấu phẩy): mỗi câu là một cụm và
-    được đưa NGUYÊN VẸN vào mô hình. Tách sẵn theo dấu phẩy khiến F5 sinh những
-    cụm quá ngắn, độc lập → dễ đọc thiếu/thừa chữ; giữ cả câu để mô hình tự xử
-    lý nhịp trong câu. Chỉ chèn khoảng lặng ở ranh giới câu/đoạn. Câu quá ngắn
-    được gộp vào câu sau để tránh vụn.
-
-    Trả (cụm, loại nghỉ sau cụm) với loại trong GAP: "para", "sent".
-    """
-    out = []
-    for part, para_end in split_groups(text, limit):
-        sents = [s.strip() for s in re.split(r"(?<=[.!?…;:])\s+", part) if s.strip()]
-        for si, sent in enumerate(sents):
-            last_sent = si == len(sents) - 1
-            kind = "para" if (last_sent and para_end) else "sent"
-            out.append((sent, kind))
-    # F5 ép local_speed=0.3 (duration ~x3.3 → đọc thừa/âm lạ ở cuối) cho cụm ngắn
-    # hơn 10 byte UTF-8. Gộp để MỖI cụm đủ dài; đo bằng byte vì tiếng Việt có dấu
-    # nặng byte, và lấy biên 16 cho chắc. Gộp XUÔI xử lý cụm ngắn ở giữa; cụm cuối
-    # (logic xuôi không với tới) được gộp NGƯỢC vào cụm trước.
-    merged = []
-    for seg, kind in out:
-        if merged and len(merged[-1][0].encode("utf-8")) < F5_MIN_BYTES:  # "Dạ.", "Ừ."…
-            merged[-1] = ((merged[-1][0] + " " + seg).strip(), kind)
-        else:
-            merged.append((seg, kind))
-    if len(merged) >= 2 and len(merged[-1][0].encode("utf-8")) < F5_MIN_BYTES:
-        seg, kind = merged.pop()
-        merged[-1] = ((merged[-1][0] + " " + seg).strip(), kind)
-    return merged
-
-
 def coarse_groups(text, limit=700):
-    """Chia THÔ theo đoạn văn/≤limit, KHÔNG tách từng câu (chế độ thử nghiệm
-    VoxCPM không-cắt-câu). Trả (cụm, loại nghỉ sau cụm) như f5_fine_groups."""
+    """Cắt THÔ theo đoạn văn (dòng trống) và giới hạn ≤limit ký tự — KHÔNG tách
+    theo từng câu. Giữ nguyên đoạn để model (VoxCPM) tự xử lý nhịp, chỉ chèn
+    khoảng lặng GAP ở ranh giới đoạn/câu dài. Trả (cụm, loại nghỉ: "para"/"sent")."""
     return [(part, "para" if end else "sent") for part, end in split_groups(text, limit)]
 
 
 def trim_trailing_silence(wav, sr):
-    """Cắt phần ĐUÔI năng lượng thấp của một đoạn model clone (F5/VoxCPM) sinh ra.
+    """Cắt phần ĐUÔI năng lượng thấp của một đoạn VoxCPM sinh ra.
 
     Dòng model này phải sinh đủ 'duration' đã ước lượng; khi ước lượng dài hơn lời
     thực, model lấp phần thừa ở cuối bằng hơi thở/âm lí nhí → nghe thừa ở ranh giới
@@ -1007,6 +983,66 @@ def trim_trailing_silence(wav, sr):
     return wav[:cut] if cut < n else wav
 
 
+def crossfade_join(segs, sr, fade=0.03):
+    """Nối các đoạn tiếng LIỀN mạch bằng crossfade ngắn (KHÔNG chèn khoảng lặng
+    giữa các đoạn) → nghe không đứt quãng. Đuôi đoạn trước (đã cắt lặng) hoà dần
+    vào đầu đoạn sau trong ~fade giây."""
+    segs = [np.asarray(s, dtype=np.float32).reshape(-1) for s in segs if s is not None and np.asarray(s).size]
+    if not segs:
+        return np.zeros(1, dtype=np.float32)
+    out = segs[0].copy()
+    n = max(1, int(sr * fade))
+    for seg in segs[1:]:
+        m = min(n, len(out), len(seg))
+        if m > 1:
+            out[-m:] = out[-m:] * np.linspace(1.0, 0.0, m, dtype=np.float32) + seg[:m] * np.linspace(0.0, 1.0, m, dtype=np.float32)
+            out = np.concatenate([out, seg[m:]])
+        else:
+            out = np.concatenate([out, seg])
+    return out
+
+
+def cap_internal_silence(wav, sr):
+    """Rút ngắn các khoảng LẶNG DÀI nằm GIỮA đoạn tiếng xuống còn VOXCPM_GAP_KEEP
+    giây, để câu dài KHÔNG dấu đọc liền mạch (model hay tự chèn nhịp nghỉ giữa câu
+    dài). Chỉ đụng khoảng lặng dài hơn VOXCPM_MAXGAP; giữ nguyên lặng đầu/đuôi
+    (trim/pad lo) và các ngắt ngắn giữa âm tiết. Lớp synthesize chỉ gọi hàm này cho
+    cụm KHÔNG có dấu câu, nên nhịp nghỉ ở dấu phẩy/chấm của văn bản thường vẫn giữ."""
+    wav = np.asarray(wav, dtype=np.float32).reshape(-1)
+    n = wav.shape[0]
+    win = max(1, int(sr * 0.02))                   # khung 20ms
+    if VOXCPM_MAXGAP <= 0 or n < 4 * win:
+        return wav
+    peak = float(np.max(np.abs(wav)))
+    if peak <= 0:
+        return wav
+    thr = max(0.01, peak * 0.08)
+    nf = n // win
+    frames = wav[: nf * win].reshape(nf, win)
+    loud = np.sqrt(np.mean(frames * frames, axis=1)) > thr
+    idx = np.nonzero(loud)[0]
+    if idx.size == 0:
+        return wav
+    first, last = int(idx[0]), int(idx[-1])
+    gap_fr = max(1, int(VOXCPM_MAXGAP / 0.02))     # ngưỡng "lặng dài" (số khung)
+    keep_fr = max(1, int(VOXCPM_GAP_KEEP / 0.02))
+    out = [wav[: first * win]]                      # giữ nguyên lặng đầu
+    i = first
+    while i <= last:
+        if loud[i]:
+            out.append(frames[i])
+            i += 1
+            continue
+        j = i
+        while j <= last and not loud[j]:
+            j += 1
+        run = frames[i:j]
+        out.append(run[:keep_fr].reshape(-1) if (j - i) > gap_fr else run.reshape(-1))
+        i = j
+    out.append(wav[(last + 1) * win:])              # giữ lặng đuôi + phần dư < 1 khung
+    return np.concatenate(out)
+
+
 def encode(wav, sr, fmt="mp3"):
     pcm = (np.clip(wav, -1, 1) * 32767).astype(np.int16)
     if fmt == "mp3":
@@ -1027,7 +1063,21 @@ def encode(wav, sr, fmt="mp3"):
 
 
 def resolve_ref(req):
-    """Giọng mẫu cho F5/IndexTTS: (đường dẫn wav, lời thoại)."""
+    """Trả đường dẫn wav của giọng mẫu (giọng cá nhân theo custom_id, hoặc preset
+    do VieNeu dựng sẵn ở ref_wav). VoxCPM lấy chất giọng từ file này; lời thoại
+    của mẫu KHÔNG cần (reference mode không dùng; continuation dùng lời của audio
+    đoạn trước)."""
+    vid = req.get("custom_id")
+    ref_wav = str(voices_dir() / f"{check_id(vid)}.wav") if vid else (req.get("ref_wav") or "")
+    if not ref_wav or not os.path.exists(ref_wav):
+        raise ValueError("Không tìm thấy giọng mẫu")
+    return ref_wav
+
+
+def resolve_ref_f5(req):
+    """Giọng mẫu cho F5: trả (đường dẫn wav, lời thoại mẫu). Lời thoại lấy từ JSON
+    giọng cá nhân; nếu thiếu/để mặc định cũ thì tự nhận dạng bằng Whisper và lưu
+    lại. Giọng dựng sẵn có ref_text do lớp Go gửi kèm."""
     ref_wav = req.get("ref_wav") or ""
     ref_text = (req.get("ref_text") or "").strip()
     vid = req.get("custom_id")
@@ -1037,42 +1087,88 @@ def resolve_ref(req):
         d = json.loads(meta_path.read_text(encoding="utf-8"))
         ref_text = (d.get("ref_text") or "").strip()
         legacy = ref_text == LEGACY_REF_TEXT and not d.get("ref_text_verified")
-        if (not ref_text or legacy) and ARGS.model == "f5":
+        if not ref_text or legacy:
             with MODEL_LOCK:
                 ref_text = MODEL.transcribe(ref_wav)
             if not ref_text.strip():
-                raise ValueError("Không nhận dạng được lời thoại. Nghe lại mẫu và nhập đúng lời nói trong mục Sửa lời thoại.")
+                raise ValueError("Không nhận dạng được lời thoại của mẫu. Hãy nhập đúng lời trong mục Sửa lời thoại.")
             d["ref_text"] = ref_text
             d["ref_text_auto"] = True
             meta_path.write_text(json.dumps(d, ensure_ascii=False), encoding="utf-8")
     if not ref_wav or not os.path.exists(ref_wav):
         raise ValueError("Không tìm thấy giọng mẫu")
-    if ARGS.model == "voxcpm" and not ref_text:
-        raise ValueError("VoxCPM2 cần lời thoại của mẫu. Hãy nhập đúng lời trong mẫu ở mục Sửa lời thoại.")
-    if ARGS.model in ("f5", "voxcpm"):  # lời thoại mẫu cùng "khuôn" chuẩn hoá với text sinh
-        ref_text = normalize_vi(ref_text)
-    return ref_wav, ref_text
+    return ref_wav, normalize_vi(ref_text)
 
 
-def f5_style_groups(text, samples, chunker=f5_fine_groups):
-    """Style labels select reference clips; labels never enter model text.
-    chunker chọn mức cắt: f5_fine_groups (từng câu, mặc định) hay coarse_groups
-    (nguyên đoạn, chế độ thử nghiệm VoxCPM không-cắt-câu)."""
-    tag = "macdinh"
+def desc_spans(text, global_desc):
+    """Tách text theo marker mô tả {…}: trả [(cụm, loại nghỉ, mô tả)].
+    Mỗi {…} áp mô tả cho phần SAU nó đến {…} kế tiếp; phần trước marker đầu dùng
+    global_desc (ô "Mô tả cách đọc"). {} rỗng = về mặc định (global_desc). Marker
+    không lọt vào text đọc. Mỗi span được cắt thô (nguyên đoạn)."""
+    base = (global_desc or "").strip()
+    desc = base
     position = 0
     groups = []
-    for match in re.finditer(r"\[([\w]+)\]", text):
-        label = match.group(1).lower()
-        if label != "macdinh" and label not in F5_EMOTIONS:
-            raise ValueError(f"Thẻ [{label}] chưa hỗ trợ. Dùng các thẻ trong mục Cảm xúc F5-TTS.")
-        if label != "macdinh" and not samples.get(label):
-            raise ValueError(f"Chưa thiết lập mẫu cho [{label}]. Mở Thiết lập cảm xúc để chọn mẫu trước.")
-        groups.extend((part, kind, tag) for part, kind in chunker(text[position:match.start()]))
-        tag, position = label, match.end()
-    groups.extend((part, kind, tag) for part, kind in chunker(text[position:]))
+    for match in re.finditer(r"\{([^{}]*)\}", text):
+        groups.extend((part, kind, desc) for part, kind in coarse_groups(text[position:match.start()]))
+        inner = match.group(1).strip()
+        desc = base if inner == "" else inner
+        position = match.end()
+    groups.extend((part, kind, desc) for part, kind in coarse_groups(text[position:]))
     if not groups:
-        raise ValueError("Hãy nhập lời cần đọc sau thẻ cảm xúc.")
+        raise ValueError("Hãy nhập lời cần đọc.")
     return groups
+
+
+def voxcpm_prompt(req, mode, tmp_files):
+    """Chuẩn bị prompt nối tiếp cho VoxCPM: (prompt_wav_path, prompt_text).
+    reference → (None, None). continuation/ref_continuation → cần cả audio đoạn
+    trước (base64) lẫn lời thoại của nó; ghi ra file tạm (dọn qua tmp_files)."""
+    if mode not in ("continuation", "ref_continuation"):
+        return None, None
+    prompt_text = normalize_vi((req.get("prompt_text") or "").strip())
+    if not prompt_text:
+        raise ValueError("Chế độ nối tiếp cần nhập lời thoại của audio đoạn trước.")
+    raw = base64.b64decode(req.get("prompt_b64") or "")
+    if len(raw) < 1000:
+        raise ValueError("Chế độ nối tiếp cần chọn một audio đoạn trước.")
+    tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
+    tmp.write(raw)
+    tmp.close()
+    tmp_files.append(tmp.name)
+    return tmp.name, prompt_text
+
+
+# Lặng (giây) đệm hai đầu giọng mẫu VoxCPM. Đuôi mẫu (hơi thở/ồn) hay rò vào phần
+# sinh ra -> "từ/âm lạ" ở đầu đoạn; cắt đuôi rồi đệm lặng sạch giúp giảm (xem
+# OpenBMB/VoxCPM #272, #244). Chỉnh qua GIONGAI_VOXCPM_REFPAD nếu muốn thử khác.
+VOXCPM_REFPAD = max(0.0, float(os.environ.get("GIONGAI_VOXCPM_REFPAD") or 0.5))
+
+
+def prep_voxcpm_ref(path, tmp_files):
+    """Dọn giọng mẫu trước khi đưa vào VoxCPM (chế độ reference/ref_continuation):
+    cắt đuôi năng lượng thấp (hơi thở/ồn hay rò ra đầu đoạn) rồi đệm VOXCPM_REFPAD
+    giây lặng sạch ở hai đầu. Ghi file tạm (dọn qua tmp_files); lỗi -> dùng mẫu gốc."""
+    if VOXCPM_REFPAD <= 0:
+        return path
+    try:
+        import soundfile as sf
+        wav, sr = sf.read(path, dtype="float32", always_2d=False)
+        if getattr(wav, "ndim", 1) > 1:
+            wav = wav.mean(axis=1)
+        wav = trim_trailing_silence(np.asarray(wav, dtype=np.float32).reshape(-1), sr)
+        if wav.size < int(sr * 0.3):       # mẫu quá ngắn/cắt hụt -> giữ nguyên bản
+            return path
+        pad = np.zeros(int(sr * VOXCPM_REFPAD), dtype=np.float32)
+        wav = np.concatenate([pad, wav, pad])
+        tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
+        tmp.close()
+        sf.write(tmp.name, wav, sr)
+        tmp_files.append(tmp.name)
+        return tmp.name
+    except Exception as e:
+        log("không dọn được giọng mẫu VoxCPM, dùng nguyên bản:", e)
+        return path
 
 
 def synthesize(req, job):
@@ -1081,67 +1177,85 @@ def synthesize(req, job):
         raise ValueError("Văn bản trống")
     groups = [(part, "para" if end else "sent", "macdinh") for part, end in split_groups(text)]
     speed_pct = int(req.get("speed") or 0)
-    native_speed = 1.0
+    tmp_files = []
+    try:
+        if ARGS.model == "vieneu":
+            voice = load_custom_vieneu(req.get("voice")) if req.get("custom") else (req.get("voice") or None)
+            run = lambda g: MODEL.synth(g, voice)
+        elif ARGS.model == "f5":
+            # F5 đọc NGUYÊN ĐOẠN (không cắt câu) như VoxCPM. F5 không hỗ trợ mô tả
+            # cảm xúc theo cú pháp (…) nên bỏ mọi marker {…} khỏi text.
+            ref_wav, ref_text = resolve_ref_f5(req)
+            clean = re.sub(r"\{[^{}]*\}", " ", text)
+            groups = [(part, kind, "") for part, kind in coarse_groups(clean)]
+            run = lambda g, desc: MODEL.synth(normalize_vi(g), ref_wav, ref_text)
+        else:  # voxcpm (model clone nâng cao duy nhất) — luôn để nguyên đoạn
+            ref = resolve_ref(req)   # một giọng mẫu được chọn (preset hoặc cá nhân)
+            mode = (req.get("vox_mode") or "reference").strip()
+            if mode not in VOXCPM_MODES:
+                mode = "reference"
+            if mode in ("reference", "ref_continuation"):  # dọn mẫu để bớt âm lạ đầu đoạn
+                ref = prep_voxcpm_ref(ref, tmp_files)
+            prompt_wav, prompt_text = voxcpm_prompt(req, mode, tmp_files)
+            global_desc = (req.get("desc") or "").strip()
+            if mode == "reference":
+                # Cảm xúc = MÔ TẢ bằng lời: {mô tả} trong text cắt theo từng đoạn,
+                # cộng ô "Mô tả cách đọc" làm mặc định. Ghép "(mô tả)" vào ĐẦU mỗi
+                # cụm theo cú pháp control của VoxCPM2 (mô tả không phát thành tiếng).
+                groups = desc_spans(text, global_desc)
+            else:
+                # Nối tiếp: VoxCPM cấm ghép mô tả; bỏ marker {…} khỏi text.
+                clean = re.sub(r"\{[^{}]*\}", " ", text)
+                groups = [(part, kind, "") for part, kind in coarse_groups(clean)]
+            def vox_text(g, desc):
+                t = normalize_vi(g)   # chuẩn hoá số/ký hiệu→chữ
+                return f"({desc}){t}" if desc else t
+            run = lambda g, desc: MODEL.synth(vox_text(g, desc), ref, mode, prompt_wav, prompt_text)
 
-    if ARGS.model == "vieneu":
-        voice = load_custom_vieneu(req.get("voice")) if req.get("custom") else (req.get("voice") or None)
-        run = lambda g: MODEL.synth(g, voice)
-    else:
-        samples = {}
-        if req.get("custom_id"):
-            metadata = json.loads((voices_dir() / (check_id(req["custom_id"]) + ".json")).read_text(encoding="utf-8"))
-            samples = metadata.get("emotion_samples") or {}
-        nosplit = bool(req.get("nosplit")) if "nosplit" in req else VOXCPM_NOSPLIT  # UI gửi cờ; env là mặc định
-        chunker = coarse_groups if (ARGS.model == "voxcpm" and nosplit) else f5_fine_groups
-        groups = f5_style_groups(text, samples, chunker)
-        references = {}
-        for _, _, tag in groups:
-            if tag in references:
-                continue
-            reference = req if tag == "macdinh" else {"custom_id": check_id(samples[tag])}
-            try:
-                references[tag] = resolve_ref(reference)
-            except FileNotFoundError:
-                raise ValueError(f"Mẫu cho [{tag}] không còn trên máy. Hãy thiết lập lại cảm xúc này.")
-        if ARGS.model == "f5":
-            native_speed = max(0.5, min(2.0, 1 + speed_pct / 100.0))
-            speed_pct = 0
-            run = lambda g, tag: MODEL.synth(normalize_vi(g), *references[tag], native_speed)
-        else:  # voxcpm: chuẩn hoá tiếng Việt (số/ký hiệu→chữ) như F5 để bớt đọc
-               # thừa/sai; tốc độ xử lý bằng librosa bên dưới
-            run = lambda g, tag: MODEL.synth(normalize_vi(g), *references[tag])
-
-    job["total"] = len(groups)
-    parts = []
-    for i, (g, kind, tag) in enumerate(groups):
-        if job.get("cancel"):
-            raise InterruptedError("đã hủy")
-        with MODEL_LOCK:
-            wav = run(g) if ARGS.model == "vieneu" else run(g, tag)
+        job["total"] = len(groups)
+        parts = []   # VieNeu: xen khoảng lặng GAP
+        segs = []    # model clone: các đoạn tiếng, nối liền bằng crossfade
+        for i, (g, kind, tag) in enumerate(groups):
+            if job.get("cancel"):
+                raise InterruptedError("đã hủy")
+            with MODEL_LOCK:
+                wav = run(g) if ARGS.model == "vieneu" else run(g, tag)
+            sr = MODEL.sample_rate
+            seg = np.asarray(wav, dtype=np.float32).reshape(-1)
+            if ARGS.model == "vieneu":
+                parts.append(seg)
+                if i < len(groups) - 1:
+                    parts.append(np.zeros(int(sr * GAP.get(kind, 0.2)), dtype=np.float32))
+            else:                                  # model clone: dọn lặng rồi nối liền
+                if not re.search(r"[.,;:!?…]", g):  # câu dài không dấu → đọc liền mạch
+                    seg = cap_internal_silence(seg, sr)
+                segs.append(trim_trailing_silence(seg, sr))
+            job["done"] = i + 1
         sr = MODEL.sample_rate
-        seg = np.asarray(wav, dtype=np.float32).reshape(-1)
-        if ARGS.model != "vieneu":             # dọn đuôi thừa của F5/VoxCPM
-            seg = trim_trailing_silence(seg, sr)
-        parts.append(seg)
-        if i < len(groups) - 1:
-            parts.append(np.zeros(int(sr * GAP.get(kind, 0.2)), dtype=np.float32))
-        job["done"] = i + 1
-    sr = MODEL.sample_rate
-    wav = np.concatenate(parts) if parts else np.zeros(1, dtype=np.float32)
+        if ARGS.model == "vieneu":
+            wav = np.concatenate(parts) if parts else np.zeros(1, dtype=np.float32)
+        else:
+            wav = crossfade_join(segs, sr)   # các đoạn nối liền, không đứt quãng
 
-    if speed_pct:
-        try:
-            import librosa
-            wav = librosa.effects.time_stretch(wav, rate=max(0.5, 1 + speed_pct / 100.0))
-        except Exception as e:
-            log("không đổi được tốc độ:", e)
-    vol = int(req.get("volume") or 0)
-    if vol:
-        wav = wav * (1 + vol / 100.0)
-    peak = float(np.max(np.abs(wav))) if wav.size else 0
-    if peak > 0.99:
-        wav = wav * (0.99 / peak)
-    return encode(wav, sr, req.get("format") or "mp3")
+        if speed_pct:
+            try:
+                import librosa
+                wav = librosa.effects.time_stretch(wav, rate=max(0.5, 1 + speed_pct / 100.0))
+            except Exception as e:
+                log("không đổi được tốc độ:", e)
+        vol = int(req.get("volume") or 0)
+        if vol:
+            wav = wav * (1 + vol / 100.0)
+        peak = float(np.max(np.abs(wav))) if wav.size else 0
+        if peak > 0.99:
+            wav = wav * (0.99 / peak)
+        return encode(wav, sr, req.get("format") or "mp3")
+    finally:
+        for f in tmp_files:
+            try:
+                os.unlink(f)
+            except OSError:
+                pass
 
 
 def clone(req):
@@ -1188,29 +1302,6 @@ def update_voice(req):
         d["name"] = req["name"].strip()[:60]
     p.write_text(json.dumps(d, ensure_ascii=False), encoding="utf-8")
     return {"ok": True}
-
-
-def transcribe_reference(req):
-    """Recognize the exact saved/uploaded sample without altering its voice metadata."""
-    if ARGS.model != "f5":
-        raise ValueError("Hãy cài và khởi động F5-TTS để tự nhận dạng lời thoại")
-    if req.get("id"):
-        path = voices_dir() / (check_id(req["id"]) + ".wav")
-        with MODEL_LOCK:
-            text = MODEL.transcribe(str(path))
-    else:
-        import tempfile
-        raw = base64.b64decode(req.get("wav_b64") or "", validate=True)
-        if len(raw) < 1000:
-            raise ValueError("Chưa có đoạn ghi âm để nhận dạng")
-        with tempfile.TemporaryDirectory(dir=ARGS.data, prefix="transcribe-") as directory:
-            path = Path(directory) / "reference.wav"
-            path.write_bytes(raw)
-            with MODEL_LOCK:
-                text = MODEL.transcribe(str(path))
-    if not text.strip():
-        raise ValueError("Không nhận dạng được lời thoại. Hãy chọn đoạn có giọng nói rõ hoặc nhập lời thoại thủ công.")
-    return {"ref_text": text}
 
 
 # ----------------------------------------------------------------- http ----
@@ -1286,8 +1377,6 @@ class H(BaseHTTPRequestHandler):
                 return self._send(200, data, "audio/mpeg" if ext == "mp3" else "audio/wav", {"X-Ext": ext})
             if u.path == "/clone":
                 return self._send(200, clone(self._body()))
-            if u.path == "/transcribe":
-                return self._send(200, transcribe_reference(self._body()))
             self._send(404, {"error": "not found"})
         except InterruptedError:
             self._send(499, {"error": "canceled"})

@@ -22,39 +22,6 @@ def _load(names, const_names=()):
     return scope
 
 
-class ChunkMinLengthTest(unittest.TestCase):
-    def setUp(self):
-        self.scope = _load({"split_groups", "f5_fine_groups"}, {"F5_MIN_BYTES"})
-        self.min_bytes = self.scope["F5_MIN_BYTES"]
-
-    def groups(self, text):
-        return self.scope["f5_fine_groups"](text)
-
-    def test_no_chunk_below_f5_speed_trap(self):
-        # Mọi cụm phải >= ngưỡng để F5 không ép local_speed=0.3.
-        for text in [
-            "Chào các bạn. Ừ.",                       # câu cuối cực ngắn
-            "Dạ. Vâng ạ. Tôi sẽ cố gắng hết sức.",    # nhiều câu ngắn ở đầu
-            "Ừ.",                                      # chỉ một câu ngắn (không gộp được)
-            "Tôi đồng ý với bạn về điều đó. Thật. Chắc chắn.",
-        ]:
-            groups = self.groups(text)
-            self.assertTrue(groups, text)
-            if len(groups) > 1:  # còn nhiều cụm thì không cụm nào được rơi dưới ngưỡng
-                for seg, _ in groups:
-                    self.assertGreaterEqual(len(seg.encode("utf-8")), self.min_bytes, (text, seg))
-
-    def test_short_tail_merges_backward(self):
-        groups = self.groups("Chào các bạn thân mến. Ừ.")
-        self.assertEqual(len(groups), 1)
-        self.assertIn("Ừ.", groups[0][0])
-
-    def test_labels_and_pause_kind_preserved(self):
-        # Gộp giữ loại ngắt của câu cuối trong cụm (para ở cuối đoạn văn).
-        groups = self.groups("Dạ. Tôi hiểu rồi và sẽ làm ngay bây giờ.")
-        self.assertEqual(groups[-1][1], "para")
-
-
 class CoarseGroupsTest(unittest.TestCase):
     def setUp(self):
         self.scope = _load({"split_groups", "coarse_groups"})
@@ -68,6 +35,63 @@ class CoarseGroupsTest(unittest.TestCase):
     def test_splits_on_blank_line(self):
         groups = self.scope["coarse_groups"]("Đoạn một ở đây.\n\nĐoạn hai ở đây.")
         self.assertEqual(len(groups), 2)
+
+
+@unittest.skipIf(np is None, "numpy không có trong python hệ thống")
+class CrossfadeJoinTest(unittest.TestCase):
+    def setUp(self):
+        self.join = _load({"crossfade_join"})["crossfade_join"]
+
+    def test_joins_without_inserting_silence(self):
+        sr = 24000
+        a = np.ones(sr, dtype=np.float32)
+        b = np.ones(sr, dtype=np.float32)
+        out = self.join([a, b], sr, 0.03)
+        n = int(sr * 0.03)
+        self.assertEqual(len(out), 2 * sr - n)          # chồng crossfade, không chèn lặng
+        self.assertGreater(float(np.min(np.abs(out))), 0.9)  # không có vùng im lặng ở mối nối
+
+    def test_single_segment_unchanged(self):
+        sr = 24000
+        a = np.ones(100, dtype=np.float32)
+        self.assertEqual(len(self.join([a], sr)), 100)
+
+    def test_empty_returns_tiny(self):
+        self.assertEqual(len(self.join([], 24000)), 1)
+
+
+@unittest.skipIf(np is None, "numpy không có trong python hệ thống")
+class CapInternalSilenceTest(unittest.TestCase):
+    def setUp(self):
+        import os
+        consts = [n for n in TREE.body if isinstance(n, ast.Assign)
+                  and any(isinstance(t, ast.Name) and t.id in {"VOXCPM_MAXGAP", "VOXCPM_GAP_KEEP"} for t in n.targets)]
+        fns = [n for n in TREE.body if isinstance(n, ast.FunctionDef) and n.name == "cap_internal_silence"]
+        self.scope = {"re": re, "np": np, "os": os}
+        exec(compile(ast.Module(body=[*consts, *fns], type_ignores=[]), "cap", "exec"), self.scope)
+        self.cap = self.scope["cap_internal_silence"]
+
+    def _tone(self, sr, secs):
+        return (0.5 * np.sin(np.linspace(0, 300 * secs, int(sr * secs)))).astype(np.float32)
+
+    def test_long_internal_gap_shortened(self):
+        sr = 24000
+        sig = np.concatenate([self._tone(sr, 0.5), np.zeros(int(sr * 0.6), np.float32), self._tone(sr, 0.5)])
+        out = self.cap(sig, sr)
+        self.assertLess(len(out), len(sig))                 # khoảng lặng dài đã bị rút
+        self.assertLess(len(out), int(sr * 1.3))            # ~0.5 + 0.1 + 0.5 + lề
+        self.assertGreaterEqual(len(out), int(sr * 1.05))   # vẫn giữ đủ hai đoạn tiếng
+
+    def test_short_gap_preserved(self):
+        sr = 24000
+        sig = np.concatenate([self._tone(sr, 0.5), np.zeros(int(sr * 0.2), np.float32), self._tone(sr, 0.5)])
+        out = self.cap(sig, sr)
+        self.assertEqual(len(out), len(sig))                # ngắt ngắn (< ngưỡng) giữ nguyên
+
+    def test_pure_tone_unchanged(self):
+        sr = 24000
+        sig = self._tone(sr, 1.0)
+        self.assertEqual(len(self.cap(sig, sr)), len(sig))
 
 
 @unittest.skipIf(np is None, "numpy không có trong python hệ thống")

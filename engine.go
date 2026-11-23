@@ -38,7 +38,7 @@ const engineVersion = "2"
 
 const f5Package = "f5-tts @ https://github.com/nguyenthienhy/F5-TTS-Vietnamese/archive/e74db9d5a5e521bb930490e7cd7912438bf7ae84.zip"
 
-// Câu mẫu để tạo giọng tham chiếu cho F5 từ giọng có sẵn của VieNeu (đã viết thường, không chữ số).
+// Câu mẫu để tạo giọng tham chiếu cho F5/VoxCPM từ giọng có sẵn của VieNeu (đã viết thường, không chữ số).
 const presetRefText = "xin chào các bạn, hôm nay tôi sẽ kể cho các bạn nghe một câu chuyện thú vị về cuộc sống thường ngày."
 
 type modelDef struct {
@@ -524,12 +524,12 @@ func doInstall(m *modelDef, gpu bool) {
 		// uv cắt đường dẫn --constraint ở dấu cách (lỗi trên máy có dấu cách trong
 		// đường dẫn như "Application Support" hay "C:\Users\Tên Có Dấu Cách"); dùng
 		// tên file tương đối vì runLogged đặt cmd.Dir = engineDir().
-		const constraintName = "f5-torch-constraints.txt"
-		if err := os.WriteFile(filepath.Join(engineDir(), constraintName), []byte(strings.Join(torchPackages(gpu, runtime.GOOS), "\n")+"\n"), 0600); err != nil {
+		const f5ConstraintName = "f5-torch-constraints.txt"
+		if err := os.WriteFile(filepath.Join(engineDir(), f5ConstraintName), []byte(strings.Join(torchPackages(gpu, runtime.GOOS), "\n")+"\n"), 0600); err != nil {
 			fail(err)
 			return
 		}
-		args := []string{"pip", "install", "--python", py, "--constraint", constraintName, pkg,
+		args := []string{"pip", "install", "--python", py, "--constraint", f5ConstraintName, pkg,
 			"transformers>=4.45,<4.58", "pyarrow<20", "sea-g2p", "lameenc", "soundfile", "librosa"}
 		args = append(args, runtimePackages(runtime.GOOS)...)
 		if index := torchIndex(gpu, runtime.GOOS); index != "" {
@@ -821,12 +821,14 @@ func presetRef(ctx context.Context, voice string) (string, error) {
 }
 
 // synthEngine tạo giọng bằng engine trên máy.
-func synthEngine(ctx context.Context, model, jobID, text, voice string, custom bool, speed, volume int, nosplit bool, progress func(d, t int)) ([]byte, string, error) {
+// Với VoxCPM, mode ∈ {reference, continuation, ref_continuation}; promptB64/promptText
+// là audio đoạn trước + lời thoại của nó (chỉ dùng cho hai chế độ nối tiếp).
+func synthEngine(ctx context.Context, model, jobID, text, voice string, custom bool, speed, volume int, mode, promptB64, promptText, desc string, progress func(d, t int)) ([]byte, string, error) {
 	m, err := getModel(model)
 	if err != nil {
 		return nil, "", err
 	}
-	req := map[string]any{"job": jobID, "text": text, "speed": speed, "volume": volume, "nosplit": nosplit}
+	req := map[string]any{"job": jobID, "text": text, "speed": speed, "volume": volume}
 	if m.ID == "vieneu" {
 		req["voice"], req["custom"] = voice, custom
 	} else if custom {
@@ -837,6 +839,18 @@ func synthEngine(ctx context.Context, model, jobID, text, voice string, custom b
 			return nil, "", err
 		}
 		req["ref_wav"], req["ref_text"] = ref, presetRefText
+	}
+	if m.ID == "voxcpm" {
+		req["vox_mode"] = mode
+		if promptB64 != "" {
+			req["prompt_b64"] = promptB64
+		}
+		if promptText != "" {
+			req["prompt_text"] = promptText
+		}
+		if desc != "" {
+			req["desc"] = desc
+		}
 	}
 	body, _ := json.Marshal(req)
 	type res struct {
@@ -1127,27 +1141,6 @@ func registerEngineAPI(mux *http.ServeMux) {
 			return
 		}
 		writeJSON(w, map[string]bool{"ok": true})
-	})
-
-	mux.HandleFunc("/api/engine/transcribe", func(w http.ResponseWriter, r *http.Request) {
-		if !postOnly(w, r) {
-			return
-		}
-		if !engineReady("f5") {
-			http.Error(w, "Hãy chọn F5-TTS và chờ mô hình sẵn sàng để tự nhận dạng lời thoại.", 503)
-			return
-		}
-		body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 30<<20))
-		if err != nil {
-			http.Error(w, "file quá lớn", 400)
-			return
-		}
-		var out map[string]any
-		if err := engJSON(r.Context(), "f5", "POST", "/transcribe", body, &out); err != nil {
-			http.Error(w, err.Error(), 400)
-			return
-		}
-		writeJSON(w, out)
 	})
 
 	mux.HandleFunc("/api/engine/voice-update", func(w http.ResponseWriter, r *http.Request) {

@@ -49,7 +49,7 @@ func TestF5EmotionSetupAndRemoval(t *testing.T) {
 	if err := json.Unmarshal(data, &profile); err != nil || profile.EmotionSamples["vui"] != "abcdef34" || len(profile.SpeakerEmb) != 2 {
 		t.Fatalf("mapping or voice data lost: %s", data)
 	}
-	in := ttsRequest{Engine: "f5", Custom: true, Voice: "abcdef12", Text: "[vui] Xin chào."}
+	in := ttsRequest{Engine: "voxcpm", Custom: true, Voice: "abcdef12", Text: "[vui] Xin chào."}
 	before := previewName(in)
 	write("abcdef34", `{"ref_text":"Lời thoại đã sửa","ref_text_verified":true}`)
 	if previewName(in) == before {

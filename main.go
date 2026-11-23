@@ -54,7 +54,7 @@ func snapshot(j *job) job {
 
 var badName = regexp.MustCompile(`[<>:"/\\|?*\x00-\x1f]+`)
 var emotionCuePattern = regexp.MustCompile(`(?i)\[(?:cười|cuoi|chuckle|thở dài|tho dai|sigh|hắng giọng|hang giong|clear throat)\]|<\|emotion_[123]\|>`)
-var f5StylePattern = regexp.MustCompile(`(?i)\[(?:vui|buon|gian|haohung|thitham|kechuyen|macdinh)\]`)
+var emotionStylePattern = regexp.MustCompile(`(?i)\[(?:vui|buon|gian|haohung|thitham|kechuyen|macdinh)\]`)
 
 func fileNameFor(text string) string {
 	words := strings.Fields(text)
@@ -78,10 +78,14 @@ type ttsRequest struct {
 	Rate    int    `json:"rate"`
 	Pitch   int    `json:"pitch"`
 	Volume  int    `json:"volume"`
-	Engine  string `json:"engine"`  // "" = Microsoft, "vieneu" | "f5" = giọng AI trên máy
+	Engine  string `json:"engine"`  // "" = Microsoft, "vieneu" | "voxcpm" = giọng AI trên máy
 	Custom  bool   `json:"custom"`  // giọng cá nhân
 	Preview bool   `json:"preview"` // nghe thử: lưu vào bộ nhớ đệm, không vào thư mục kết quả
-	NoSplit bool   `json:"nosplit"` // VoxCPM: đọc nguyên đoạn thay vì cắt từng câu
+	// VoxCPM: chế độ clone + audio đoạn trước (base64) và lời thoại của nó (cho nối tiếp)
+	Mode       string `json:"mode"`
+	PromptB64  string `json:"prompt_b64"`
+	PromptText string `json:"prompt_text"`
+	Desc       string `json:"desc"` // mô tả cách đọc (chỉ reference mode)
 }
 
 func previewDir() string { return filepath.Join(engineDir(), "previews") }
@@ -90,15 +94,15 @@ func previewName(in ttsRequest) string {
 	h := sha256.New()
 	fmt.Fprintf(h, "%s|%s|%v|%d|%d|%d|%s", in.Engine, in.Voice, in.Custom, in.Rate, in.Pitch, in.Volume, in.Text)
 	if in.Engine == "voxcpm" {
-		fmt.Fprintf(h, "|ns:%v", in.NoSplit) // cache nghe thử phân biệt chế độ cắt
+		fmt.Fprintf(h, "|m:%s|d:%s|pt:%s|pb:%d", in.Mode, in.Desc, in.PromptText, len(in.PromptB64)) // cache phân biệt chế độ + mô tả + audio nối tiếp
 	}
-	if in.Custom && validVoiceID(in.Voice) && (in.Engine == "vieneu" || in.Engine == "f5") {
+	if in.Custom && validVoiceID(in.Voice) && (in.Engine == "vieneu" || in.Engine == "voxcpm") {
 		if metadata, err := os.ReadFile(filepath.Join(voiceStorageDir(), in.Voice+".json")); err == nil {
 			h.Write(metadata)
 			var profile struct {
 				EmotionSamples map[string]string `json:"emotion_samples"`
 			}
-			if (in.Engine == "f5" || in.Engine == "voxcpm") && json.Unmarshal(metadata, &profile) == nil {
+			if in.Engine == "voxcpm" && json.Unmarshal(metadata, &profile) == nil {
 				keys := make([]string, 0, len(profile.EmotionSamples))
 				for tag := range profile.EmotionSamples {
 					keys = append(keys, tag)
@@ -124,7 +128,7 @@ func startJob(in ttsRequest) *job {
 	o := TTSOptions{Voice: in.Voice, Rate: in.Rate, Pitch: in.Pitch, Volume: in.Volume}
 	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Hour)
 	total := 1
-	local := in.Engine == "vieneu" || in.Engine == "f5" || in.Engine == "voxcpm"
+	local := in.Engine == "vieneu" || in.Engine == "voxcpm" || in.Engine == "f5"
 	if !local {
 		total = len(splitText(cleanText(text), maxChunkBytes))
 	}
@@ -155,7 +159,7 @@ func startJob(in ttsRequest) *job {
 		var err error
 		ext := "mp3"
 		if local {
-			mp3, ext, err = synthEngine(ctx, in.Engine, j.ID, text, in.Voice, in.Custom, in.Rate, in.Volume, in.NoSplit, prog)
+			mp3, ext, err = synthEngine(ctx, in.Engine, j.ID, text, in.Voice, in.Custom, in.Rate, in.Volume, in.Mode, in.PromptB64, in.PromptText, in.Desc, prog)
 		} else {
 			mp3, err = Synthesize(ctx, text, o, prog)
 		}
@@ -250,11 +254,11 @@ func handler(quit chan struct{}) http.Handler {
 			http.Error(w, "Thẻ biểu cảm chỉ dùng với VieNeu. Chọn VieNeu hoặc bỏ thẻ khỏi nội dung.", 400)
 			return
 		}
-		if f5StylePattern.MatchString(in.Text) && ((in.Engine != "f5" && in.Engine != "voxcpm") || !in.Custom) {
-			http.Error(w, "Thẻ cảm xúc cần chọn F5-TTS hoặc VoxCPM2 và một giọng cá nhân đã thiết lập mẫu cảm xúc.", 400)
+		if emotionStylePattern.MatchString(in.Text) && (in.Engine != "voxcpm" || !in.Custom) {
+			http.Error(w, "Thẻ cảm xúc cần chọn VoxCPM2 và một giọng cá nhân đã thiết lập mẫu cảm xúc.", 400)
 			return
 		}
-		if (in.Engine == "vieneu" || in.Engine == "f5" || in.Engine == "voxcpm") && currentEngine(in.Engine) == nil {
+		if (in.Engine == "vieneu" || in.Engine == "voxcpm" || in.Engine == "f5") && currentEngine(in.Engine) == nil {
 			http.Error(w, "giọng AI trên máy chưa sẵn sàng", 503)
 			return
 		}
