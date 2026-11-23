@@ -177,7 +177,7 @@ button:focus-visible,summary:focus-visible{outline:3px solid var(--accent-soft);
       <section class="card voice-card" aria-labelledby="voiceHeading">
         <div class="section-heading"><span class="step">01</span><h2 id="voiceHeading">Chọn giọng đọc</h2></div>
         <label class="fl" for="engineSelect">Công cụ tạo giọng</label>
-        <select id="engineSelect"><option value="ms">Microsoft · trực tuyến</option><option value="vieneu">VieNeu · nhanh, trên máy</option><option value="voxcpm">VoxCPM2 · clone đa ngữ, trên máy</option><option value="f5">F5-TTS · clone tiếng Việt, trên máy</option></select>
+        <select id="engineSelect"><option value="ms">Microsoft · trực tuyến</option><option value="vieneu">VieNeu · nhanh, trên máy</option><option value="voxcpm">VoxCPM2 · clone đa ngữ, trên máy</option></select>
         <div class="sub engine-hint" id="engineHint"></div>
         <div id="msPanel">
           <label class="fl" for="locale">Ngôn ngữ</label><select id="locale"></select>
@@ -605,16 +605,15 @@ const VOX_DESCS={
 function renderEmotionTools(){
  const previous=$('#emotionCue').value;
  const isVox=engine==='vieneu' && vmodel==='voxcpm';
- const isF5m=engine==='vieneu' && vmodel==='f5';
  if(isVox){
   $('#emotionCue').innerHTML='<option value="{}">Tùy chỉnh / về mặc định · {}</option>'+Object.entries(VOX_DESCS).map(([phrase,label])=>`<option value="{${phrase}}">${label}</option>`).join('');
   $('#emotionHint').textContent='Bôi đen đoạn rồi chèn mô tả để đọc đoạn đó theo mô tả; hoặc chèn tại con trỏ (áp đến mô tả kế tiếp). {} = về mô tả mặc định. Chỉ tác dụng ở chế độ Reference.';
  }else{
   $('#emotionCue').innerHTML='<option value="[cười]">Cười nhẹ · [cười]</option><option value="[thở dài]">Thở dài · [thở dài]</option><option value="[hắng giọng]">Hắng giọng · [hắng giọng]</option>';
-  $('#emotionHint').textContent=isF5m?'F5-TTS đọc nguyên đoạn, chưa hỗ trợ chèn cảm xúc. Dùng VoxCPM2 để mô tả cảm xúc bằng lời, hoặc VieNeu để chèn biểu cảm.':engine==='vieneu'?'Bôi đen đoạn rồi chèn biểu cảm để đánh dấu màu. VieNeu tạo biểu cảm tại thẻ chèn; màu không đảm bảo cả đoạn có cùng cảm xúc.':'Chọn VieNeu để dùng biểu cảm, hoặc VoxCPM2 để mô tả cảm xúc bằng lời.';
+  $('#emotionHint').textContent=engine==='vieneu'?'Bôi đen đoạn rồi chèn biểu cảm để đánh dấu màu. VieNeu tạo biểu cảm tại thẻ chèn; màu không đảm bảo cả đoạn có cùng cảm xúc.':'Chọn VieNeu để dùng biểu cảm, hoặc VoxCPM2 để mô tả cảm xúc bằng lời.';
  }
  if([...$('#emotionCue').options].some(option=>option.value===previous&&!option.disabled))$('#emotionCue').value=previous;
- const supported=engine==='vieneu' && !isF5m && (isVox ? !!$('#vvoice').value : true);
+ const supported=engine==='vieneu' && (isVox ? !!$('#vvoice').value : true);
  $('#emotionCue').disabled=!supported;$('#insertEmotionBtn').disabled=!supported;
  $('#setupEmotionsBtn').classList.add('hide');  // VoxCPM dùng mô tả bằng lời, không thu mẫu
  renderTextHighlights();
@@ -776,13 +775,12 @@ $('#quitBtn').onclick = async ()=>{
 // ===================== Giọng AI nâng cao (VieNeu) =====================
 let engine = store.get('engine','ms'), vnReady = false, vnVoices = {presets:[], custom:[]}, vnTimer = null, gpu = null, lastSt = null;
 let vmodel = store.get('vmodel','vieneu'), f5Ready = false;
-if(vmodel!=='vieneu' && vmodel!=='voxcpm' && vmodel!=='f5'){ vmodel='voxcpm'; store.set('vmodel',vmodel); }  // di trú
+if(vmodel!=='vieneu' && vmodel!=='voxcpm'){ vmodel='voxcpm'; store.set('vmodel',vmodel); }  // di trú: F5 đã gỡ
 // Mô hình nâng cao dạng clone (ref audio + cảm xúc). Mọi mô hình khác 'vieneu'
 // dùng chung UI này; f5Ready = mô hình nâng cao đang chọn đã sẵn sàng.
-const ADV_NAMES={voxcpm:'VoxCPM2', f5:'F5-TTS'};
+const ADV_NAMES={voxcpm:'VoxCPM2'};
 const ADV_DESC={
- voxcpm:'VoxCPM2 (OpenBMB) clone giọng đa ngôn ngữ. Mô hình lớn (~2 tỷ tham số): cần máy mạnh, tốt nhất có card NVIDIA; chạy CPU sẽ rất chậm. Giấy phép Apache-2.0 (dùng thương mại được).',
- f5:'F5-TTS tiếng Việt (hynt/F5-TTS-Vietnamese-ViVoice) clone giọng từ mẫu. Đọc nguyên đoạn (không cắt câu) để thử chất lượng. Cần máy mạnh, tốt nhất có card NVIDIA; chạy CPU sẽ chậm.'
+ voxcpm:'VoxCPM2 (OpenBMB) clone giọng đa ngôn ngữ. Mô hình lớn (~2 tỷ tham số): cần máy mạnh, tốt nhất có card NVIDIA; chạy CPU sẽ rất chậm. Giấy phép Apache-2.0 (dùng thương mại được).'
 };
 const isAdv=()=>vmodel!=='vieneu';
 const advName=()=>ADV_NAMES[vmodel]||'Mô hình nâng cao';

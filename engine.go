@@ -2,7 +2,7 @@ package main
 
 // Cài đặt và điều khiển các engine giọng AI chạy trên máy (Python):
 //   vieneu : VieNeu-TTS — 25 giọng có sẵn + phân tích giọng cá nhân (bắt buộc, cài trước)
-//   f5     : F5-TTS tiếng Việt — rõ hơn, giống giọng mẫu hơn (tùy chọn)
+//   voxcpm : VoxCPM2 — clone giọng đa ngữ từ mẫu (tùy chọn)
 
 import (
 	"archive/tar"
@@ -36,9 +36,7 @@ var engineScript []byte
 
 const engineVersion = "2"
 
-const f5Package = "f5-tts @ https://github.com/nguyenthienhy/F5-TTS-Vietnamese/archive/e74db9d5a5e521bb930490e7cd7912438bf7ae84.zip"
-
-// Câu mẫu để tạo giọng tham chiếu cho F5/VoxCPM từ giọng có sẵn của VieNeu (đã viết thường, không chữ số).
+// Câu mẫu để tạo giọng tham chiếu cho VoxCPM từ giọng có sẵn của VieNeu (đã viết thường, không chữ số).
 const presetRefText = "xin chào các bạn, hôm nay tôi sẽ kể cho các bạn nghe một câu chuyện thú vị về cuộc sống thường ngày."
 
 type modelDef struct {
@@ -51,7 +49,6 @@ type modelDef struct {
 
 var modelDefs = map[string]*modelDef{
 	"vieneu": {ID: "vieneu", Name: "VieNeu-TTS", Venv: "venv", Marker: "installed.json", Python: "3.12"},
-	"f5":     {ID: "f5", Name: "F5-TTS tiếng Việt", Venv: "venv-f5", Marker: "installed-f5.json", Python: "3.11"},
 	"voxcpm": {ID: "voxcpm", Name: "VoxCPM2", Venv: "venv-voxcpm", Marker: "installed-voxcpm.json", Python: "3.11"},
 }
 
@@ -510,35 +507,6 @@ func doInstall(m *modelDef, gpu bool) {
 			fail(fmt.Errorf("cài VieNeu-TTS: %w", err))
 			return
 		}
-	case "f5":
-		var err error
-		if gpu, err = installTorch(ctx, py, gpu); err != nil {
-			fail(fmt.Errorf("cài PyTorch: %w", err))
-			return
-		}
-		setStep("Cài thư viện F5-TTS tiếng Việt")
-		pkg := f5Package
-		if v := os.Getenv("GIONGAI_F5_PACKAGE"); v != "" { // chỉ dùng để kiểm thử
-			pkg = v
-		}
-		// uv cắt đường dẫn --constraint ở dấu cách (lỗi trên máy có dấu cách trong
-		// đường dẫn như "Application Support" hay "C:\Users\Tên Có Dấu Cách"); dùng
-		// tên file tương đối vì runLogged đặt cmd.Dir = engineDir().
-		const f5ConstraintName = "f5-torch-constraints.txt"
-		if err := os.WriteFile(filepath.Join(engineDir(), f5ConstraintName), []byte(strings.Join(torchPackages(gpu, runtime.GOOS), "\n")+"\n"), 0600); err != nil {
-			fail(err)
-			return
-		}
-		args := []string{"pip", "install", "--python", py, "--constraint", f5ConstraintName, pkg,
-			"transformers>=4.45,<4.58", "pyarrow<20", "sea-g2p", "lameenc", "soundfile", "librosa"}
-		args = append(args, runtimePackages(runtime.GOOS)...)
-		if index := torchIndex(gpu, runtime.GOOS); index != "" {
-			args = append(args, "--extra-index-url", index)
-		}
-		if err := runLogged(ctx, uv, args...); err != nil {
-			fail(fmt.Errorf("cài F5-TTS: %w", err))
-			return
-		}
 	case "voxcpm":
 		var err error
 		if gpu, err = installTorch(ctx, py, gpu); err != nil {
@@ -546,7 +514,9 @@ func doInstall(m *modelDef, gpu bool) {
 			return
 		}
 		setStep("Cài thư viện VoxCPM2")
-		// Dùng tên file tương đối cho --constraint (xem ghi chú ở nhánh f5).
+		// uv cắt đường dẫn --constraint ở dấu cách (lỗi trên máy có dấu cách trong
+		// đường dẫn như "Application Support"); dùng tên file tương đối vì runLogged
+		// đặt cmd.Dir = engineDir().
 		const constraintName = "voxcpm-torch-constraints.txt"
 		if err := os.WriteFile(filepath.Join(engineDir(), constraintName), []byte(strings.Join(torchPackages(gpu, runtime.GOOS), "\n")+"\n"), 0600); err != nil {
 			fail(err)
@@ -558,8 +528,8 @@ func doInstall(m *modelDef, gpu bool) {
 		// (qua datasets>=3), nhưng index pytorch (--extra-index-url ở dưới) chỉ có
 		// requests==2.28.1; mặc định uv khoá requests vào index đầu tiên -> xung
 		// đột -> lùi voxcpm về 1.x. Cho phép lấy requests bản mới từ PyPI.
-		// sea-g2p: chuẩn hoá tiếng Việt (đọc số/ký hiệu thành chữ) như F5 — giảm
-		// đọc thừa/sai ở chỗ có số. Thiếu nó thì normalize_vi chỉ lower-case.
+		// sea-g2p: chuẩn hoá tiếng Việt (đọc số/ký hiệu thành chữ) — giảm đọc
+		// thừa/sai ở chỗ có số. Thiếu nó thì normalize_vi chỉ lower-case.
 		args := []string{"pip", "install", "--python", py, "--index-strategy", "unsafe-best-match",
 			"--constraint", constraintName, "voxcpm==2.0.3", "sea-g2p", "lameenc", "soundfile", "librosa"}
 		args = append(args, runtimePackages(runtime.GOOS)...)
@@ -792,7 +762,7 @@ func engAudio(ctx context.Context, id string, body []byte) ([]byte, string, erro
 
 var refMu sync.Mutex
 
-// presetRef tạo (một lần) file giọng mẫu cho F5 từ giọng có sẵn của VieNeu.
+// presetRef tạo (một lần) file giọng mẫu cho VoxCPM từ giọng có sẵn của VieNeu.
 func presetRef(ctx context.Context, voice string) (string, error) {
 	h := sha256.Sum256([]byte(voice + "|" + presetRefText))
 	path := filepath.Join(engineDir(), "refs", hex.EncodeToString(h[:8])+".wav")
