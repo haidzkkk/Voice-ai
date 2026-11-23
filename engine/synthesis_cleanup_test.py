@@ -37,6 +37,27 @@ class CoarseGroupsTest(unittest.TestCase):
         self.assertEqual(len(groups), 2)
 
 
+class SpaceAfterPunctTest(unittest.TestCase):
+    def setUp(self):
+        self.sp = _load({"space_after_punct"})["space_after_punct"]
+
+    def test_adds_space_after_punct_glued_to_word(self):
+        self.assertEqual(self.sp("Câu một.Câu hai"), "Câu một. Câu hai")
+        self.assertEqual(self.sp("a;b:c!d?e"), "a; b: c! d? e")
+        self.assertEqual(self.sp("xin chào,bạn"), "xin chào, bạn")
+
+    def test_keeps_existing_space(self):
+        self.assertEqual(self.sp("Câu một. Câu hai."), "Câu một. Câu hai.")
+
+    def test_protects_numbers(self):
+        self.assertEqual(self.sp("giá 1.000.000 đồng"), "giá 1.000.000 đồng")
+        self.assertEqual(self.sp("số pi là 3,14 nhé"), "số pi là 3,14 nhé")
+
+    def test_number_then_word_still_spaced(self):
+        # '.' sau số nhưng trước CHỮ (kết câu) vẫn được tách
+        self.assertEqual(self.sp("tôi có 5.Cảm ơn"), "tôi có 5. Cảm ơn")
+
+
 @unittest.skipIf(np is None, "numpy không có trong python hệ thống")
 class CrossfadeJoinTest(unittest.TestCase):
     def setUp(self):

@@ -815,6 +815,21 @@ def coarse_groups(text, limit=700):
     return [(part, "para" if end else "sent") for part, end in split_groups(text, limit)]
 
 
+def space_after_punct(text):
+    """Thêm dấu cách sau dấu câu nếu đang dính liền chữ phía sau (vd 'a;b'→'a; b',
+    'Câu một.Câu hai'→'Câu một. Câu hai'), để VoxCPM nhận rõ ranh giới câu/cụm và
+    nghỉ đều hơn. Chừa dấu . , nằm GIỮA hai chữ số (1.000, 3,14) để không tách nhầm số."""
+    text = re.sub(r"([;:!?…])(?=\S)", r"\1 ", text)
+
+    def sp(m):
+        s, i = m.string, m.start(1)
+        before = s[i - 1] if i > 0 else ""
+        after = s[i + 1] if i + 1 < len(s) else ""
+        return m.group(1) if (before.isdigit() and after.isdigit()) else m.group(1) + " "
+
+    return re.sub(r"([.,])(?=\S)", sp, text)
+
+
 def trim_trailing_silence(wav, sr):
     """Cắt phần ĐUÔI năng lượng thấp của một đoạn VoxCPM sinh ra.
 
@@ -1014,6 +1029,7 @@ def synthesize(req, job):
             voice = load_custom_vieneu(req.get("voice")) if req.get("custom") else (req.get("voice") or None)
             run = lambda g: MODEL.synth(g, voice)
         else:  # voxcpm (model clone nâng cao duy nhất) — luôn để nguyên đoạn
+            text = space_after_punct(text)   # dấu cách sau dấu câu → nghỉ đều ở dấu câu
             ref = resolve_ref(req)   # một giọng mẫu được chọn (preset hoặc cá nhân)
             mode = (req.get("vox_mode") or "reference").strip()
             if mode not in VOXCPM_MODES:
