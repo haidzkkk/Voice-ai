@@ -58,6 +58,36 @@ class SpaceAfterPunctTest(unittest.TestCase):
         self.assertEqual(self.sp("tôi có 5.Cảm ơn"), "tôi có 5. Cảm ơn")
 
 
+class ReadNumbersViTest(unittest.TestCase):
+    def setUp(self):
+        self.read = _load({"_vi_read_group", "_vi_read_int", "read_numbers_vi"},
+                          {"_VI_ONES", "_VI_SCALE"})["read_numbers_vi"]
+
+    def test_year(self):
+        self.assertEqual(self.read("năm 1975 nhé"), "năm một nghìn chín trăm bảy mươi lăm nhé")
+
+    def test_tens_special(self):
+        self.assertEqual(self.read("21"), "hai mươi mốt")
+        self.assertEqual(self.read("25"), "hai mươi lăm")
+        self.assertEqual(self.read("15"), "mười lăm")
+
+    def test_hundred_with_zero_tens(self):
+        self.assertEqual(self.read("105"), "một trăm lẻ năm")
+
+    def test_thousand_separator(self):
+        self.assertEqual(self.read("1.000.000"), "một triệu")
+        self.assertEqual(self.read("150000"), "một trăm năm mươi nghìn")
+
+    def test_decimal_comma(self):
+        self.assertEqual(self.read("3,14"), "ba phẩy một bốn")
+
+    def test_zero(self):
+        self.assertEqual(self.read("số 0"), "số không")
+
+    def test_no_number_unchanged(self):
+        self.assertEqual(self.read("không có số nào"), "không có số nào")
+
+
 @unittest.skipIf(np is None, "numpy không có trong python hệ thống")
 class CrossfadeJoinTest(unittest.TestCase):
     def setUp(self):

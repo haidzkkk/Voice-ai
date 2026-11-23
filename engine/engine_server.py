@@ -85,19 +85,96 @@ def log(*a):
 
 _NORM = None
 
+_VI_ONES = ["không", "một", "hai", "ba", "bốn", "năm", "sáu", "bảy", "tám", "chín"]
+# Bậc mỗi 3 chữ số. Đủ cho năm/giá tiền thông thường (tới ~999 triệu tỷ).
+_VI_SCALE = ["", " nghìn", " triệu", " tỷ", " nghìn tỷ", " triệu tỷ", " tỷ tỷ"]
+
+
+def _vi_read_group(n, full):
+    """Đọc một nhóm 3 chữ số (0..999). full=True thì đọc cả 'x trăm' kể cả khi
+    trăm = 0 (dùng cho nhóm KHÔNG phải nhóm cao nhất, vd '...triệu không trăm...')."""
+    tram, rem = divmod(n, 100)
+    chuc, donvi = divmod(rem, 10)
+    parts = []
+    if tram or full:
+        parts.append(_VI_ONES[tram] + " trăm")
+    if chuc == 0:
+        if donvi:
+            if tram or full:
+                parts.append("lẻ")
+            parts.append(_VI_ONES[donvi])
+    elif chuc == 1:
+        parts.append("mười")
+        if donvi == 5:
+            parts.append("lăm")
+        elif donvi:
+            parts.append(_VI_ONES[donvi])
+    else:
+        parts.append(_VI_ONES[chuc] + " mươi")
+        if donvi == 1:
+            parts.append("mốt")
+        elif donvi == 5:
+            parts.append("lăm")
+        elif donvi:
+            parts.append(_VI_ONES[donvi])
+    return " ".join(parts)
+
+
+def _vi_read_int(num):
+    """Đọc số nguyên không âm thành chữ tiếng Việt."""
+    if num == 0:
+        return "không"
+    groups = []
+    while num > 0:
+        num, g = divmod(num, 1000)
+        groups.append(g)
+    out = []
+    for i in range(len(groups) - 1, -1, -1):
+        if groups[i] == 0:
+            continue
+        scale = _VI_SCALE[i] if i < len(_VI_SCALE) else ""
+        out.append(_vi_read_group(groups[i], full=(i != len(groups) - 1)) + scale)
+    return " ".join(out)
+
+
+def read_numbers_vi(text):
+    """Đổi các cụm chữ SỐ thành chữ tiếng Việt (vd '1975'→'một nghìn chín trăm bảy
+    mươi lăm', '1.000.000'→'một triệu', '3,14'→'ba phẩy một bốn'). Dùng khi không có
+    sea_g2p để VoxCPM khỏi đọc ríu/sai chữ số. '.' = ngăn hàng nghìn, ',' = thập phân."""
+    def repl(m):
+        tok = m.group(0)
+        intp, _, decp = tok.partition(",")
+        intp = intp.replace(".", "")
+        if not intp.isdigit():
+            return tok
+        words = _vi_read_int(int(intp))
+        decp = re.sub(r"\D", "", decp)
+        if decp:
+            words += " phẩy " + " ".join(_VI_ONES[int(c)] for c in decp)
+        return words
+
+    return re.sub(r"\d{1,3}(?:\.\d{3})+(?:,\d+)?|\d+(?:,\d+)?", repl, text)
+
 
 def normalize_vi(text):
-    """Đọc số, ngày giờ, ký hiệu thành chữ; trả về chữ thường (cho VoxCPM)."""
+    """Đọc số, ngày giờ, ký hiệu thành chữ; trả về chữ thường (cho VoxCPM).
+    Ưu tiên sea_g2p; nếu thiếu thì vẫn đọc được SỐ bằng bộ đọc số nội bộ."""
     global _NORM
-    try:
-        if _NORM is None:
+    if _NORM is None:
+        try:
             from sea_g2p import Normalizer
             _NORM = Normalizer(lang="vi")
-        out = _NORM.normalize(text)
-        out = re.sub(r"</?en>", "", out)
-    except Exception as e:
-        log("không chuẩn hóa được văn bản:", e)
-        out = text.lower()
+        except Exception as e:
+            log("thiếu sea_g2p, chỉ đọc số bằng bộ nội bộ:", e)
+            _NORM = False
+    out = text
+    if _NORM:
+        try:
+            out = re.sub(r"</?en>", "", _NORM.normalize(text))
+        except Exception as e:
+            log("không chuẩn hóa được văn bản:", e)
+            out = text
+    out = read_numbers_vi(out).lower()   # đọc số còn sót (vd khi thiếu sea_g2p)
     return re.sub(r"\s+", " ", out).strip()
 
 
