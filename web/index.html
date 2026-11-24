@@ -226,23 +226,27 @@ body{min-height:100vh}
       return _f(u, o);
     };
   })();
-  // Dò engine: chưa chạy thì hiện cổng tải.
+  // Dò engine local liên tục: gọi /api/ping, xác minh đúng là engine Giọng AI
+  // (trả về đúng appID). Mất kết nối → hiện lại cổng tải; có lại → tự ẩn.
   (function(){
-    var timer=null;
-    function setGate(down){
-      var g=document.getElementById('engineGate'); if(g) g.classList.toggle('hide', !down);
-      if(down && !timer){ timer=setInterval(ping, 4000); }
-      else if(!down && timer){ clearInterval(timer); timer=null; }
+    var APP_ID='giongai-v1', connected=null, timer=null;
+    function apply(up){
+      if(up===connected) return; connected=up;
+      var g=document.getElementById('engineGate'); if(g) g.classList.toggle('hide', up);
+      try{ document.dispatchEvent(new CustomEvent('engine:'+(up?'up':'down'))); }catch(e){}
     }
     function ping(){
-      return fetch(ENGINE_BASE+'/api/ping').then(function(r){ if(!r.ok) throw 0; return r.text(); })
-        .then(function(){ setGate(false); return true; })
-        .catch(function(){ setGate(true); return false; });
+      return fetch(ENGINE_BASE+'/api/ping', {cache:'no-store'})
+        .then(function(r){ return r.ok ? r.text() : Promise.reject(); })
+        .then(function(t){ if((t||'').trim()!==APP_ID) return Promise.reject(); apply(true); return true; })
+        .catch(function(){ apply(false); return false; });
     }
-    window.GiongAIEngine = { ping: ping, base: function(){ return ENGINE_BASE; } };
+    window.GiongAIEngine = { ping: ping, isUp: function(){ return connected===true; }, base: function(){ return ENGINE_BASE; } };
     window.addEventListener('DOMContentLoaded', function(){
       var b=document.getElementById('engineRetry'); if(b) b.onclick=ping;
       ping();
+      timer=setInterval(ping, 5000);          // dò đều để phát hiện engine bật/tắt
+      window.addEventListener('focus', ping);  // quay lại tab thì kiểm tra ngay
     });
   })();
 </script>

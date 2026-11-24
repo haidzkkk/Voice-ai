@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"crypto/sha256"
-	"embed"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -21,11 +20,11 @@ import (
 	"time"
 )
 
-//go:embed web/index.html web/vendor/*
-var webFS embed.FS
-
 const appID = "giongai-v1"
 const defaultPort = 17860
+
+// UI chạy trên web (GitHub Pages); binary chỉ là engine chạy local.
+const webUI = "https://haidzkkk.github.io/Voice-ai/"
 
 var outDir string
 
@@ -205,31 +204,7 @@ var (
 func handler(quit chan struct{}) http.Handler {
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/" {
-			http.NotFound(w, r)
-			return
-		}
-		b, _ := webFS.ReadFile("web/index.html")
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Write(b)
-	})
-
-	// Tài nguyên tĩnh nhúng sẵn (vd SDK Firebase vendored để chạy offline).
-	mux.HandleFunc("/vendor/", func(w http.ResponseWriter, r *http.Request) {
-		name := filepath.Base(r.URL.Path)
-		b, err := webFS.ReadFile("web/vendor/" + name)
-		if err != nil {
-			http.NotFound(w, r)
-			return
-		}
-		if strings.HasSuffix(name, ".js") {
-			w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
-		}
-		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
-		w.Write(b)
-	})
-
+	// Chỉ còn API — UI do web (GitHub Pages) phục vụ, không nhúng trong binary nữa.
 	mux.HandleFunc("/api/ping", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte(appID)) })
 
 	mux.HandleFunc("/api/voices", func(w http.ResponseWriter, r *http.Request) {
@@ -497,7 +472,7 @@ func main() {
 			n, _ := resp.Body.Read(b)
 			resp.Body.Close()
 			if string(b[:n]) == appID {
-				openPath(fmt.Sprintf("http://127.0.0.1:%d/", defaultPort))
+				openPath(webUI)
 				return
 			}
 		}
@@ -515,13 +490,13 @@ func main() {
 	go srv.Serve(ln)
 
 	fmt.Println("==============================================")
-	fmt.Println("  GIONG AI MIEN PHI dang chay")
-	fmt.Println("  Mo trinh duyet tai:", addr)
+	fmt.Println("  GIONG AI ENGINE dang chay (local):", addr)
+	fmt.Println("  Mo giao dien web tai:", webUI)
 	fmt.Println("  File MP3 luu tai:", outDir)
-	fmt.Println("  Dong cua so nay (hoac bam 'Thoat' tren trang) de tat tool.")
+	fmt.Println("  Dong cua so nay (hoac bam 'Thoat' tren trang) de tat engine.")
 	fmt.Println("==============================================")
 	if os.Getenv("GIONGAI_NO_BROWSER") == "" {
-		openPath(addr)
+		openPath(webUI)
 	}
 	openLogFile()
 	if readMarker() != nil {
