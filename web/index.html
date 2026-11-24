@@ -195,6 +195,7 @@ body{min-height:100vh}
 .user-av{width:38px;height:38px;border-radius:12px;background:var(--grad);color:#fff;display:grid;place-items:center;font-weight:800;font-size:15px;flex:none}
 .user-name{font-weight:700;font-size:13.5px;color:var(--ink)}
 .user-sub{font-size:11px;color:var(--muted);margin-top:1px}
+.user-name,.user-sub{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px}
 .side-foot #loginBtn{width:100%;border-radius:999px}
 @media(max-width:900px){
   .app{grid-template-columns:1fr}
@@ -221,11 +222,11 @@ body{min-height:100vh}
       <button class="nav-item" data-view="settings">Cài đặt</button>
     </nav>
     <div class="side-foot">
-      <div class="user-card" title="Tính năng tài khoản sẽ ra mắt sau">
-        <div class="user-av">K</div>
-        <div><div class="user-name">Khách</div><div class="user-sub">Chưa đăng nhập · bản giới hạn</div></div>
+      <div class="user-card" title="Tài khoản Giọng AI">
+        <div class="user-av" id="userAv">K</div>
+        <div style="min-width:0"><div class="user-name" id="userName">Khách</div><div class="user-sub" id="userSub">Chưa đăng nhập · bản giới hạn</div></div>
       </div>
-      <button class="btn" id="loginBtn" title="Tính năng tài khoản sẽ ra mắt sau">Đăng nhập</button>
+      <button class="btn" id="loginBtn">Đăng nhập</button>
     </div>
   </aside>
   <div class="content"><div class="content-in">
@@ -761,6 +762,7 @@ async function generate(){
   if(currentJob) return;
   const text = ta.value.trim();
   if(!text){ setMsg('Bạn chưa nhập văn bản.', true); ta.focus(); return; }
+  if(window.GiongAIAccount){ const g=window.GiongAIAccount.gate(text.length); if(!g.ok){ setMsg(g.msg, true); return; } }
   if(emotionCuePattern.test(text) && !(engine==='vieneu' && vmodel==='vieneu')){
     setMsg('Thẻ biểu cảm chỉ dùng với VieNeu. Chọn VieNeu hoặc bỏ thẻ khỏi nội dung để dùng mô hình hiện tại.',true); ta.focus(); return;
   }
@@ -816,7 +818,7 @@ async function poll(){
       setTimeout(poll, 500); return;
     }
     currentJob = null; setBusy(false);
-    if(j.status==='done'){ setMsg('Xong!'); showResult(j.file); loadHistory(); }
+    if(j.status==='done'){ setMsg('Xong!'); showResult(j.file); loadHistory(); if(window.GiongAIAccount) window.GiongAIAccount.record(); }
     else if(j.status==='canceled'){ setMsg('Đã hủy.'); }
     else setMsg('Lỗi: '+(j.error||'không rõ')+(engine==='vieneu'?'':'. Kiểm tra kết nối mạng rồi thử lại.'), true);
   }catch(e){ setTimeout(poll, 1000); }
@@ -1656,6 +1658,103 @@ loadVoices(); loadHistory();
   document.querySelectorAll('.theme-btn').forEach(function(b){
     b.addEventListener('click',function(){applyTheme(b.dataset.themeSet);});
   });
+})();
+</script>
+<script src="/vendor/firebase-app-compat.js"></script>
+<script src="/vendor/firebase-auth-compat.js"></script>
+<script src="/vendor/firebase-firestore-compat.js"></script>
+<script>
+/* Tài khoản + hạn mức realtime (Firebase). Tách riêng, KHÔNG đụng logic tạo giọng. */
+(function(){
+  // === ĐIỀN SAU KHI TẠO FIREBASE PROJECT (public, an toàn để nhúng) ===
+  var firebaseConfig = { apiKey:"AIzaSyCZ0c7WbsPcVYP5fsdKVKrcioS2XdQChng", authDomain:"giong-33673.firebaseapp.com", projectId:"giong-33673", storageBucket:"giong-33673.firebasestorage.app", messagingSenderId:"412217492906", appId:"1:412217492906:web:660a06a1e007c427c317d3" };
+
+  var LIMITS = { freePerMonth:50000 };
+  function curMonth(){ return new Date().toISOString().slice(0,7); }
+
+  var auth=null, db=null, provider=null, cloudOn=false;
+  var A = {
+    user:null, quota:null, _pending:0, _unsub:null,
+    gate:function(n){
+      this._pending=n;
+      if(!cloudOn) return {ok:true};            // cloud chưa sẵn sàng → không khoá, app vẫn dùng được
+      if(!this.user){ signIn(); return {ok:false,msg:'Hãy đăng nhập để tạo audio.'}; }
+      var used=(this.quota&&this.quota.chars)||0;
+      if(used+n>LIMITS.freePerMonth) return {ok:false,msg:'Đã dùng hết hạn mức tháng này ('+LIMITS.freePerMonth.toLocaleString('vi-VN')+' ký tự). Gói nâng cấp sẽ có sau.'};
+      return {ok:true};
+    },
+    record:function(){
+      var n=this._pending||0; this._pending=0; if(n<=0) return;
+      if(this.user && db){
+        var ref=db.collection('users').doc(this.user.uid), month=curMonth();
+        db.runTransaction(function(tx){ return tx.get(ref).then(function(s){
+          var u=(s.exists&&s.data().usage)||{}; if(u.month!==month)u={month:month,chars:0}; u.chars=(u.chars||0)+n;
+          tx.set(ref,{usage:u},{merge:true});
+        }); }).catch(function(e){console.warn('record',e);});
+      }
+    }
+  };
+  window.GiongAIAccount = A;
+
+  function $id(i){ return document.getElementById(i); }
+  function render(){
+    var av=$id('userAv'), nm=$id('userName'), sb=$id('userSub'), btn=$id('loginBtn');
+    if(!av||!nm||!sb||!btn) return;
+    if(A.user){
+      nm.textContent=A.user.displayName||'Người dùng';
+      if(A.user.photoURL){ av.style.backgroundImage='url('+A.user.photoURL+')'; av.style.backgroundSize='cover'; av.style.backgroundPosition='center'; av.textContent=''; }
+      else { av.style.backgroundImage=''; av.textContent=(A.user.displayName||A.user.email||'U').trim().charAt(0).toUpperCase(); }
+      var used=(A.quota&&A.quota.chars)||0, rem=Math.max(0,LIMITS.freePerMonth-used);
+      sb.textContent='Còn '+rem.toLocaleString('vi-VN')+' ký tự tháng này';
+      btn.textContent='Đăng xuất';
+    } else {
+      nm.textContent='Khách'; av.style.backgroundImage=''; av.textContent='K';
+      sb.textContent=cloudOn?'Đăng nhập để tạo audio':'Chưa kết nối tài khoản';
+      btn.textContent='Đăng nhập';
+    }
+  }
+
+  function warn(m){ console.warn(m); var sb=$id('userSub'); if(sb&&!A.user) sb.textContent=m; }
+  function signIn(){
+    if(!auth){ warn('Chưa cấu hình tài khoản (thiếu firebaseConfig).'); return; }
+    auth.signInWithPopup(provider).catch(function(err){
+      var c=err&&err.code;
+      if(c==='auth/popup-blocked'||c==='auth/operation-not-supported-in-this-environment'||c==='auth/cancelled-popup-request'){
+        try{ auth.signInWithRedirect(provider); }catch(e){ warn('Không mở được đăng nhập: '+(e.message||c)); }
+      } else if(c!=='auth/popup-closed-by-user'){ warn('Đăng nhập lỗi: '+(c||err.message)); }
+    });
+  }
+
+  function initFirebase(){
+    if(typeof firebase==='undefined'||!firebaseConfig.apiKey) return false;
+    try{
+      firebase.initializeApp(firebaseConfig);
+      auth=firebase.auth(); db=firebase.firestore();
+      db.enablePersistence({synchronizeTabs:true}).catch(function(){});
+      provider=new firebase.auth.GoogleAuthProvider();
+      cloudOn=true;
+      auth.getRedirectResult().catch(function(){});
+      auth.onAuthStateChanged(function(u){
+        A.user=u;
+        if(A._unsub){A._unsub();A._unsub=null;}
+        if(u&&db){
+          var ref=db.collection('users').doc(u.uid);
+          ref.get().then(function(s){ if(!s.exists) ref.set({plan:'free',createdAt:firebase.firestore.FieldValue.serverTimestamp(),usage:{month:curMonth(),chars:0}}); }).catch(function(){});
+          A._unsub=ref.onSnapshot(function(s){ A.quota=(s.data()&&s.data().usage)||{month:curMonth(),chars:0}; render(); }, function(e){console.warn(e);});
+        } else { A.quota=null; }
+        render();
+      });
+      return true;
+    }catch(e){ console.warn('firebase init', e); return false; }
+  }
+
+  function start(){
+    var btn=$id('loginBtn');
+    if(btn) btn.onclick=function(){ if(A.user&&auth) auth.signOut(); else signIn(); };
+    initFirebase();
+    render();
+  }
+  if(document.readyState!=='loading') start(); else document.addEventListener('DOMContentLoaded', start);
 })();
 </script>
 </body>

@@ -1,0 +1,26 @@
+rules_version = '2';
+// Giọng AI — luật bảo mật Firestore.
+// Lưu ý: tạo giọng chạy cục bộ nên hạn mức chỉ chặn mềm ở UI; luật này
+// bảo vệ dữ liệu tài khoản (mỗi người chỉ đọc/ghi hồ sơ của chính mình)
+// và chặn client tự nâng 'plan'.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+
+      // Tạo mới: chỉ chính chủ, plan phải là 'free', usage khởi tạo hợp lệ.
+      allow create: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.plan == 'free'
+        && request.resource.data.usage.chars is int
+        && request.resource.data.usage.chars >= 0;
+
+      // Cập nhật: chỉ chính chủ, KHÔNG được tự đổi 'plan', usage.chars phải là số không âm.
+      allow update: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.plan == resource.data.plan
+        && request.resource.data.usage.chars is int
+        && request.resource.data.usage.chars >= 0;
+
+      allow delete: if false;
+    }
+  }
+}
