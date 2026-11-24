@@ -74,6 +74,14 @@ class ReadNumbersViTest(unittest.TestCase):
     def test_hundred_with_zero_tens(self):
         self.assertEqual(self.read("105"), "một trăm lẻ năm")
 
+    def test_year_zero_hundreds_no_khong_tram(self):
+        # Bỏ 'không trăm' (nghe lủng củng, model líu); giữ 'lẻ' khi hàng chục = 0
+        self.assertEqual(self.read("2024"), "hai nghìn hai mươi bốn")
+        self.assertEqual(self.read("2010"), "hai nghìn mười")
+        self.assertEqual(self.read("2001"), "hai nghìn lẻ một")
+        self.assertEqual(self.read("2000"), "hai nghìn")
+        self.assertEqual(self.read("1000500"), "một triệu năm trăm")
+
     def test_thousand_separator(self):
         self.assertEqual(self.read("1.000.000"), "một triệu")
         self.assertEqual(self.read("150000"), "một trăm năm mươi nghìn")

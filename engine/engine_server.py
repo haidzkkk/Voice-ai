@@ -96,16 +96,18 @@ _VI_SCALE = ["", " nghìn", " triệu", " tỷ", " nghìn tỷ", " triệu tỷ"
 
 
 def _vi_read_group(n, full):
-    """Đọc một nhóm 3 chữ số (0..999). full=True thì đọc cả 'x trăm' kể cả khi
-    trăm = 0 (dùng cho nhóm KHÔNG phải nhóm cao nhất, vd '...triệu không trăm...')."""
+    """Đọc một nhóm 3 chữ số (0..999). full=True = nhóm KHÔNG phải nhóm cao nhất
+    (có bậc nghìn/triệu phía trước) → vẫn chèn 'lẻ' khi hàng trăm=0, hàng chục=0 (vd
+    2001→'hai nghìn lẻ một'). KHÔNG đọc 'không trăm' (nghe lủng củng, model hay líu):
+    2024→'hai nghìn hai mươi bốn', 2010→'hai nghìn mười'."""
     tram, rem = divmod(n, 100)
     chuc, donvi = divmod(rem, 10)
     parts = []
-    if tram or full:
+    if tram:                                   # bỏ 'không trăm' khi hàng trăm = 0
         parts.append(_VI_ONES[tram] + " trăm")
     if chuc == 0:
         if donvi:
-            if tram or full:
+            if tram or full:                   # có bậc trước → 'lẻ' (vd ...nghìn lẻ một)
                 parts.append("lẻ")
             parts.append(_VI_ONES[donvi])
     elif chuc == 1:
