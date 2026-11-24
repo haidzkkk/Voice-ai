@@ -230,12 +230,23 @@ body{min-height:100vh}
   // (trả về đúng appID). Mất kết nối → hiện lại cổng tải; có lại → tự ẩn.
   (function(){
     var APP_ID='giongai-v1', connected=null, timer=null;
-    function apply(up){
-      if(up===connected) return; connected=up;
-      var g=document.getElementById('engineGate'); if(g) g.classList.toggle('hide', up);
-      try{ document.dispatchEvent(new CustomEvent('engine:'+(up?'up':'down'))); }catch(e){}
+    function setStatus(state, msg){
+      var box=document.getElementById('engineStatus'); if(!box) return;
+      var dot=box.querySelector('.dot'), txt=box.querySelector('.engine-status-text');
+      if(dot) dot.style.background = state==='ok'?'var(--ok)':(state==='checking'?'var(--accent)':'var(--bad)');
+      if(txt) txt.textContent = msg;
     }
-    function ping(){
+    function apply(up){
+      if(up!==connected){
+        connected=up;
+        var g=document.getElementById('engineGate'); if(g) g.classList.toggle('hide', up);
+        try{ document.dispatchEvent(new CustomEvent('engine:'+(up?'up':'down'))); }catch(e){}
+      }
+      setStatus(up?'ok':'bad', up ? 'Đã kết nối engine ✓'
+        : 'Chưa thấy engine. Hãy mở GiongAI.exe rồi bấm “Kiểm tra lại”.');
+    }
+    function ping(manual){
+      if(manual) setStatus('checking','Đang kiểm tra kết nối…');
       return fetch(ENGINE_BASE+'/api/ping', {cache:'no-store'})
         .then(function(r){ return r.ok ? r.text() : Promise.reject(); })
         .then(function(t){ if((t||'').trim()!==APP_ID) return Promise.reject(); apply(true); return true; })
@@ -243,10 +254,11 @@ body{min-height:100vh}
     }
     window.GiongAIEngine = { ping: ping, isUp: function(){ return connected===true; }, base: function(){ return ENGINE_BASE; } };
     window.addEventListener('DOMContentLoaded', function(){
-      var b=document.getElementById('engineRetry'); if(b) b.onclick=ping;
+      var b=document.getElementById('engineRetry');
+      if(b) b.onclick=function(){ var t=b.textContent; b.disabled=true; b.textContent='Đang kiểm tra…'; ping(true).then(function(){ b.disabled=false; b.textContent=t; }); };
       ping();
-      timer=setInterval(ping, 5000);          // dò đều để phát hiện engine bật/tắt
-      window.addEventListener('focus', ping);  // quay lại tab thì kiểm tra ngay
+      timer=setInterval(function(){ ping(); }, 5000); // dò đều để phát hiện engine bật/tắt
+      window.addEventListener('focus', function(){ ping(); }); // quay lại tab kiểm tra ngay
     });
   })();
 </script>
@@ -276,11 +288,44 @@ body{min-height:100vh}
     <div class="status-pill"><span class="dot" id="dot"></span><span id="statusText">Đang kết nối…</span></div>
     <button class="btn ghost" id="quitBtn" title="Tắt ứng dụng">Thoát</button>
   </div>
-  <div id="engineGate" class="hide" style="margin:0 0 14px;padding:12px 14px;border-radius:12px;border:1px solid #f0a53a;background:rgba(240,165,58,.12);display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-    <span style="flex:1;min-width:220px">Chưa thấy <b>Giọng AI Engine</b> chạy trên máy bạn. Hãy tải &amp; mở engine rồi bấm <b>Thử lại</b>. (Tạo giọng chạy ngay trên máy bạn.)</span>
-    <a class="btn primary" id="engineDownload" href="https://raw.githubusercontent.com/haidzkkk/Voice-ai/main/dist/GiongAI.exe" download>Tải engine (Windows)</a>
-    <a class="btn" href="https://raw.githubusercontent.com/haidzkkk/Voice-ai/main/dist/GiongAI-arm64.exe" download title="Dành cho máy Windows ARM64">ARM64</a>
-    <button class="btn" id="engineRetry">Thử lại</button>
+  <div id="engineGate" class="hide" style="position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(10,8,16,.55);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)">
+    <div style="width:min(560px,100%);max-height:90vh;overflow:auto;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);padding:22px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+        <div style="width:36px;height:36px;border-radius:10px;background:var(--grad);display:flex;align-items:center;justify-content:center;flex:none">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"><path d="M4 10v4m4-7v10m4-13v16m4-13v10m4-7v4"/></svg>
+        </div>
+        <h2 style="margin:0;font-size:18px">Bật Giọng AI Engine trên máy bạn</h2>
+      </div>
+      <p style="margin:6px 0 14px;color:var(--muted);font-size:14px">Giọng được tạo <b>ngay trên máy bạn</b> nên cần chạy một chương trình nhỏ (engine). Chỉ cần tải 1 lần, sau đó mở mỗi khi dùng.</p>
+
+      <div id="engineStatus" style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);background:var(--field);border:1px solid var(--line);border-radius:10px;padding:9px 12px;margin-bottom:16px">
+        <span class="dot" style="width:9px;height:9px;border-radius:50%;background:var(--bad);flex:none"></span>
+        <span class="engine-status-text">Đang tìm engine trên máy bạn… (trang sẽ tự nhận khi engine chạy)</span>
+      </div>
+
+      <ol style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:16px">
+        <li>
+          <div style="font-weight:600;margin-bottom:8px">Chưa có engine? Tải về máy:</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <a class="btn primary" id="engineDownload" href="https://raw.githubusercontent.com/haidzkkk/Voice-ai/main/dist/GiongAI.exe" download>⬇ Tải cho Windows</a>
+            <a class="btn" href="https://raw.githubusercontent.com/haidzkkk/Voice-ai/main/dist/GiongAI-arm64.exe" download title="Dành cho máy Windows ARM64">Bản ARM64</a>
+          </div>
+        </li>
+        <li>
+          <div style="font-weight:600;margin-bottom:8px">Mở file vừa tải (<code>GiongAI.exe</code>) và để cửa sổ đó chạy.</div>
+          <ul style="margin:0;padding-left:18px;color:var(--muted);font-size:13px;display:flex;flex-direction:column;gap:5px">
+            <li>Lần đầu Windows có thể báo "Unknown publisher" → bấm <b>More info → Run anyway</b>.</li>
+            <li><b>Giữ cửa sổ engine mở</b> trong lúc dùng. Đóng cửa sổ là tắt engine.</li>
+            <li>Nếu trình duyệt hỏi quyền <b>truy cập mạng nội bộ</b>, hãy chọn <b>Cho phép / Allow</b>.</li>
+          </ul>
+        </li>
+      </ol>
+
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:18px">
+        <button class="btn primary" id="engineRetry">Tôi đã chạy engine — Kiểm tra lại</button>
+        <span style="color:var(--muted);font-size:12px">Hoặc chờ vài giây, trang tự nhận.</span>
+      </div>
+    </div>
   </div>
   <main>
   <section id="settingsView" class="hide card">
@@ -1691,6 +1736,8 @@ $('#storageSave').onclick=async()=>{
 setEngine(engine);
 renderSamples();
 loadVoices(); loadHistory();
+// Khi engine local kết nối lại, nạp lại giọng + lịch sử (từ máy user).
+document.addEventListener('engine:up', function(){ try{ loadVoices(); loadHistory(); }catch(e){} });
 </script>
 <script>
 /* Lumora v2 glue — lái control mới vào control gốc, KHÔNG sửa logic cũ. */
