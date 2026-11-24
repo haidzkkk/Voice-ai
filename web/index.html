@@ -1726,6 +1726,12 @@ loadVoices(); loadHistory();
   }
 
   function warn(m){ console.warn(m); var sb=$id('userSub'); if(sb&&!A.user) sb.textContent=m; }
+  // Lấy device ID (hash machine-id từ backend Go) rồi lưu lên doc user — hiện chỉ lưu để đó.
+  function recordDevice(ref){
+    fetch('/api/device').then(function(r){return r.json();}).then(function(j){
+      if(j&&j.id&&db){ ref.set({deviceId:j.id,devices:firebase.firestore.FieldValue.arrayUnion(j.id)},{merge:true}).catch(function(e){console.warn('device',e);}); }
+    }).catch(function(){});
+  }
   function signIn(){
     if(!auth){ warn('Chưa cấu hình tài khoản (thiếu firebaseConfig).'); return; }
     auth.signInWithPopup(provider).catch(function(err){
@@ -1750,7 +1756,7 @@ loadVoices(); loadHistory();
         if(A._unsub){A._unsub();A._unsub=null;}
         if(u&&db){
           var ref=db.collection('users').doc(u.uid);
-          ref.get().then(function(s){ if(!s.exists) ref.set({role:'user',isVip:false,limit:DEFAULT_LIMIT,createdAt:firebase.firestore.FieldValue.serverTimestamp(),usages:[]}); }).catch(function(){});
+          ref.get().then(function(s){ if(!s.exists){ return ref.set({role:'user',isVip:false,limit:DEFAULT_LIMIT,createdAt:firebase.firestore.FieldValue.serverTimestamp(),usages:[]}); } }).then(function(){ recordDevice(ref); }).catch(function(){});
           A._unsub=ref.onSnapshot(function(s){ A.doc=s.data()||null; render(); }, function(e){console.warn(e);});
         } else { A.doc=null; }
         render();

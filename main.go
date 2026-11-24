@@ -375,6 +375,7 @@ func handler(quit chan struct{}) http.Handler {
 	registerEngineAPI(mux)
 	registerStorageAPI(mux)
 	registerStorageMoveAPI(mux)
+	registerDeviceAPI(mux)
 
 	// Chỉ chấp nhận truy cập từ chính máy này qua localhost
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
