@@ -21,7 +21,7 @@ import (
 )
 
 const appID = "giongai-v1"
-const appVersion = "1.3.0" // phiên bản engine; web so sánh để gợi ý cập nhật
+const appVersion = "1.4.0" // phiên bản engine; web so sánh để gợi ý cập nhật
 const defaultPort = 17860
 
 // UI chạy trên web (GitHub Pages); binary chỉ là engine chạy local.
