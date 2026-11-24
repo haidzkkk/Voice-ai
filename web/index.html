@@ -283,6 +283,8 @@ body{min-height:100vh}
       var b=document.getElementById('engineRetry');
       if(b) b.onclick=function(){ var t=b.textContent; b.disabled=true; b.textContent='Đang kiểm tra…'; ping(true).then(function(){ b.disabled=false; b.textContent=t; }); };
       var o=document.getElementById('engineOpen'); if(o) o.onclick=openEngine;
+      // Gắn ?v=version vào link tải để trình duyệt/CDN không trả file exe cũ.
+      try{ document.querySelectorAll('a[download]').forEach(function(a){ var h=a.getAttribute('href')||''; if(/GiongAI(-arm64)?\.exe$/.test(h)) a.setAttribute('href', h+'?v='+WEB_VERSION); }); }catch(e){}
       showOpen(isInstalled());
       ping().then(function(up){
         // Đã cài trước đó mà engine chưa chạy → tự mở bằng giao thức (1 lần).
