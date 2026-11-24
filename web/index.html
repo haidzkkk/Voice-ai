@@ -230,6 +230,7 @@ body{min-height:100vh}
         <div style="min-width:0"><div class="user-name" id="userName">Khách</div><div class="user-sub" id="userSub">Chưa đăng nhập · bản giới hạn</div></div>
       </div>
       <button class="btn" id="loginBtn">Đăng nhập</button>
+      <button class="btn primary" id="upgradeBtn" hidden style="border-radius:999px">Nâng cấp VIP</button>
     </div>
   </aside>
   <div class="content"><div class="content-in">
@@ -510,6 +511,24 @@ body{min-height:100vh}
   <div class="wizard-footer"><button class="btn ghost" id="emotionBackBtn">← Quay lại</button><button class="btn primary" id="emotionNextBtn">Tiếp tục →</button></div>
 </dialog>
 <dialog id="helpDialog" aria-labelledby="helpTitle"><div class="dialog-heading"><h2 id="helpTitle"></h2><button class="btn ghost" id="helpCloseBtn" aria-label="Đóng hướng dẫn">✕</button></div><div class="help-content" id="helpBody"></div><button class="btn primary" id="helpDoneBtn">Đã hiểu</button></dialog>
+<dialog id="vipDialog" aria-labelledby="vipTitle">
+  <div class="dialog-heading"><div><div class="eyebrow">GIỌNG AI · VIP</div><h2 id="vipTitle">Nâng cấp VIP</h2></div><button class="btn ghost" id="vipCloseBtn" aria-label="Đóng">✕</button></div>
+  <div id="vipPlans">
+    <p class="sub">Mở khoá không giới hạn ký tự. Chọn gói:</p>
+    <div class="row" style="flex-wrap:wrap;gap:8px;margin-top:8px">
+      <button class="btn" data-plan="month">Theo tháng</button>
+      <button class="btn" data-plan="year">Theo năm</button>
+      <button class="btn primary" data-plan="lifetime">Vĩnh viễn</button>
+    </div>
+  </div>
+  <div id="vipPay" class="hide" style="text-align:center">
+    <img id="vipQR" alt="Mã VietQR" style="width:220px;height:220px;border-radius:12px;background:#fff;padding:6px;margin:6px auto;display:block"/>
+    <div class="sub" id="vipPayInfo" style="margin-top:4px"></div>
+    <p class="sub" style="margin-top:8px">Quét VietQR, hoặc chuyển đúng <b>số tiền</b> kèm đúng <b>nội dung</b>. VIP tự mở khoá khi nhận được tiền (thường vài giây).</p>
+    <button class="btn ghost" id="vipBackBtn" style="margin-top:4px">← Chọn gói khác</button>
+  </div>
+  <div class="msg" id="vipMsg" aria-live="polite"></div>
+</dialog>
 <script>
 
 const $ = s => document.querySelector(s);
@@ -1673,12 +1692,18 @@ loadVoices(); loadHistory();
 (function(){
   // === ĐIỀN SAU KHI TẠO FIREBASE PROJECT (public, an toàn để nhúng) ===
   var firebaseConfig = { apiKey:"AIzaSyCZ0c7WbsPcVYP5fsdKVKrcioS2XdQChng", authDomain:"giong-33673.firebaseapp.com", projectId:"giong-33673", storageBucket:"giong-33673.firebasestorage.app", messagingSenderId:"412217492906", appId:"1:412217492906:web:660a06a1e007c427c317d3" };
+  // === ĐIỀN SAU KHI DEPLOY FUNCTIONS: URL hàm createOrder ===
+  // vd "https://asia-southeast1-giong-33673.cloudfunctions.net/createOrder". Rỗng = tắt nâng cấp.
+  var CREATE_ORDER_URL = "";
 
   var DEFAULT_LIMIT = 1000;   // hạn mức mặc định MỖI NGÀY (ký tự); sửa riêng từng user trên DB
   function dayKey(d){ d=d||new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
   function today(){ return dayKey(); }
   function dayUsed(usages){ var t=today(), s=0; (usages||[]).forEach(function(x){ if(x&&typeof x.chars==='number'){ var k=x.day||(x.at?dayKey(new Date(x.at)):''); if(k===t) s+=x.chars; } }); return s; }
   function userLimit(doc){ return (doc&&typeof doc.limit==='number')?doc.limit:DEFAULT_LIMIT; }
+  function vipActive(doc){ try{ return !!(doc&&doc.vipUntil&&doc.vipUntil.toMillis&&doc.vipUntil.toMillis()>Date.now()); }catch(e){ return false; } }
+  function isVipNow(doc){ return !!(doc&&(doc.isVip===true||vipActive(doc))); }
+  function fmtDate(ts){ try{ var d=ts&&ts.toDate?ts.toDate():new Date(ts); return d.toLocaleDateString('vi-VN'); }catch(e){ return ''; } }
 
   var auth=null, db=null, provider=null, analytics=null, cloudOn=false, authResolved=false;
   var A = {
@@ -1687,7 +1712,7 @@ loadVoices(); loadHistory();
       this._pending=n;
       if(!cloudOn) return {ok:true};            // cloud chưa sẵn sàng → không khoá, app vẫn dùng được
       if(!this.user){ signIn(); return {ok:false,msg:'Hãy đăng nhập để tạo audio.'}; }
-      if(this.doc&&this.doc.isVip) return {ok:true};   // VIP: không giới hạn
+      if(isVipNow(this.doc)) return {ok:true};   // VIP (vĩnh viễn hoặc còn hạn): không giới hạn
       var lim=userLimit(this.doc), used=dayUsed(this.doc&&this.doc.usages);
       if(used+n>lim) return {ok:false,msg:'Đã dùng hết hạn mức hôm nay ('+lim.toLocaleString('vi-VN')+' ký tự). Mai thử lại nhé.'};
       return {ok:true};
@@ -1719,18 +1744,20 @@ loadVoices(); loadHistory();
   function render(){
     var av=$id('userAv'), nm=$id('userName'), sb=$id('userSub'), btn=$id('loginBtn');
     if(!av||!nm||!sb||!btn) return;
-    var badge=$id('vipBadge');
+    var badge=$id('vipBadge'), up=$id('upgradeBtn');
     if(A.user){
       nm.textContent=A.user.displayName||'Người dùng';
       if(A.user.photoURL){ av.style.backgroundImage='url('+A.user.photoURL+')'; av.style.backgroundSize='cover'; av.style.backgroundPosition='center'; av.textContent=''; }
       else { av.style.backgroundImage=''; av.textContent=(A.user.displayName||A.user.email||'U').trim().charAt(0).toUpperCase(); }
-      var vip=!!(A.doc&&A.doc.isVip);
+      var vip=isVipNow(A.doc);
       if(badge) badge.classList.toggle('hide',!vip);
-      if(vip){ sb.textContent='VIP · không giới hạn'; }
+      if(up) up.hidden=vip;
+      if(vip){ sb.textContent=(A.doc&&A.doc.isVip===true)?'VIP · không giới hạn':'VIP · đến '+fmtDate(A.doc.vipUntil); }
       else { var lim=userLimit(A.doc), used=dayUsed(A.doc&&A.doc.usages); sb.textContent='Đã dùng '+used.toLocaleString('vi-VN')+'/'+lim.toLocaleString('vi-VN')+' ký tự hôm nay'; }
       btn.textContent='Đăng xuất';
     } else {
       if(badge) badge.classList.add('hide');
+      if(up) up.hidden=true;
       nm.textContent='Khách'; av.style.backgroundImage=''; av.textContent='K';
       sb.textContent=cloudOn?'Đăng nhập để tạo audio':'Chưa kết nối tài khoản';
       btn.textContent='Đăng nhập';
@@ -1752,6 +1779,39 @@ loadVoices(); loadHistory();
         try{ auth.signInWithRedirect(provider); }catch(e){ warn('Không mở được đăng nhập: '+(e.message||c)); }
       } else if(c!=='auth/popup-closed-by-user'){ warn('Đăng nhập lỗi: '+(c||err.message)); }
     });
+  }
+
+  // ---- Nâng cấp VIP qua SePay (VietQR) ----
+  var orderUnsub=null;
+  function vipMsg(m){ var e=$id('vipMsg'); if(e) e.textContent=m||''; }
+  function showPlans(){ var p=$id('vipPlans'), q=$id('vipPay'); if(p)p.classList.remove('hide'); if(q)q.classList.add('hide'); if(orderUnsub){orderUnsub();orderUnsub=null;} vipMsg(''); }
+  function openUpgrade(){ var d=$id('vipDialog'); if(!d) return; showPlans(); if(d.showModal) d.showModal(); }
+  function buyPlan(plan){
+    if(!A.user){ signIn(); return; }
+    if(!CREATE_ORDER_URL){ vipMsg('Chưa cấu hình thanh toán (thiếu CREATE_ORDER_URL).'); return; }
+    vipMsg('Đang tạo đơn…');
+    A.user.getIdToken().then(function(tok){
+      return fetch(CREATE_ORDER_URL,{method:'POST',headers:{'Authorization':'Bearer '+tok,'Content-Type':'application/json'},body:JSON.stringify({plan:plan})});
+    }).then(function(r){return r.json();}).then(function(o){
+      if(!o||!o.orderId) throw new Error((o&&o.error)||'không tạo được đơn');
+      var img=$id('vipQR'); if(img) img.src=o.qrUrl;
+      var info=$id('vipPayInfo');
+      if(info) info.innerHTML='Số tiền: <b>'+Number(o.amount).toLocaleString('vi-VN')+'đ</b> · Nội dung: <b>'+o.code+'</b><br>'+(o.bankName||'')+' · '+(o.bank||'')+' · '+(o.account||'');
+      $id('vipPlans').classList.add('hide'); $id('vipPay').classList.remove('hide'); vipMsg('Đang chờ thanh toán…');
+      watchOrder(o.orderId);
+    }).catch(function(e){ vipMsg('Lỗi: '+(e.message||e)); });
+  }
+  function watchOrder(id){
+    if(orderUnsub){orderUnsub();orderUnsub=null;}
+    if(!db) return;
+    orderUnsub=db.collection('orders').doc(id).onSnapshot(function(s){
+      var d=s.data();
+      if(d&&d.status==='paid'){
+        vipMsg('Thanh toán thành công! Đã nâng cấp VIP.');
+        if(orderUnsub){orderUnsub();orderUnsub=null;}
+        setTimeout(function(){ var dg=$id('vipDialog'); if(dg&&dg.open) dg.close(); },1600);
+      }
+    }, function(e){console.warn('order',e);});
   }
 
   function initFirebase(){
@@ -1784,6 +1844,10 @@ loadVoices(); loadHistory();
   function start(){
     var btn=$id('loginBtn');
     if(btn) btn.onclick=function(){ if(A.user&&auth) auth.signOut(); else signIn(); };
+    var up=$id('upgradeBtn'); if(up) up.onclick=openUpgrade;
+    var vc=$id('vipCloseBtn'); if(vc) vc.onclick=function(){ var d=$id('vipDialog'); if(d&&d.open) d.close(); if(orderUnsub){orderUnsub();orderUnsub=null;} };
+    var vb=$id('vipBackBtn'); if(vb) vb.onclick=showPlans;
+    document.querySelectorAll('#vipPlans [data-plan]').forEach(function(b){ b.onclick=function(){ buyPlan(b.dataset.plan); }; });
     initFirebase();
     render();
   }
