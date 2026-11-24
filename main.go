@@ -17,6 +17,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -202,13 +203,56 @@ var (
 	voicesCache []Voice
 )
 
+// Vòng đời engine gắn với trang web: web gửi "heartbeat" (ping) đều; khi web đóng
+// (gửi beacon /api/web-closing hoặc ngừng ping) thì engine tự thoát.
+var (
+	quitOnce       sync.Once
+	lastPingNano   int64 // lần ping gần nhất (0 = web chưa từng kết nối)
+	webClosingNano int64 // lúc web báo đang đóng (0 = không)
+)
+
+func requestQuit(quit chan struct{}) { quitOnce.Do(func() { close(quit) }) }
+
+func watchdog(quit chan struct{}) {
+	const grace = 6 * time.Second          // sau khi web báo đóng, chờ chút phòng refresh
+	const heartbeatTimeout = 90 * time.Second // mất ping lâu hơn mức này → coi như web đã tắt
+	t := time.NewTicker(2 * time.Second)
+	defer t.Stop()
+	for range t.C {
+		lp := atomic.LoadInt64(&lastPingNano)
+		if lp == 0 {
+			continue // web chưa từng kết nối → giữ nguyên (vd chạy tay chờ mở web)
+		}
+		now := time.Now().UnixNano()
+		if wc := atomic.LoadInt64(&webClosingNano); wc != 0 && now-wc > int64(grace) && lp <= wc {
+			requestQuit(quit)
+			return
+		}
+		if now-lp > int64(heartbeatTimeout) {
+			requestQuit(quit)
+			return
+		}
+	}
+}
+
 func handler(quit chan struct{}) http.Handler {
 	mux := http.NewServeMux()
+	go watchdog(quit)
 
 	// Chỉ còn API — UI do web (GitHub Pages) phục vụ, không nhúng trong binary nữa.
-	mux.HandleFunc("/api/ping", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte(appID)) })
+	// Ping vừa là liveness, vừa là heartbeat gắn vòng đời engine với trang web.
+	mux.HandleFunc("/api/ping", func(w http.ResponseWriter, r *http.Request) {
+		atomic.StoreInt64(&lastPingNano, time.Now().UnixNano())
+		atomic.StoreInt64(&webClosingNano, 0) // có ping lại (vd refresh) → huỷ ý định đóng
+		w.Write([]byte(appID))
+	})
 	mux.HandleFunc("/api/version", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]string{"app": appID, "version": appVersion})
+	})
+	// Web báo sắp đóng (gửi bằng navigator.sendBeacon khi đóng tab).
+	mux.HandleFunc("/api/web-closing", func(w http.ResponseWriter, r *http.Request) {
+		atomic.StoreInt64(&webClosingNano, time.Now().UnixNano())
+		w.WriteHeader(http.StatusNoContent)
 	})
 
 	mux.HandleFunc("/api/voices", func(w http.ResponseWriter, r *http.Request) {
@@ -340,7 +384,7 @@ func handler(quit chan struct{}) http.Handler {
 			return
 		}
 		writeJSON(w, map[string]bool{"ok": true})
-		go func() { time.Sleep(300 * time.Millisecond); close(quit) }()
+		go func() { time.Sleep(300 * time.Millisecond); requestQuit(quit) }()
 	})
 
 	mux.HandleFunc("/preview/", func(w http.ResponseWriter, r *http.Request) {

@@ -292,6 +292,10 @@ body{min-height:100vh}
       });
       timer=setInterval(function(){ ping(); }, 5000); // dò đều để phát hiện engine bật/tắt
       window.addEventListener('focus', function(){ ping(); }); // quay lại tab kiểm tra ngay
+      // Đóng tab → báo engine tắt (nếu beacon lỗi, engine vẫn tự tắt sau ~90s mất heartbeat).
+      function bye(){ try{ navigator.sendBeacon(ENGINE_BASE+'/api/web-closing'); }catch(e){} }
+      window.addEventListener('pagehide', bye);
+      window.addEventListener('beforeunload', bye);
     });
   })();
 </script>
