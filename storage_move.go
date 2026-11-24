@@ -203,19 +203,17 @@ func registerStorageMoveAPI(mux *http.ServeMux) {
 			http.Error(w, "Cài đặt không hợp lệ", 400)
 			return
 		}
-		if os.Getenv("GIONGAI_ENGINE_DIR") != "" || os.Getenv("GIONGAI_OUT") != "" {
-			http.Error(w, "Gỡ biến môi trường đường dẫn trước khi chuyển dữ liệu", 400)
+		if os.Getenv("GIONGAI_HOME") != "" || os.Getenv("GIONGAI_ENGINE_DIR") != "" || os.Getenv("GIONGAI_OUT") != "" {
+			http.Error(w, "Gỡ biến môi trường đường dẫn (GIONGAI_HOME…) trước khi chuyển dữ liệu", 400)
 			return
 		}
-		// Explicit paths prevent ambiguous defaults while relocating.
-		for _, p := range []*string{&in.Engine, &in.Audio, &in.Voices} {
-			v, err := validateStoragePath(*p)
-			if err != nil || v == "" {
-				http.Error(w, "Hãy chọn đủ ba thư mục tuyệt đối, có quyền ghi", 400)
-				return
-			}
-			*p = v
+		newRoot, err := validateStoragePath(in.Root)
+		if err != nil || newRoot == "" {
+			http.Error(w, "Hãy chọn một thư mục gốc tuyệt đối, có quyền ghi", 400)
+			return
 		}
+		// Thư mục con nguồn (root hiện tại) và đích (root mới).
+		srcEngine, srcAudio, srcVoices, srcPreviews := engineDir(), outDir, voiceStorageDir(), previewDir()
 		instMu.Lock()
 		busy := installing
 		instMu.Unlock()
@@ -259,7 +257,16 @@ func registerStorageMoveAPI(mux *http.ServeMux) {
 			for _, pair := range []struct {
 				src, dst string
 				engine   bool
-			}{{engineDir(), in.Engine, true}, {outDir, in.Audio, false}, {voiceStorageDir(), in.Voices, false}} {
+			}{
+				{srcEngine, filepath.Join(newRoot, "engine"), true},
+				{srcAudio, filepath.Join(newRoot, "audio"), false},
+				{srcVoices, filepath.Join(newRoot, "voices"), false},
+				{srcPreviews, filepath.Join(newRoot, "previews"), false},
+			} {
+				// Thư mục đích phải tồn tại trước (planStorageCopy dùng EvalSymlinks trên đích).
+				if err = os.MkdirAll(pair.dst, 0755); err != nil {
+					return
+				}
 				var part []storageCopyFile
 				part, err = planStorageCopy(pair.src, pair.dst, pair.engine)
 				if err != nil {
@@ -282,7 +289,7 @@ func registerStorageMoveAPI(mux *http.ServeMux) {
 				return
 			}
 			var data []byte
-			data, err = json.MarshalIndent(in, "", "  ")
+			data, err = json.MarshalIndent(storageSettings{Root: newRoot}, "", "  ")
 			if err != nil {
 				return
 			}

@@ -22,7 +22,7 @@ import (
 )
 
 const appID = "giongai-v1"
-const appVersion = "1.6.0" // phiên bản engine; web so sánh để gợi ý cập nhật
+const appVersion = "1.7.0" // phiên bản engine; web so sánh để gợi ý cập nhật
 const defaultPort = 17860
 
 // UI chạy trên web (GitHub Pages); binary chỉ là engine chạy local.
@@ -489,9 +489,6 @@ func openPath(p string) {
 func pickOutDir() string {
 	if d := os.Getenv("GIONGAI_OUT"); d != "" {
 		return d
-	}
-	if activeStorage.Audio != "" {
-		return activeStorage.Audio
 	}
 	return filepath.Join(dataRoot(), "audio")
 }

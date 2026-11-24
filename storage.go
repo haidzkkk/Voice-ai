@@ -14,9 +14,12 @@ import (
 )
 
 type storageSettings struct {
-	Engine string `json:"engine"`
-	Audio  string `json:"audio"`
-	Voices string `json:"voices"`
+	// Root là thư mục gốc duy nhất; mọi dữ liệu nằm trong các thư mục con của nó.
+	Root string `json:"root"`
+	// Các field cũ (bỏ dùng) — giữ để đọc cấu hình phiên bản trước không lỗi.
+	Engine string `json:"engine,omitempty"`
+	Audio  string `json:"audio,omitempty"`
+	Voices string `json:"voices,omitempty"`
 }
 
 // Active settings are loaded once: engines and in-flight jobs retain consistent paths.
@@ -36,9 +39,6 @@ func loadStorageSettings() {
 	}
 }
 func voiceStorageDir() string {
-	if activeStorage.Voices != "" {
-		return activeStorage.Voices
-	}
 	return filepath.Join(dataRoot(), "voices")
 }
 func validateStoragePath(p string) (string, error) {
@@ -93,7 +93,18 @@ func registerStorageAPI(mux *http.ServeMux) {
 			if b, err := os.ReadFile(storageConfigPath()); err == nil {
 				_ = json.Unmarshal(b, &saved)
 			}
-			writeJSON(w, map[string]any{"saved": saved, "active": storageSettings{Engine: engineDir(), Audio: outDir, Voices: voiceStorageDir()}, "restart_required": saved != activeStorage, "engine_env": os.Getenv("GIONGAI_ENGINE_DIR") != "", "audio_env": os.Getenv("GIONGAI_OUT") != ""})
+			writeJSON(w, map[string]any{
+				"saved": map[string]string{"root": saved.Root},
+				"active": map[string]string{
+					"root":     dataRoot(),
+					"engine":   engineDir(),
+					"audio":    outDir,
+					"voices":   voiceStorageDir(),
+					"previews": previewDir(),
+				},
+				"restart_required": saved.Root != activeStorage.Root,
+				"root_env":         os.Getenv("GIONGAI_HOME") != "",
+			})
 			return
 		}
 		if r.Method != "POST" {
@@ -105,24 +116,21 @@ func registerStorageAPI(mux *http.ServeMux) {
 			http.Error(w, "Cài đặt không hợp lệ", 400)
 			return
 		}
-		for _, p := range []*string{&in.Engine, &in.Audio, &in.Voices} {
-			v, err := validateStoragePath(*p)
-			if err != nil {
-				http.Error(w, err.Error(), 400)
-				return
-			}
-			*p = v
+		root, err := validateStoragePath(in.Root)
+		if err != nil {
+			http.Error(w, err.Error(), 400)
+			return
 		}
 		path := storageConfigPath()
 		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 			http.Error(w, err.Error(), 500)
 			return
 		}
-		b, _ := json.MarshalIndent(in, "", "  ")
+		b, _ := json.MarshalIndent(storageSettings{Root: root}, "", "  ")
 		if err := os.WriteFile(path, b, 0600); err != nil {
 			http.Error(w, err.Error(), 500)
 			return
 		}
-		writeJSON(w, map[string]any{"restart_required": in != activeStorage})
+		writeJSON(w, map[string]any{"restart_required": root != activeStorage.Root})
 	})
 }

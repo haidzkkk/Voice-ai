@@ -79,6 +79,9 @@ func dataRoot() string {
 	if d := os.Getenv("GIONGAI_HOME"); d != "" {
 		return d
 	}
+	if activeStorage.Root != "" {
+		return activeStorage.Root
+	}
 	if h, err := os.UserHomeDir(); err == nil {
 		return filepath.Join(h, "GiongAI")
 	}
@@ -89,9 +92,6 @@ func dataRoot() string {
 func engineDir() string {
 	if d := os.Getenv("GIONGAI_ENGINE_DIR"); d != "" {
 		return d
-	}
-	if activeStorage.Engine != "" {
-		return activeStorage.Engine
 	}
 	return filepath.Join(dataRoot(), "engine")
 }

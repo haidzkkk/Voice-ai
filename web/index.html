@@ -227,8 +227,8 @@ body{min-height:100vh}
     };
   })();
   // Phiên bản của bản web này + phiên bản engine tối thiểu cần (so với /api/version).
-  var WEB_VERSION='1.6.0';
-  var REQUIRED_ENGINE_VERSION='1.6.0';
+  var WEB_VERSION='1.7.0';
+  var REQUIRED_ENGINE_VERSION='1.7.0';
   function setVerInfo(engineVer){
     var e=document.getElementById('verInfo'); if(!e) return;
     e.textContent='Web v'+WEB_VERSION+' · Engine '+(engineVer?('v'+engineVer):'chưa nối');
@@ -320,7 +320,7 @@ body{min-height:100vh}
       </div>
       <button class="btn" id="loginBtn">Đăng nhập</button>
       <button class="btn primary" id="upgradeBtn" hidden style="border-radius:999px">Nâng cấp VIP</button>
-      <div id="verInfo" style="font-size:11px;color:var(--muted);text-align:center;letter-spacing:.02em">Web v1.6.0 · Engine: chưa nối</div>
+      <div id="verInfo" style="font-size:11px;color:var(--muted);text-align:center;letter-spacing:.02em">Web v1.7.0 · Engine: chưa nối</div>
     </div>
   </aside>
   <div class="content"><div class="content-in">
@@ -329,69 +329,142 @@ body{min-height:100vh}
     <button class="btn ghost" id="quitBtn" title="Tắt ứng dụng">Thoát</button>
   </div>
   <div id="engineUpdate" class="hide" style="margin:0 0 14px;padding:10px 14px;border-radius:12px;border:1px solid var(--accent);background:var(--accent-soft);color:var(--ink);display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-    <span style="flex:1;min-width:200px">Có bản engine mới hơn (bạn đang dùng <b id="engineUpdateVer">?</b>, cần <b>1.6.0</b>). Tải về để dùng tính năng mới nhất.</span>
+    <span style="flex:1;min-width:200px">Có bản engine mới hơn (bạn đang dùng <b id="engineUpdateVer">?</b>, cần <b>1.7.0</b>). Tải về để dùng tính năng mới nhất.</span>
     <a class="btn" href="https://raw.githubusercontent.com/haidzkkk/Voice-ai/main/dist/GiongAI.exe" download>Cập nhật engine</a>
   </div>
   <div id="engineGate" class="hide" style="position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(10,8,16,.55);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)">
-    <div style="width:min(560px,100%);max-height:90vh;overflow:auto;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);padding:22px">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
-        <div style="width:36px;height:36px;border-radius:10px;background:var(--grad);display:flex;align-items:center;justify-content:center;flex:none">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"><path d="M4 10v4m4-7v10m4-13v16m4-13v10m4-7v4"/></svg>
-        </div>
-        <h2 style="margin:0;font-size:18px">Bật Giọng AI Engine trên máy bạn</h2>
-      </div>
-      <p style="margin:6px 0 14px;color:var(--muted);font-size:14px">Giọng được tạo <b>ngay trên máy bạn</b> nên cần chạy một chương trình nhỏ (engine). Chỉ cần tải 1 lần, sau đó mở mỗi khi dùng.</p>
+    <div style="width:min(620px,100%);max-height:92vh;overflow:auto;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);padding:0;display:flex;flex-direction:column">
+      <style>
+        .eng-slide{display:none;flex-direction:column;align-items:center;text-align:center;gap:12px;min-height:236px}
+        .eng-slide.eng-on{display:flex}
+        .eng-ill{width:100%;max-width:300px;height:140px;flex:none}
+        .eng-slide h3{margin:0;font-size:17px}
+        .eng-slide p{margin:0;color:var(--muted);font-size:13.5px;line-height:1.55;max-width:440px}
+        .eng-badge{display:inline-block;font-size:12px;font-weight:700;color:var(--accent);background:var(--accent-soft);padding:3px 11px;border-radius:999px}
+        .eng-dot{width:8px;height:8px;border-radius:50%;background:var(--line);border:none;padding:0;cursor:pointer;transition:all .15s}
+        .eng-dot.on{background:var(--accent);transform:scale(1.3)}
+      </style>
 
-      <div id="engineInstalledBox" class="hide" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:var(--accent-soft);border:1px solid var(--accent);border-radius:12px;padding:12px;margin-bottom:14px">
+      <div style="display:flex;align-items:center;gap:10px;padding:20px 22px 0">
+        <div style="width:34px;height:34px;border-radius:10px;background:var(--grad);display:flex;align-items:center;justify-content:center;flex:none">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"><path d="M4 10v4m4-7v10m4-13v16m4-13v10m4-7v4"/></svg>
+        </div>
+        <h2 style="margin:0;font-size:17px">Cài đặt Giọng AI trên máy bạn</h2>
+        <span id="engStep" style="margin-left:auto;font-size:12px;color:var(--muted);background:var(--field);border:1px solid var(--line);padding:3px 9px;border-radius:999px">1 / 5</span>
+      </div>
+
+      <div id="engineInstalledBox" class="hide" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:var(--accent-soft);border:1px solid var(--accent);border-radius:12px;padding:12px;margin:14px 22px 0">
         <span style="flex:1;min-width:200px">Đã cài engine trước đó? Mở lại chỉ với 1 bấm:</span>
         <button class="btn primary" id="engineOpen">▶ Mở Giọng AI Engine</button>
       </div>
 
-      <div id="engineStatus" style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);background:var(--field);border:1px solid var(--line);border-radius:10px;padding:9px 12px;margin-bottom:16px">
-        <span class="dot" style="width:9px;height:9px;border-radius:50%;background:var(--bad);flex:none"></span>
-        <span class="engine-status-text">Đang tìm engine trên máy bạn… (trang sẽ tự nhận khi engine chạy)</span>
-      </div>
+      <div class="eng-track" style="padding:16px 22px 0">
+        <!-- Slide 1: vì sao -->
+        <div class="eng-slide eng-on" data-i="0">
+          <svg class="eng-ill" viewBox="0 0 300 140" fill="none" aria-hidden="true">
+            <rect x="80" y="22" width="140" height="84" rx="8" style="fill:var(--field);stroke:var(--line)" stroke-width="2"/>
+            <rect x="64" y="106" width="172" height="9" rx="4.5" style="fill:var(--line)"/>
+            <g style="stroke:var(--accent)" stroke-width="6" stroke-linecap="round">
+              <line x1="122" y1="76" x2="122" y2="56"/><line x1="138" y1="82" x2="138" y2="50"/>
+              <line x1="154" y1="86" x2="154" y2="46"/><line x1="170" y1="82" x2="170" y2="50"/>
+              <line x1="186" y1="76" x2="186" y2="56"/>
+            </g>
+          </svg>
+          <span class="eng-badge">Vì sao cần bước này</span>
+          <h3>Giọng được tạo ngay trên máy bạn</h3>
+          <p>Giọng AI dùng model chạy <b>trực tiếp trên máy</b> — miễn phí &amp; riêng tư, không gửi dữ liệu đi đâu. Chỉ cần một chương trình nhỏ gọi là <b>engine</b>. Làm theo 4 bước sau, khoảng 1 phút.</p>
+        </div>
 
-      <ol style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:16px">
-        <li>
-          <div style="font-weight:600;margin-bottom:8px">Chưa có engine? Tải về máy:</div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <!-- Slide 2: tải -->
+        <div class="eng-slide" data-i="1">
+          <svg class="eng-ill" viewBox="0 0 300 140" fill="none" aria-hidden="true">
+            <rect x="96" y="18" width="108" height="66" rx="10" style="fill:var(--field);stroke:var(--line)" stroke-width="2"/>
+            <g style="stroke:var(--accent)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" fill="none">
+              <line x1="150" y1="32" x2="150" y2="60"/><polyline points="134,48 150,66 166,48"/>
+            </g>
+            <path d="M104 98 h92" style="stroke:var(--line)" stroke-width="6" stroke-linecap="round"/>
+            <text x="150" y="124" text-anchor="middle" style="fill:var(--muted);font-size:13px;font-family:inherit;font-weight:600">GiongAI.exe</text>
+          </svg>
+          <span class="eng-badge">Bước 1</span>
+          <h3>Tải engine về máy</h3>
+          <p>Bấm nút dưới để tải file <b>GiongAI.exe</b> (trình duyệt lưu vào thư mục <b>Downloads</b>). Máy Windows ARM thì chọn bản ARM64.</p>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
             <a class="btn primary" id="engineDownload" href="https://raw.githubusercontent.com/haidzkkk/Voice-ai/main/dist/GiongAI.exe" download>⬇ Tải cho Windows</a>
             <a class="btn" href="https://raw.githubusercontent.com/haidzkkk/Voice-ai/main/dist/GiongAI-arm64.exe" download title="Dành cho máy Windows ARM64">Bản ARM64</a>
           </div>
-        </li>
-        <li>
-          <div style="font-weight:600;margin-bottom:8px">Mở file vừa tải (<code>GiongAI.exe</code>) và để cửa sổ đó chạy.</div>
-          <ul style="margin:0;padding-left:18px;color:var(--muted);font-size:13px;display:flex;flex-direction:column;gap:5px">
-            <li>Lần đầu Windows có thể báo "Unknown publisher" → bấm <b>More info → Run anyway</b>.</li>
-            <li><b>Giữ cửa sổ engine mở</b> trong lúc dùng. Đóng cửa sổ (hoặc đóng tab web) là tắt engine.</li>
-            <li>Nếu trình duyệt hỏi quyền <b>truy cập mạng nội bộ</b>, hãy chọn <b>Cho phép / Allow</b>.</li>
-          </ul>
-        </li>
-      </ol>
-      <p style="margin:14px 0 0;padding:10px 12px;border-radius:10px;background:var(--accent-soft);color:var(--ink);font-size:13px">
-        💡 Chỉ cần <b>chạy tay 1 lần đầu</b>. Từ lần sau, chỉ việc mở web là engine <b>tự chạy</b> (có thể cần bấm <b>Cho phép</b> khi Windows hỏi "Open Giọng AI?").
-      </p>
+        </div>
 
-      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:18px">
-        <button class="btn primary" id="engineRetry">Tôi đã chạy engine — Kiểm tra lại</button>
-        <span style="color:var(--muted);font-size:12px">Hoặc chờ vài giây, trang tự nhận.</span>
+        <!-- Slide 3: mở file -->
+        <div class="eng-slide" data-i="2">
+          <svg class="eng-ill" viewBox="0 0 300 140" fill="none" aria-hidden="true">
+            <path d="M92 22 h44 l22 22 v74 h-66 z" style="fill:var(--field);stroke:var(--line)" stroke-width="2" stroke-linejoin="round"/>
+            <path d="M136 22 v22 h22" style="stroke:var(--line)" stroke-width="2" fill="none"/>
+            <text x="125" y="100" text-anchor="middle" style="fill:var(--accent);font-size:16px;font-weight:800;font-family:inherit">EXE</text>
+            <rect x="156" y="58" width="94" height="30" rx="15" style="fill:var(--accent)"/>
+            <text x="203" y="78" text-anchor="middle" style="fill:#fff;font-size:12px;font-weight:700;font-family:inherit">Run anyway</text>
+          </svg>
+          <span class="eng-badge">Bước 2</span>
+          <h3>Mở file GiongAI.exe</h3>
+          <p>Mở (double-click) file vừa tải. Lần đầu Windows báo <b>“Unknown publisher”</b> → bấm <b>More info → Run anyway</b>. Engine sẽ <b>tự cài vào C:\Users\&lt;bạn&gt;\GiongAI</b> (chứa cả giọng, audio, model) nên lần sau khỏi phải tìm file.</p>
+        </div>
+
+        <!-- Slide 4: cửa sổ engine -->
+        <div class="eng-slide" data-i="3">
+          <svg class="eng-ill" viewBox="0 0 300 140" fill="none" aria-hidden="true">
+            <rect x="56" y="20" width="156" height="100" rx="8" style="fill:#13111b;stroke:var(--line)" stroke-width="2"/>
+            <circle cx="70" cy="34" r="3.5" style="fill:#ff5f56"/><circle cx="82" cy="34" r="3.5" style="fill:#ffbd2e"/><circle cx="94" cy="34" r="3.5" style="fill:#27c93f"/>
+            <text x="68" y="62" style="fill:#27c93f;font-size:11px;font-family:monospace">DANG CHAY...</text>
+            <text x="68" y="82" style="fill:#9aa0b5;font-size:10px;font-family:monospace">GIU CUA SO NAY MO</text>
+            <path d="M224 54 h20 l6 8 h26 v36 h-52 z" style="fill:var(--accent-soft);stroke:var(--accent)" stroke-width="2" stroke-linejoin="round"/>
+          </svg>
+          <span class="eng-badge">Bước 3</span>
+          <h3>Cửa sổ engine hiện ra</h3>
+          <p>Một cửa sổ nền đen ghi <b>DANG CHAY…</b> nghĩa là engine đang chạy. <b>Giữ cửa sổ này mở</b> trong lúc dùng. Nếu trình duyệt hỏi quyền <b>truy cập mạng nội bộ</b> → chọn <b>Cho phép / Allow</b>.</p>
+        </div>
+
+        <!-- Slide 5: xong -->
+        <div class="eng-slide" data-i="4">
+          <svg class="eng-ill" viewBox="0 0 300 140" fill="none" aria-hidden="true">
+            <rect x="88" y="20" width="124" height="86" rx="8" style="fill:var(--field);stroke:var(--line)" stroke-width="2"/>
+            <path d="M88 40 h124" style="stroke:var(--line)" stroke-width="2"/>
+            <circle cx="100" cy="30" r="3" style="fill:var(--line)"/><circle cx="110" cy="30" r="3" style="fill:var(--line)"/>
+            <circle cx="150" cy="73" r="21" style="fill:var(--accent)"/>
+            <polyline points="140,73 147,80 161,65" style="stroke:#fff" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span class="eng-badge">Xong!</span>
+          <h3>Lần sau tự động</h3>
+          <p>Trang sẽ <b>tự nhận engine</b> ngay. Từ lần sau chỉ cần mở web — engine <b>tự chạy</b> (bấm Cho phép nếu Windows hỏi “Open Giọng AI?”). <b>Đóng tab web → engine tự tắt.</b></p>
+        </div>
+      </div>
+
+      <div id="engDots" style="display:flex;gap:7px;justify-content:center;padding:16px 0 0"></div>
+
+      <div style="display:flex;gap:10px;align-items:center;padding:14px 22px 0">
+        <button class="btn ghost" id="engPrev">← Trước</button>
+        <button class="btn primary" id="engNext" style="margin-left:auto">Tiếp →</button>
+      </div>
+
+      <div style="border-top:1px solid var(--line);margin-top:16px;padding:14px 22px;background:var(--field);border-radius:0 0 18px 18px">
+        <div id="engineStatus" style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)">
+          <span class="dot" style="width:9px;height:9px;border-radius:50%;background:var(--bad);flex:none"></span>
+          <span class="engine-status-text">Đang tìm engine trên máy bạn… (trang sẽ tự nhận khi engine chạy)</span>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px">
+          <button class="btn" id="engineRetry">Tôi đã chạy engine — Kiểm tra lại</button>
+          <span style="color:var(--muted);font-size:12px">Hoặc chờ vài giây, trang tự nhận.</span>
+        </div>
       </div>
     </div>
   </div>
   <main>
   <section id="settingsView" class="hide card">
-    <div class="section-heading"><h2>Nơi lưu dữ liệu</h2></div>
-    <p class="sub">Chọn thư mục trên ổ C, D, E hoặc ổ ngoài. Lựa chọn được lưu trên máy và có hiệu lực sau khi thoát rồi mở lại ứng dụng.</p>
-    <div style="margin:20px 0"><label class="fl" for="storageEngine">Model &amp; thư viện tải về</label><div class="row"><input class="inp" id="storageEngine" placeholder="Ví dụ: D:\GiongAI\engine"><button class="btn" data-storage-browse="storageEngine">Chọn thư mục…</button></div><p class="sub">Chứa model, Python, thư viện AI và cache tải về.</p></div>
-    <div style="margin:20px 0"><label class="fl" for="storageAudio">Audio đã tạo</label><div class="row"><input class="inp" id="storageAudio" placeholder="Ví dụ: D:\GiongAI\audio"><button class="btn" data-storage-browse="storageAudio">Chọn thư mục…</button></div></div>
-    <div style="margin:20px 0"><label class="fl" for="storageVoices">Giọng cá nhân</label><div class="row"><input class="inp" id="storageVoices" placeholder="Ví dụ: D:\GiongAI\voices"><button class="btn" data-storage-browse="storageVoices">Chọn thư mục…</button></div><p class="sub">Chứa file mẫu giọng và thông tin giọng/cảm xúc.</p></div>
-    <p class="wizard-note">Đổi đường dẫn không tự di chuyển dữ liệu cũ. Để dùng dữ liệu cũ, sao chép giọng và audio sang thư mục mới trước khi mở lại. Model trong cache có thể có đường dẫn liên kết; môi trường Python cần cài lại ở nơi mới. Bạn có thể để đường dẫn giọng cũ để tiếp tục dùng giọng đã lưu.</p>
-    <p class="sub">Để trống một ô sẽ dùng vị trí mặc định. Khi giọng cá nhân để trống, app dùng thư mục voices bên trong nơi lưu model.</p>
-    <label class="check" style="margin:16px 0"><input type="checkbox" id="storageMoveExisting"> Chuyển dữ liệu đã có sang nơi mới (sao chép và giữ bản cũ)</label>
-    <p class="sub">Khi chuyển, model/cache, audio và giọng được sao chép. Môi trường Python/thư viện cần cài lại tại nơi mới. Không tắt app hoặc rút ổ đĩa trong lúc chuyển.</p>
+    <div class="section-heading"><h2>Thư mục Giọng AI</h2></div>
+    <p class="sub">Mọi dữ liệu nằm trong <b>MỘT thư mục gốc</b>. Bên trong tự chia: <code>engine</code> (model &amp; thư viện), <code>voices</code> (giọng), <code>audio</code> (file xuất ra), <code>previews</code> (nghe thử), <code>bin</code> (chương trình). Đổi ở đây để chuyển sang ổ C, D, E hay ổ ngoài.</p>
+    <div style="margin:20px 0"><label class="fl" for="storageRoot">Thư mục gốc (root)</label><div class="row"><input class="inp" id="storageRoot" placeholder="Ví dụ: D:\GiongAI"><button class="btn" id="storageBrowseRoot">Chọn thư mục…</button></div></div>
+    <label class="check" style="margin:8px 0 4px"><input type="checkbox" id="storageMoveExisting" checked> Di chuyển dữ liệu đang có sang thư mục mới (sao chép, vẫn giữ bản cũ)</label>
+    <p class="wizard-note">Khi di chuyển: model/cache, audio, giọng và nghe thử được sao chép sang root mới; bản cũ được giữ nguyên. Riêng môi trường Python/thư viện AI cần <b>cài lại</b> tại nơi mới (dung lượng lớn, không chuyển được). Không tắt app hoặc rút ổ trong lúc chuyển. Bỏ chọn nếu chỉ muốn đổi đường dẫn mà không chép dữ liệu.</p>
     <div id="storageMoveProgress" class="hide"><progress id="storageMoveBar" max="100" style="width:100%"></progress><p class="sub" id="storageMoveText" style="overflow-wrap:anywhere" aria-live="polite"></p></div>
-    <div class="row"><button class="btn primary compact" id="storageSave">Lưu cài đặt</button><button class="btn" id="storageReload">Tải lại cài đặt</button></div><div class="msg" id="storageMessage" aria-live="polite"></div><div class="sub" id="storageActive" style="white-space:pre-wrap;overflow-wrap:anywhere"></div>
+    <div class="row"><button class="btn primary compact" id="storageSave">Lưu &amp; áp dụng</button><button class="btn" id="storageReload">Tải lại</button></div><div class="msg" id="storageMessage" aria-live="polite"></div><div class="sub" id="storageActive" style="white-space:pre-wrap;overflow-wrap:anywhere"></div>
     <div class="section-heading" style="margin-top:30px"><h2>Giao diện</h2></div>
     <p class="sub">Chọn nền sáng, tối, hoặc để theo hệ điều hành.</p>
     <div class="theme-tog" role="group" aria-label="Giao diện sáng tối">
@@ -1742,17 +1815,15 @@ let storageCurrent=null,storageMoveTimer;
 async function loadStorage(){
  try{
   const r=await fetch('/api/settings/storage');if(!r.ok)throw Error(await r.text());const data=await r.json();storageCurrent=data;
-  for(const [key,id] of [['engine','storageEngine'],['audio','storageAudio'],['voices','storageVoices']]){
-   $('#'+id).value=data.saved[key]||'';$('#'+id).placeholder=data.active[key];
-  }
-  $('#storageActive').textContent='Đang sử dụng:\nModel: '+data.active.engine+'\nAudio: '+data.active.audio+'\nGiọng: '+data.active.voices;
-  $('#storageMessage').textContent=(data.restart_required?'Đã lưu. Thoát rồi mở lại app để áp dụng.':'')+((data.engine_env||data.audio_env)?' Biến môi trường GIONGAI_ENGINE_DIR / GIONGAI_OUT đang ưu tiên hơn cài đặt tương ứng.':'');
+  $('#storageRoot').value=data.saved.root||'';$('#storageRoot').placeholder=data.active.root;
+  $('#storageActive').textContent='Đang dùng (thư mục gốc):\n'+data.active.root+'\n   engine:   '+data.active.engine+'\n   giọng:    '+data.active.voices+'\n   audio:    '+data.active.audio+'\n   nghe thử: '+data.active.previews;
+  $('#storageMessage').textContent=(data.restart_required?'Đã lưu. Thoát rồi mở lại app để áp dụng.':'')+(data.root_env?' Biến môi trường GIONGAI_HOME đang ưu tiên hơn cài đặt này.':'');
  }catch(error){$('#storageMessage').textContent=error.message;}
 }
-document.querySelectorAll('[data-storage-browse]').forEach(button=>button.onclick=async()=>{
- button.disabled=true;$('#storageMessage').textContent='Chọn thư mục trong hộp thoại hệ thống…';
- try{const r=await fetch('/api/settings/choose-folder',{method:'POST'});if(!r.ok)throw Error(await r.text());const data=await r.json();if(data.path)$('#'+button.dataset.storageBrowse).value=data.path;$('#storageMessage').textContent=data.path?'Bấm Lưu cài đặt để giữ lựa chọn.':'Đã hủy chọn thư mục.';}catch(error){$('#storageMessage').textContent=error.message;}finally{button.disabled=false;}
-});
+$('#storageBrowseRoot').onclick=async()=>{
+ const button=$('#storageBrowseRoot');button.disabled=true;$('#storageMessage').textContent='Chọn thư mục trong hộp thoại hệ thống…';
+ try{const r=await fetch('/api/settings/choose-folder',{method:'POST'});if(!r.ok)throw Error(await r.text());const data=await r.json();if(data.path)$('#storageRoot').value=data.path;$('#storageMessage').textContent=data.path?'Bấm “Lưu & áp dụng” để giữ lựa chọn.':'Đã hủy chọn thư mục.';}catch(error){$('#storageMessage').textContent=error.message;}finally{button.disabled=false;}
+};
 $('#storageReload').onclick=loadStorage;
 async function pollStorageMove(){
  clearTimeout(storageMoveTimer);
@@ -1767,23 +1838,38 @@ async function pollStorageMove(){
  }catch(error){$('#storageMoveText').textContent=error.message;storageMoveTimer=setTimeout(pollStorageMove,2000);}
 }
 $('#storageSave').onclick=async()=>{
+ const root=$('#storageRoot').value.trim();
+ if(!root){$('#storageMessage').textContent='Hãy nhập hoặc chọn thư mục gốc.';return;}
  $('#storageSave').disabled=true;
  try{
   const move=$('#storageMoveExisting').checked;
-  const paths={engine:$('#storageEngine').value.trim(),audio:$('#storageAudio').value.trim(),voices:$('#storageVoices').value.trim()};
-  if(move){
-   if(!storageCurrent)await loadStorage();
-   paths.engine=paths.engine||storageCurrent.active.engine;
-   paths.audio=paths.audio||storageCurrent.active.audio;
-   paths.voices=paths.voices||(paths.engine===storageCurrent.active.engine?storageCurrent.active.voices:paths.engine.replace(/[\\/]$/,'')+'/voices');
-  }
-  const r=await fetch(move?'/api/settings/storage-move':'/api/settings/storage',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(paths)});
+  const r=await fetch(move?'/api/settings/storage-move':'/api/settings/storage',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({root})});
   if(!r.ok)throw Error(await r.text());
-  if(move){$('#storageMessage').textContent='Đang chuyển dữ liệu. Chờ thanh tiến độ hoàn tất trước khi thoát.';await pollStorageMove();}else await loadStorage();
+  if(move){$('#storageMessage').textContent='Đang di chuyển dữ liệu. Chờ thanh tiến độ xong rồi hãy thoát.';await pollStorageMove();}else await loadStorage();
  }catch(error){$('#storageMessage').textContent=error.message;$('#storageSave').disabled=false;}
  finally{if(!$('#storageMoveExisting').checked)$('#storageSave').disabled=false;}
 };
 
+
+/* Onboarding engine: carousel slide hướng dẫn */
+(function(){
+ var track=document.querySelector('.eng-track'); if(!track) return;
+ var slides=[].slice.call(track.querySelectorAll('.eng-slide'));
+ var dotsWrap=document.getElementById('engDots'), step=document.getElementById('engStep');
+ var prev=document.getElementById('engPrev'), next=document.getElementById('engNext'), cur=0;
+ slides.forEach(function(_,i){ var d=document.createElement('button'); d.className='eng-dot'; d.setAttribute('aria-label','Bước '+(i+1)); d.onclick=function(){ go(i); }; dotsWrap.appendChild(d); });
+ var dots=[].slice.call(dotsWrap.children);
+ function go(i){ cur=Math.max(0,Math.min(slides.length-1,i));
+  slides.forEach(function(s,k){ s.classList.toggle('eng-on',k===cur); });
+  dots.forEach(function(d,k){ d.classList.toggle('on',k===cur); });
+  if(step) step.textContent=(cur+1)+' / '+slides.length;
+  if(prev) prev.style.visibility=cur===0?'hidden':'visible';
+  if(next) next.textContent=cur===slides.length-1?'Xong, bắt đầu dùng':'Tiếp →';
+ }
+ if(prev) prev.onclick=function(){ go(cur-1); };
+ if(next) next.onclick=function(){ go(cur===slides.length-1?0:cur+1); };
+ go(0);
+})();
 
 setEngine(engine);
 renderSamples();
