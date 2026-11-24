@@ -22,7 +22,7 @@ import (
 )
 
 const appID = "giongai-v1"
-const appVersion = "1.5.0" // phiên bản engine; web so sánh để gợi ý cập nhật
+const appVersion = "1.6.0" // phiên bản engine; web so sánh để gợi ý cập nhật
 const defaultPort = 17860
 
 // UI chạy trên web (GitHub Pages); binary chỉ là engine chạy local.
@@ -90,7 +90,7 @@ type ttsRequest struct {
 	Desc       string `json:"desc"` // mô tả cách đọc (chỉ reference mode)
 }
 
-func previewDir() string { return filepath.Join(engineDir(), "previews") }
+func previewDir() string { return filepath.Join(dataRoot(), "previews") }
 
 func previewName(in ttsRequest) string {
 	h := sha256.New()
@@ -493,15 +493,7 @@ func pickOutDir() string {
 	if activeStorage.Audio != "" {
 		return activeStorage.Audio
 	}
-	if home, err := os.UserHomeDir(); err == nil {
-		docs := filepath.Join(home, "Documents")
-		if st, err := os.Stat(docs); err == nil && st.IsDir() {
-			return filepath.Join(docs, "GiongAI")
-		}
-		return filepath.Join(home, "GiongAI")
-	}
-	exe, _ := os.Executable()
-	return filepath.Join(filepath.Dir(exe), "GiongAI_output")
+	return filepath.Join(dataRoot(), "audio")
 }
 
 func launchedViaScheme() bool {
@@ -561,6 +553,8 @@ func main() {
 	fmt.Println("   >> GIU CUA SO NAY MO trong khi dang dung.")
 	fmt.Println("   >> DONG cua so nay (hoac bam Ctrl+C) de TAT server.")
 	fmt.Println("--------------------------------------------------------")
+	fmt.Println("   Thu muc du lieu (root):")
+	fmt.Println("        " + dataRoot())
 	fmt.Println("   File am thanh luu tai:")
 	fmt.Println("        " + outDir)
 	fmt.Println("   Dia chi noi bo:", addr)

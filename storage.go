@@ -39,7 +39,7 @@ func voiceStorageDir() string {
 	if activeStorage.Voices != "" {
 		return activeStorage.Voices
 	}
-	return filepath.Join(engineDir(), "voices")
+	return filepath.Join(dataRoot(), "voices")
 }
 func validateStoragePath(p string) (string, error) {
 	p = strings.TrimSpace(p)

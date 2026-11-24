@@ -65,6 +65,27 @@ func getModel(id string) (*modelDef, error) {
 
 // ---------------------------------------------------------------- đường dẫn
 
+// dataRoot là thư mục GỐC chứa MỌI dữ liệu local, mỗi loại một thư mục con:
+//
+//	<root>/bin       → GiongAI.exe (bản cài cố định)
+//	<root>/engine    → python venv + model tải về
+//	<root>/voices    → giọng cá nhân
+//	<root>/audio     → file audio xuất ra
+//	<root>/previews  → file nghe thử
+//
+// Mặc định: %USERPROFILE%\GiongAI (Windows) hoặc ~/GiongAI. Đổi cả gốc bằng env
+// GIONGAI_HOME; đổi riêng từng thư mục con trong phần Cài đặt (ghi đè mặc định).
+func dataRoot() string {
+	if d := os.Getenv("GIONGAI_HOME"); d != "" {
+		return d
+	}
+	if h, err := os.UserHomeDir(); err == nil {
+		return filepath.Join(h, "GiongAI")
+	}
+	exe, _ := os.Executable()
+	return filepath.Join(filepath.Dir(exe), "GiongAI")
+}
+
 func engineDir() string {
 	if d := os.Getenv("GIONGAI_ENGINE_DIR"); d != "" {
 		return d
@@ -72,20 +93,7 @@ func engineDir() string {
 	if activeStorage.Engine != "" {
 		return activeStorage.Engine
 	}
-	switch runtime.GOOS {
-	case "windows":
-		if d := os.Getenv("LOCALAPPDATA"); d != "" {
-			return filepath.Join(d, "GiongAI", "engine")
-		}
-	case "darwin":
-		if h, err := os.UserHomeDir(); err == nil {
-			return filepath.Join(h, "Library", "Application Support", "GiongAI", "engine")
-		}
-	}
-	if h, err := os.UserHomeDir(); err == nil {
-		return filepath.Join(h, ".local", "share", "GiongAI", "engine")
-	}
-	return "GiongAI-engine"
+	return filepath.Join(dataRoot(), "engine")
 }
 
 func exeName(n string) string {
