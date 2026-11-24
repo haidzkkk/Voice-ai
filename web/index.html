@@ -223,6 +223,19 @@ body{min-height:100vh}
     var _f = window.fetch.bind(window);
     window.fetch = function(u, o){
       try{ if(typeof u==='string' && /^\/(api|files|preview)(\/|\?|$)/.test(u)) u = ENGINE_BASE + u; }catch(e){}
+      // Lưới an toàn: mọi POST "chức năng" tới engine khi CHƯA kết nối → hiện popup hướng dẫn
+      // và chặn (trừ các endpoint quản lý engine: ping/version/quit/web-closing/settings).
+      try{
+        var method=(o&&o.method?o.method:'GET').toUpperCase();
+        if(method==='POST' && typeof u==='string' && u.indexOf(ENGINE_BASE+'/api/')===0){
+          var path=u.slice(ENGINE_BASE.length);
+          var exempt=/^\/api\/(ping|version|web-closing|quit|settings\/)/.test(path);
+          if(!exempt && window.GiongAIEngine && !window.GiongAIEngine.isUp()){
+            if(window.requireEngine) window.requireEngine();
+            return Promise.reject(new Error('Engine chưa bật trên máy. Hãy làm theo hướng dẫn vừa hiện.'));
+          }
+        }
+      }catch(e){}
       return _f(u, o);
     };
   })();
@@ -236,7 +249,7 @@ body{min-height:100vh}
   // Dò engine local liên tục: ping + xác minh appID. Mất kết nối → hiện cổng tải;
   // đã từng cài → cho mở nhanh qua giao thức giongai:// (1 bấm, khỏi tìm exe).
   (function(){
-    var APP_ID='giongai-v1', connected=null, timer=null, triedAuto=false;
+    var APP_ID='giongai-v1', connected=null, timer=null;
     function setStatus(state, msg){
       var box=document.getElementById('engineStatus'); if(!box) return;
       var dot=box.querySelector('.dot'), txt=box.querySelector('.engine-status-text');
@@ -260,14 +273,21 @@ body{min-height:100vh}
     function isInstalled(){ try{ return localStorage.getItem('engineInstalled')==='1'; }catch(e){ return false; } }
     function openEngine(){ try{ location.href='giongai://start'; }catch(e){} }
     function showOpen(on){ var b=document.getElementById('engineInstalledBox'); if(b) b.classList.toggle('hide', !on); }
+    function setEnginePill(up){
+      var dot=document.getElementById('enginePillDot'), txt=document.getElementById('enginePillText');
+      if(dot) dot.style.background = up?'var(--ok)':'var(--bad)';
+      if(txt) txt.textContent = up?'Engine: đã bật':'Engine: chưa bật — bấm để cài';
+    }
     function apply(up){
       if(up!==connected){
         connected=up;
-        var g=document.getElementById('engineGate'); if(g) g.classList.toggle('hide', up);
+        // Engine lên thì tự đóng popup; engine xuống KHÔNG tự bật popup (vào web không bắt buộc engine).
+        if(up){ var g=document.getElementById('engineGate'); if(g) g.classList.add('hide'); }
         try{ document.dispatchEvent(new CustomEvent('engine:'+(up?'up':'down'))); }catch(e){}
       }
       if(up){ markInstalled(); checkVersion(); }
       else { var uu=document.getElementById('engineUpdate'); if(uu) uu.classList.add('hide'); showOpen(isInstalled()); setVerInfo(null); }
+      setEnginePill(up);
       var downMsg = isInstalled()
         ? 'Chưa mở được engine. Nếu bạn vừa di chuyển hoặc xoá file, hãy mở lại GiongAI.exe (ở vị trí mới) 1 lần để nối lại.'
         : 'Chưa thấy engine. Hãy tải & mở GiongAI.exe rồi bấm “Kiểm tra lại”.';
@@ -280,18 +300,31 @@ body{min-height:100vh}
         .then(function(t){ if((t||'').trim()!==APP_ID) return Promise.reject(); apply(true); return true; })
         .catch(function(){ apply(false); return false; });
     }
-    window.GiongAIEngine = { ping: ping, isUp: function(){ return connected===true; }, base: function(){ return ENGINE_BASE; }, open: openEngine };
+    function closeGate(){ var g=document.getElementById('engineGate'); if(g) g.classList.add('hide'); }
+    // Gọi khi user bắt đầu một chức năng CẦN engine. Có engine → true (chạy tiếp);
+    // chưa có → hiện popup hướng dẫn tải/mở engine và trả false (dừng hành động).
+    function requireEngine(){
+      if(connected===true) return true;
+      var g=document.getElementById('engineGate'); if(g) g.classList.remove('hide');
+      showOpen(isInstalled());
+      ping(true);
+      if(isInstalled()) openEngine(); // đã cài → thử mở nhanh qua giao thức ngay lúc cần
+      return false;
+    }
+    window.GiongAIEngine = { ping: ping, isUp: function(){ return connected===true; }, base: function(){ return ENGINE_BASE; }, open: openEngine, require: requireEngine };
+    window.requireEngine = requireEngine;
     window.addEventListener('DOMContentLoaded', function(){
       var b=document.getElementById('engineRetry');
       if(b) b.onclick=function(){ var t=b.textContent; b.disabled=true; b.textContent='Đang kiểm tra…'; ping(true).then(function(){ b.disabled=false; b.textContent=t; }); };
       var o=document.getElementById('engineOpen'); if(o) o.onclick=openEngine;
+      var c=document.getElementById('engineGateClose'); if(c) c.onclick=closeGate;
+      var cl=document.getElementById('engineGateLater'); if(cl) cl.onclick=closeGate;
+      var pill=document.getElementById('enginePill'); if(pill) pill.onclick=function(){ var gg=document.getElementById('engineGate'); if(gg) gg.classList.remove('hide'); showOpen(isInstalled()); ping(true); };
+      var g=document.getElementById('engineGate'); if(g) g.addEventListener('click', function(e){ if(e.target===g) closeGate(); });
       // Gắn ?v=version vào link tải để trình duyệt/CDN không trả file exe cũ.
       try{ document.querySelectorAll('a[download]').forEach(function(a){ var h=a.getAttribute('href')||''; if(/GiongAI(-arm64)?\.exe$/.test(h)) a.setAttribute('href', h+'?v='+WEB_VERSION); }); }catch(e){}
       showOpen(isInstalled());
-      ping().then(function(up){
-        // Đã cài trước đó mà engine chưa chạy → tự mở bằng giao thức (1 lần).
-        if(!up && isInstalled() && !triedAuto){ triedAuto=true; setTimeout(openEngine, 500); }
-      });
+      ping(); // chỉ dò trạng thái, KHÔNG tự mở engine khi vào web
       timer=setInterval(function(){ ping(); }, 5000); // dò đều để phát hiện engine bật/tắt
       window.addEventListener('focus', function(){ ping(); }); // quay lại tab kiểm tra ngay
       // Đóng tab → báo engine tắt (nếu beacon lỗi, engine vẫn tự tắt sau ~90s mất heartbeat).
@@ -326,6 +359,10 @@ body{min-height:100vh}
   <div class="content"><div class="content-in">
   <div class="topbar">
     <div class="status-pill"><span class="dot" id="dot"></span><span id="statusText">Đang kết nối…</span></div>
+    <button id="enginePill" class="status-pill" style="cursor:pointer;gap:7px;border:none" title="Trạng thái engine trên máy — bấm để xem hướng dẫn cài/bật">
+      <span id="enginePillDot" style="width:9px;height:9px;border-radius:50%;background:var(--bad);flex:none"></span>
+      <span id="enginePillText">Engine: chưa bật</span>
+    </button>
     <button class="btn ghost" id="quitBtn" title="Tắt ứng dụng">Thoát</button>
   </div>
   <div id="engineUpdate" class="hide" style="margin:0 0 14px;padding:10px 14px;border-radius:12px;border:1px solid var(--accent);background:var(--accent-soft);color:var(--ink);display:flex;gap:10px;align-items:center;flex-wrap:wrap">
@@ -351,6 +388,7 @@ body{min-height:100vh}
         </div>
         <h2 style="margin:0;font-size:17px">Cài đặt Giọng AI trên máy bạn</h2>
         <span id="engStep" style="margin-left:auto;font-size:12px;color:var(--muted);background:var(--field);border:1px solid var(--line);padding:3px 9px;border-radius:999px">1 / 5</span>
+        <button id="engineGateClose" title="Đóng" aria-label="Đóng" style="border:none;background:transparent;color:var(--muted);font-size:20px;line-height:1;cursor:pointer;padding:2px 4px">✕</button>
       </div>
 
       <div id="engineInstalledBox" class="hide" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:var(--accent-soft);border:1px solid var(--accent);border-radius:12px;padding:12px;margin:14px 22px 0">
@@ -451,7 +489,8 @@ body{min-height:100vh}
         </div>
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px">
           <button class="btn" id="engineRetry">Tôi đã chạy engine — Kiểm tra lại</button>
-          <span style="color:var(--muted);font-size:12px">Hoặc chờ vài giây, trang tự nhận.</span>
+          <button class="btn ghost" id="engineGateLater">Để sau</button>
+          <span style="color:var(--muted);font-size:12px">Trang tự nhận khi engine chạy.</span>
         </div>
       </div>
     </div>
@@ -998,6 +1037,7 @@ async function generate(){
   if(currentJob) return;
   const text = ta.value.trim();
   if(!text){ setMsg('Bạn chưa nhập văn bản.', true); ta.focus(); return; }
+  if(typeof requireEngine==='function' && !requireEngine()){ setMsg('Cần bật engine trên máy để tạo audio. Làm theo hướng dẫn vừa hiện.', true); return; }
   if(window.GiongAIAccount){ const g=window.GiongAIAccount.gate(text.length); if(!g.ok){ setMsg(g.msg, true); return; } }
   if(emotionCuePattern.test(text) && !(engine==='vieneu' && vmodel==='vieneu')){
     setMsg('Thẻ biểu cảm chỉ dùng với VieNeu. Chọn VieNeu hoặc bỏ thẻ khỏi nội dung để dùng mô hình hiện tại.',true); ta.focus(); return;
@@ -1593,6 +1633,7 @@ $('#pvSaveBtn').onclick = async ()=>{
   const msg = (t,err)=>{ $('#pvMsg').textContent=t; $('#pvMsg').className='msg'+(err?' err':''); };
   const name = $('#pvName').value.trim();
   if(!name) return msg('Hãy đặt tên cho giọng.', true);
+  if(typeof requireEngine==='function' && !requireEngine()) return msg('Cần bật engine trên máy để lưu/nhân bản giọng. Làm theo hướng dẫn vừa hiện.', true);
   if(pvEditingId){
     $('#pvSaveBtn').disabled=true;
     try{
