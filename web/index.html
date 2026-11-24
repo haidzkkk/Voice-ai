@@ -801,6 +801,7 @@ async function generate(){
     if(!$('#voice').value){ setMsg('Hãy chọn giọng đọc.', true); return; }
     body = {text, voice:$('#voice').value, rate:+$('#rate').value, pitch:+$('#pitch').value, volume:+$('#volume').value};
   }
+  if(window.GiongAIAccount) window.GiongAIAccount.setGen({engine:engine, model:body.engine||'ms', voice:body.voice||'', mode:body.mode||'', chars:text.length});
   setBusy(true); setMsg('Đang gửi…');
   try{
     const r = await fetch('/api/tts',{method:'POST',headers:{'Content-Type':'application/json'},
@@ -821,7 +822,7 @@ async function poll(){
       setTimeout(poll, 500); return;
     }
     currentJob = null; setBusy(false);
-    if(j.status==='done'){ setMsg('Xong!'); showResult(j.file); loadHistory(); if(window.GiongAIAccount) window.GiongAIAccount.record(); }
+    if(j.status==='done'){ setMsg('Xong!'); showResult(j.file); loadHistory(); if(window.GiongAIAccount){ window.GiongAIAccount.record(); window.GiongAIAccount.logGen(j.file); } }
     else if(j.status==='canceled'){ setMsg('Đã hủy.'); }
     else setMsg('Lỗi: '+(j.error||'không rõ')+(engine==='vieneu'?'':'. Kiểm tra kết nối mạng rồi thử lại.'), true);
   }catch(e){ setTimeout(poll, 1000); }
@@ -1666,6 +1667,7 @@ loadVoices(); loadHistory();
 <script src="/vendor/firebase-app-compat.js"></script>
 <script src="/vendor/firebase-auth-compat.js"></script>
 <script src="/vendor/firebase-firestore-compat.js"></script>
+<script src="/vendor/firebase-analytics-compat.js"></script>
 <script>
 /* Tài khoản + hạn mức realtime (Firebase). Tách riêng, KHÔNG đụng logic tạo giọng. */
 (function(){
@@ -1678,7 +1680,7 @@ loadVoices(); loadHistory();
   function dayUsed(usages){ var t=today(), s=0; (usages||[]).forEach(function(x){ if(x&&typeof x.chars==='number'){ var k=x.day||(x.at?dayKey(new Date(x.at)):''); if(k===t) s+=x.chars; } }); return s; }
   function userLimit(doc){ return (doc&&typeof doc.limit==='number')?doc.limit:DEFAULT_LIMIT; }
 
-  var auth=null, db=null, provider=null, cloudOn=false;
+  var auth=null, db=null, provider=null, analytics=null, cloudOn=false, authResolved=false;
   var A = {
     user:null, doc:null, _pending:0, _unsub:null,
     gate:function(n){
@@ -1699,11 +1701,21 @@ loadVoices(); loadHistory();
         d.usages.push({at:new Date().toISOString(),day:today(),chars:n});
         tx.set(ref,d);
       }); }).catch(function(e){console.warn('record',e);});
+    },
+    _gen:null,
+    setGen:function(m){ this._gen=m||{}; },
+    logGen:function(file){
+      var m=this._gen||{};
+      var p={engine:m.engine||'',model:m.model||'',voice:m.voice||'',mode:m.mode||'',chars:m.chars||0,file_name:file||''};
+      if(this.user){ p.uid=this.user.uid; }
+      logEvent('gen', p);
     }
   };
   window.GiongAIAccount = A;
 
   function $id(i){ return document.getElementById(i); }
+  function logEvent(name, params){ try{ if(analytics) analytics.logEvent(name, params||{}); }catch(e){} }
+  function userParams(u){ return u ? {uid:u.uid, provider:'google', logged_in:true} : {logged_in:false}; }
   function render(){
     var av=$id('userAv'), nm=$id('userName'), sb=$id('userSub'), btn=$id('loginBtn');
     if(!av||!nm||!sb||!btn) return;
@@ -1750,14 +1762,18 @@ loadVoices(); loadHistory();
       db.enablePersistence({synchronizeTabs:true}).catch(function(){});
       provider=new firebase.auth.GoogleAuthProvider();
       cloudOn=true;
+      try{ analytics=firebase.analytics(); }catch(e){ analytics=null; }
       auth.getRedirectResult().catch(function(){});
       auth.onAuthStateChanged(function(u){
-        A.user=u;
+        var prev=A.user; A.user=u;
         if(A._unsub){A._unsub();A._unsub=null;}
+        try{ if(analytics&&u) analytics.setUserId(u.uid); }catch(e){}
+        if(!authResolved){ authResolved=true; logEvent(u?'app_open':'app_open_guest', userParams(u)); }
+        else if(!prev && u){ logEvent('login', {method:'google', uid:u.uid}); }
         if(u&&db){
           var ref=db.collection('users').doc(u.uid);
           ref.get().then(function(s){ if(!s.exists){ return ref.set({role:'user',isVip:false,limit:DEFAULT_LIMIT,createdAt:firebase.firestore.FieldValue.serverTimestamp(),usages:[]}); } }).then(function(){ recordDevice(ref); }).catch(function(){});
-          A._unsub=ref.onSnapshot(function(s){ A.doc=s.data()||null; render(); }, function(e){console.warn(e);});
+          A._unsub=ref.onSnapshot(function(s){ A.doc=s.data()||null; try{ if(analytics) analytics.setUserProperties({role:(A.doc&&A.doc.role)||'user', vip:String(!!(A.doc&&A.doc.isVip))}); }catch(e){} render(); }, function(e){console.warn(e);});
         } else { A.doc=null; }
         render();
       });
