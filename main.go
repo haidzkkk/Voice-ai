@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -384,6 +385,21 @@ func handler(quit chan struct{}) http.Handler {
 			http.Error(w, "forbidden", 403)
 			return
 		}
+		// UI web (GitHub Pages) gọi API engine cục bộ: cho phép CORS từ origin
+		// hợp lệ + Private Network Access (Chrome đòi header này khi HTTPS gọi localhost).
+		if origin := r.Header.Get("Origin"); allowedOrigin(origin) {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Add("Vary", "Origin")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+			if r.Header.Get("Access-Control-Request-Private-Network") != "" {
+				w.Header().Set("Access-Control-Allow-Private-Network", "true")
+			}
+		}
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
 		if storageMoving() && strings.HasPrefix(r.URL.Path, "/api/") && r.URL.Path != "/api/settings/storage-move" && r.URL.Path != "/api/settings/storage" {
 			http.Error(w, "Đang chuyển dữ liệu. Vui lòng chờ hoàn tất.", 503)
 			return
@@ -394,6 +410,23 @@ func handler(quit chan struct{}) http.Handler {
 		}
 		mux.ServeHTTP(w, r)
 	})
+}
+
+// allowedOrigin: origin được phép gọi API engine cục bộ — UI web trên GitHub Pages,
+// và mọi origin localhost/127.0.0.1 (để dev và khi binary tự phục vụ UI).
+func allowedOrigin(o string) bool {
+	if o == "" {
+		return false
+	}
+	if o == "https://haidzkkk.github.io" {
+		return true
+	}
+	u, err := url.Parse(o)
+	if err != nil {
+		return false
+	}
+	h := u.Hostname()
+	return h == "localhost" || h == "127.0.0.1"
 }
 
 func isAudio(n string) bool {

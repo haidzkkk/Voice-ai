@@ -212,6 +212,40 @@ body{min-height:100vh}
 </style>
 </head>
 <body>
+<script>
+  // Engine chạy cục bộ trên máy user (binary cài riêng). UI này có thể host trên web
+  // (GitHub Pages) và gọi về đây. Đổi được khi dev qua localStorage('engineBase').
+  var ENGINE_BASE = (function(){ try{ return localStorage.getItem('engineBase') || 'http://127.0.0.1:17860'; }catch(e){ return 'http://127.0.0.1:17860'; } })();
+  function engURL(p){ return ENGINE_BASE + p; }
+  // Mọi fetch('/api|/files|/preview…') tự trỏ về engine cục bộ.
+  (function(){
+    if(!window.fetch) return;
+    var _f = window.fetch.bind(window);
+    window.fetch = function(u, o){
+      try{ if(typeof u==='string' && /^\/(api|files|preview)(\/|\?|$)/.test(u)) u = ENGINE_BASE + u; }catch(e){}
+      return _f(u, o);
+    };
+  })();
+  // Dò engine: chưa chạy thì hiện cổng tải.
+  (function(){
+    var timer=null;
+    function setGate(down){
+      var g=document.getElementById('engineGate'); if(g) g.classList.toggle('hide', !down);
+      if(down && !timer){ timer=setInterval(ping, 4000); }
+      else if(!down && timer){ clearInterval(timer); timer=null; }
+    }
+    function ping(){
+      return fetch(ENGINE_BASE+'/api/ping').then(function(r){ if(!r.ok) throw 0; return r.text(); })
+        .then(function(){ setGate(false); return true; })
+        .catch(function(){ setGate(true); return false; });
+    }
+    window.GiongAIEngine = { ping: ping, base: function(){ return ENGINE_BASE; } };
+    window.addEventListener('DOMContentLoaded', function(){
+      var b=document.getElementById('engineRetry'); if(b) b.onclick=ping;
+      ping();
+    });
+  })();
+</script>
 <div class="app">
   <aside class="side">
     <div class="brand">
@@ -237,6 +271,11 @@ body{min-height:100vh}
   <div class="topbar">
     <div class="status-pill"><span class="dot" id="dot"></span><span id="statusText">Đang kết nối…</span></div>
     <button class="btn ghost" id="quitBtn" title="Tắt ứng dụng">Thoát</button>
+  </div>
+  <div id="engineGate" class="hide" style="margin:0 0 14px;padding:12px 14px;border-radius:12px;border:1px solid #f0a53a;background:rgba(240,165,58,.12);display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+    <span style="flex:1;min-width:220px">Chưa thấy <b>Giọng AI Engine</b> chạy trên máy bạn. Hãy tải &amp; mở engine rồi bấm <b>Thử lại</b>. (Tạo giọng chạy ngay trên máy bạn.)</span>
+    <a class="btn primary" id="engineDownload" href="https://github.com/haidzkkk/Voice-ai/releases/latest" target="_blank" rel="noopener">Tải engine</a>
+    <button class="btn" id="engineRetry">Thử lại</button>
   </div>
   <main>
   <section id="settingsView" class="hide card">
@@ -846,7 +885,7 @@ async function poll(){
     else setMsg('Lỗi: '+(j.error||'không rõ')+(engine==='vieneu'?'':'. Kiểm tra kết nối mạng rồi thử lại.'), true);
   }catch(e){ setTimeout(poll, 1000); }
 }
-function fileURL(n, dl){ return '/files/'+encodeURIComponent(n)+(dl?'?dl=1':''); }
+function fileURL(n, dl){ return ENGINE_BASE+'/files/'+encodeURIComponent(n)+(dl?'?dl=1':''); }
 function showResult(name){
   $('#result').style.display='block';
   $('#resName').textContent = name;
@@ -1202,7 +1241,7 @@ function renderPv(){
 }
 $('#pvList').onclick = async e=>{
   const t = e.target.closest('button'); if(!t) return;
-  if(t.dataset.pvplay){ const voice=vnVoices.custom.find(v=>v.id===t.dataset.pvplay); $('#libraryPlayer').src='/api/engine/voice-sample?id='+t.dataset.pvplay; $('#libraryPreviewName').textContent=voice?voice.name:'Mẫu ghi âm';show('#libraryPreview',true);$('#libraryPlayer').play().catch(()=>{}); }
+  if(t.dataset.pvplay){ const voice=vnVoices.custom.find(v=>v.id===t.dataset.pvplay); $('#libraryPlayer').src=ENGINE_BASE+'/api/engine/voice-sample?id='+t.dataset.pvplay; $('#libraryPreviewName').textContent=voice?voice.name:'Mẫu ghi âm';show('#libraryPreview',true);$('#libraryPlayer').play().catch(()=>{}); }
   if(t.dataset.pvemotions) openEmotionSetup(t.dataset.pvemotions);
   if(t.dataset.pvuse){ setView('create'); region=''; vgender=''; bindFilter('#region','r',()=>region,v=>{region=v;store.set('vregion',v)}); bindFilter('#vgender','g',()=>vgender,v=>{vgender=v;store.set('vgender',v)}); fillVn('c:'+t.dataset.pvuse); store.set('vvoice','c:'+t.dataset.pvuse); }
   if(t.dataset.pvedit){
@@ -1211,7 +1250,7 @@ $('#pvList').onclick = async e=>{
     $('#pvName').value=c.name || '';
     $('#pvGender').value=c.gender || 'female'; $('#pvGender').disabled=true;
     $('#pvRefText').value=c.ref_text_legacy ? '' : (c.ref_text || '');
-    $('#pvPreview').src='/api/engine/voice-sample?id='+pvEditingId; show('#pvPreview',true);
+    $('#pvPreview').src=ENGINE_BASE+'/api/engine/voice-sample?id='+pvEditingId; show('#pvPreview',true);
     $('#pvSaveBtn').textContent='Lưu chỉnh sửa';
     openVoiceDialog(pvEditingId ? 'Sửa giọng cá nhân' : 'Thêm giọng mới'); show('#pvAudioInputs',false);
     $('#pvInfo').textContent=c.ref_text_legacy ? 'Giọng cũ đang lưu văn bản mẫu. Bấm Tự nhận dạng lời thoại rồi nghe lại để kiểm tra.' : 'Nghe mẫu và sửa lời thoại cho khớp với chính đoạn âm thanh này.';
@@ -1459,7 +1498,7 @@ $('#vPreviewBtn').onclick = async ()=>{
       if(j.status==='running'){ await new Promise(ok=>setTimeout(ok,500)); continue; }
       if(j.status!=='done') throw new Error(j.error||'không tạo được');
       if(previewAudio) previewAudio.pause();
-      previewAudio = new Audio('/preview/'+encodeURIComponent(j.file));
+      previewAudio = new Audio(ENGINE_BASE+'/preview/'+encodeURIComponent(j.file));
       previewAudio.play().catch(()=>{});
       pm(''); break;
     }
@@ -1511,7 +1550,7 @@ function renderEmotionWizard(){
  show('#emotionBackBtn',draft.step>1);$('#emotionNextBtn').textContent=draft.step===3?'Lưu cảm xúc':'Tiếp tục →';
  show('#emotionRemoveBtn',!!mappings[draft.tag]&&draft.step===3);
  show('#emotionSamplePlayer',!!draft.sampleId);
- if(draft.sampleId){const source='/api/engine/voice-sample?id='+draft.sampleId;$('#emotionSamplePlayer').src=source;$('#emotionReviewPlayer').src=source;}
+ if(draft.sampleId){const source=ENGINE_BASE+'/api/engine/voice-sample?id='+draft.sampleId;$('#emotionSamplePlayer').src=source;$('#emotionReviewPlayer').src=source;}
  if(draft.step===3){const sample=selectedEmotionSample();$('#emotionRefText').value=sample?.ref_text_legacy?'':(sample?.ref_text||'');$('#emotionSameSpeaker').checked=false;$('#emotionTranscriptChecked').checked=false;show('#emotionGeneratedPlayer',false);}
  refreshEmotionReadiness();
 }
@@ -1572,7 +1611,7 @@ $('#emotionPreviewBtn').onclick=async()=>{
   const response=await emotionRequest('/api/tts',{engine:vmodel,voice:emotionDraft.sampleId,custom:true,preview:true,text:'Xin chào, hôm nay tôi sẽ kể cho bạn nghe một câu chuyện.',rate:0,volume:0});
   if(epoch!==emotionEpoch){fetch('/api/cancel?id='+response.id);return;}
   emotionPreviewJob=response.id;
-  while(epoch===emotionEpoch){const job=await (await fetch('/api/job?id='+response.id)).json();if(job.status==='running'){await new Promise(resolve=>setTimeout(resolve,700));continue;}if(job.status!=='done')throw new Error(job.error||'Không tạo được đoạn thử');$('#emotionGeneratedPlayer').src='/preview/'+encodeURIComponent(job.file);show('#emotionGeneratedPlayer',true);$('#emotionGeneratedPlayer').play().catch(()=>{});emotionMessage('Nghe thử sắc thái. Nếu chưa phù hợp, quay lại chọn mẫu khác.');break;}
+  while(epoch===emotionEpoch){const job=await (await fetch('/api/job?id='+response.id)).json();if(job.status==='running'){await new Promise(resolve=>setTimeout(resolve,700));continue;}if(job.status!=='done')throw new Error(job.error||'Không tạo được đoạn thử');$('#emotionGeneratedPlayer').src=ENGINE_BASE+'/preview/'+encodeURIComponent(job.file);show('#emotionGeneratedPlayer',true);$('#emotionGeneratedPlayer').play().catch(()=>{});emotionMessage('Nghe thử sắc thái. Nếu chưa phù hợp, quay lại chọn mẫu khác.');break;}
  }catch(error){if(epoch===emotionEpoch)emotionMessage('Không nghe thử được: '+error.message,true);}
  finally{if(epoch===emotionEpoch){emotionPreviewJob=null;emotionBusy=false;refreshEmotionReadiness();}}
 };
@@ -1683,10 +1722,10 @@ loadVoices(); loadHistory();
   });
 })();
 </script>
-<script src="/vendor/firebase-app-compat.js"></script>
-<script src="/vendor/firebase-auth-compat.js"></script>
-<script src="/vendor/firebase-firestore-compat.js"></script>
-<script src="/vendor/firebase-analytics-compat.js"></script>
+<script src="vendor/firebase-app-compat.js"></script>
+<script src="vendor/firebase-auth-compat.js"></script>
+<script src="vendor/firebase-firestore-compat.js"></script>
+<script src="vendor/firebase-analytics-compat.js"></script>
 <script>
 /* Tài khoản + hạn mức realtime (Firebase). Tách riêng, KHÔNG đụng logic tạo giọng. */
 (function(){
