@@ -232,7 +232,7 @@ body{min-height:100vh}
           var exempt=/^\/api\/(ping|version|web-closing|quit|settings\/)/.test(path);
           if(!exempt && window.GiongAIEngine && !window.GiongAIEngine.isUp()){
             if(window.requireEngine) window.requireEngine();
-            return Promise.reject(new Error('Engine chưa bật trên máy. Hãy làm theo hướng dẫn vừa hiện.'));
+            return Promise.reject(new Error('Server local chưa bật trên máy. Hãy làm theo hướng dẫn vừa hiện.'));
           }
         }
       }catch(e){}
@@ -244,7 +244,7 @@ body{min-height:100vh}
   var REQUIRED_ENGINE_VERSION='1.7.0';
   function setVerInfo(engineVer){
     var e=document.getElementById('verInfo'); if(!e) return;
-    e.textContent='Web v'+WEB_VERSION+' · Engine '+(engineVer?('v'+engineVer):'chưa nối');
+    e.textContent='Web v'+WEB_VERSION+' · Server local '+(engineVer?('v'+engineVer):'chưa nối');
   }
   // Dò engine local liên tục: ping + xác minh appID. Mất kết nối → hiện cổng tải;
   // đã từng cài → cho mở nhanh qua giao thức giongai:// (1 bấm, khỏi tìm exe).
@@ -276,7 +276,7 @@ body{min-height:100vh}
     function setEnginePill(up){
       var dot=document.getElementById('enginePillDot'), txt=document.getElementById('enginePillText');
       if(dot) dot.style.background = up?'var(--ok)':'var(--bad)';
-      if(txt) txt.textContent = up?'Engine: đã bật':'Engine: chưa bật — bấm để cài';
+      if(txt) txt.textContent = up?'Server local: đã bật':'Server local: chưa bật — bấm để cài';
     }
     function apply(up){
       if(up!==connected){
@@ -289,9 +289,9 @@ body{min-height:100vh}
       else { var uu=document.getElementById('engineUpdate'); if(uu) uu.classList.add('hide'); showOpen(isInstalled()); setVerInfo(null); }
       setEnginePill(up);
       var downMsg = isInstalled()
-        ? 'Chưa mở được engine. Nếu bạn vừa di chuyển hoặc xoá file, hãy mở lại GiongAI.exe (ở vị trí mới) 1 lần để nối lại.'
-        : 'Chưa thấy engine. Hãy tải & mở GiongAI.exe rồi bấm “Kiểm tra lại”.';
-      setStatus(up?'ok':'bad', up ? 'Đã kết nối engine ✓' : downMsg);
+        ? 'Chưa mở được server local. Nếu bạn vừa di chuyển hoặc xoá file, hãy mở lại GiongAI.exe (ở vị trí mới) 1 lần để nối lại.'
+        : 'Chưa thấy server local. Hãy tải & mở GiongAI.exe rồi bấm “Kiểm tra lại”.';
+      setStatus(up?'ok':'bad', up ? 'Đã kết nối server local ✓' : downMsg);
     }
     function ping(manual){
       if(manual) setStatus('checking','Đang kiểm tra kết nối…');
@@ -353,21 +353,21 @@ body{min-height:100vh}
       </div>
       <button class="btn" id="loginBtn">Đăng nhập</button>
       <button class="btn primary" id="upgradeBtn" hidden style="border-radius:999px">Nâng cấp VIP</button>
-      <div id="verInfo" style="font-size:11px;color:var(--muted);text-align:center;letter-spacing:.02em">Web v1.7.0 · Engine: chưa nối</div>
+      <div id="verInfo" style="font-size:11px;color:var(--muted);text-align:center;letter-spacing:.02em">Web v1.7.0 · Server local: chưa nối</div>
     </div>
   </aside>
   <div class="content"><div class="content-in">
   <div class="topbar">
     <div class="status-pill"><span class="dot" id="dot"></span><span id="statusText">Đang kết nối…</span></div>
-    <button id="enginePill" class="status-pill" style="cursor:pointer;gap:7px;border:none" title="Trạng thái engine trên máy — bấm để xem hướng dẫn cài/bật">
+    <button id="enginePill" class="status-pill" style="cursor:pointer;gap:7px;border:none" title="Trạng thái server local trên máy — bấm để xem hướng dẫn cài/bật">
       <span id="enginePillDot" style="width:9px;height:9px;border-radius:50%;background:var(--bad);flex:none"></span>
       <span id="enginePillText">Engine: chưa bật</span>
     </button>
     <button class="btn ghost" id="quitBtn" title="Tắt ứng dụng">Thoát</button>
   </div>
   <div id="engineUpdate" class="hide" style="margin:0 0 14px;padding:10px 14px;border-radius:12px;border:1px solid var(--accent);background:var(--accent-soft);color:var(--ink);display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-    <span style="flex:1;min-width:200px">Có bản engine mới hơn (bạn đang dùng <b id="engineUpdateVer">?</b>, cần <b>1.7.0</b>). Tải về để dùng tính năng mới nhất.</span>
-    <a class="btn" href="https://raw.githubusercontent.com/haidzkkk/Voice-ai/main/dist/GiongAI.exe" download>Cập nhật engine</a>
+    <span style="flex:1;min-width:200px">Có bản server local mới hơn (bạn đang dùng <b id="engineUpdateVer">?</b>, cần <b>1.7.0</b>). Tải về để dùng tính năng mới nhất.</span>
+    <a class="btn" href="https://raw.githubusercontent.com/haidzkkk/Voice-ai/main/dist/GiongAI.exe" download>Cập nhật server local</a>
   </div>
   <div id="engineGate" class="hide" style="position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(10,8,16,.55);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)">
     <div style="width:min(620px,100%);max-height:92vh;overflow:auto;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);padding:0;display:flex;flex-direction:column">
@@ -392,8 +392,8 @@ body{min-height:100vh}
       </div>
 
       <div id="engineInstalledBox" class="hide" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:var(--accent-soft);border:1px solid var(--accent);border-radius:12px;padding:12px;margin:14px 22px 0">
-        <span style="flex:1;min-width:200px">Đã cài engine trước đó? Mở lại chỉ với 1 bấm:</span>
-        <button class="btn primary" id="engineOpen">▶ Mở Giọng AI Engine</button>
+        <span style="flex:1;min-width:200px">Đã cài server local trước đó? Mở lại chỉ với 1 bấm:</span>
+        <button class="btn primary" id="engineOpen">▶ Mở server local</button>
       </div>
 
       <div class="eng-track" style="padding:16px 22px 0">
@@ -410,7 +410,7 @@ body{min-height:100vh}
           </svg>
           <span class="eng-badge">Vì sao cần bước này</span>
           <h3>Giọng được tạo ngay trên máy bạn</h3>
-          <p>Giọng AI dùng model chạy <b>trực tiếp trên máy</b> — miễn phí &amp; riêng tư, không gửi dữ liệu đi đâu. Chỉ cần một chương trình nhỏ gọi là <b>engine</b>. Làm theo 4 bước sau, khoảng 1 phút.</p>
+          <p>Giọng AI dùng model chạy <b>trực tiếp trên máy</b> — miễn phí &amp; riêng tư, không gửi dữ liệu đi đâu. Chỉ cần một chương trình nhỏ gọi là <b>server local</b> (chạy ngầm trên máy). Làm theo 4 bước sau, khoảng 1 phút.</p>
         </div>
 
         <!-- Slide 2: tải -->
@@ -424,7 +424,7 @@ body{min-height:100vh}
             <text x="150" y="124" text-anchor="middle" style="fill:var(--muted);font-size:13px;font-family:inherit;font-weight:600">GiongAI.exe</text>
           </svg>
           <span class="eng-badge">Bước 1</span>
-          <h3>Tải engine về máy</h3>
+          <h3>Tải server local về máy</h3>
           <p>Bấm nút dưới để tải file <b>GiongAI.exe</b> (trình duyệt lưu vào thư mục <b>Downloads</b>). Máy Windows ARM thì chọn bản ARM64.</p>
           <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
             <a class="btn primary" id="engineDownload" href="https://raw.githubusercontent.com/haidzkkk/Voice-ai/main/dist/GiongAI.exe" download>⬇ Tải cho Windows</a>
@@ -443,10 +443,10 @@ body{min-height:100vh}
           </svg>
           <span class="eng-badge">Bước 2</span>
           <h3>Mở file GiongAI.exe</h3>
-          <p>Mở (double-click) file vừa tải. Lần đầu Windows báo <b>“Unknown publisher”</b> → bấm <b>More info → Run anyway</b>. Engine sẽ <b>tự cài vào C:\Users\&lt;bạn&gt;\GiongAI</b> (chứa cả giọng, audio, model) nên lần sau khỏi phải tìm file.</p>
+          <p>Mở (double-click) file vừa tải. Lần đầu Windows báo <b>“Unknown publisher”</b> → bấm <b>More info → Run anyway</b>. Server local sẽ <b>tự cài vào C:\Users\&lt;bạn&gt;\GiongAI</b> (chứa cả giọng, audio, model) nên lần sau khỏi phải tìm file.</p>
         </div>
 
-        <!-- Slide 4: cửa sổ engine -->
+        <!-- Slide 4: cửa sổ server local -->
         <div class="eng-slide" data-i="3">
           <svg class="eng-ill" viewBox="0 0 300 140" fill="none" aria-hidden="true">
             <rect x="56" y="20" width="156" height="100" rx="8" style="fill:#13111b;stroke:var(--line)" stroke-width="2"/>
@@ -456,8 +456,8 @@ body{min-height:100vh}
             <path d="M224 54 h20 l6 8 h26 v36 h-52 z" style="fill:var(--accent-soft);stroke:var(--accent)" stroke-width="2" stroke-linejoin="round"/>
           </svg>
           <span class="eng-badge">Bước 3</span>
-          <h3>Cửa sổ engine hiện ra</h3>
-          <p>Một cửa sổ nền đen ghi <b>DANG CHAY…</b> nghĩa là engine đang chạy. <b>Giữ cửa sổ này mở</b> trong lúc dùng. Nếu trình duyệt hỏi quyền <b>truy cập mạng nội bộ</b> → chọn <b>Cho phép / Allow</b>.</p>
+          <h3>Cửa sổ server local hiện ra</h3>
+          <p>Một cửa sổ nền đen ghi <b>DANG CHAY…</b> nghĩa là server local đang chạy. <b>Giữ cửa sổ này mở</b> trong lúc dùng. Nếu trình duyệt hỏi quyền <b>truy cập mạng nội bộ</b> → chọn <b>Cho phép / Allow</b>.</p>
         </div>
 
         <!-- Slide 5: xong -->
@@ -471,7 +471,7 @@ body{min-height:100vh}
           </svg>
           <span class="eng-badge">Xong!</span>
           <h3>Lần sau tự động</h3>
-          <p>Trang sẽ <b>tự nhận engine</b> ngay. Từ lần sau chỉ cần mở web — engine <b>tự chạy</b> (bấm Cho phép nếu Windows hỏi “Open Giọng AI?”). <b>Đóng tab web → engine tự tắt.</b></p>
+          <p>Trang sẽ <b>tự nhận server local</b> ngay. Từ lần sau chỉ cần mở web — server local <b>tự chạy</b> (bấm Cho phép nếu Windows hỏi “Open Giọng AI?”). <b>Đóng tab web → server local tự tắt.</b></p>
         </div>
       </div>
 
@@ -485,12 +485,12 @@ body{min-height:100vh}
       <div style="border-top:1px solid var(--line);margin-top:16px;padding:14px 22px;background:var(--field);border-radius:0 0 18px 18px">
         <div id="engineStatus" style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)">
           <span class="dot" style="width:9px;height:9px;border-radius:50%;background:var(--bad);flex:none"></span>
-          <span class="engine-status-text">Đang tìm engine trên máy bạn… (trang sẽ tự nhận khi engine chạy)</span>
+          <span class="engine-status-text">Đang tìm server local trên máy bạn… (trang sẽ tự nhận khi server local chạy)</span>
         </div>
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px">
-          <button class="btn" id="engineRetry">Tôi đã chạy engine — Kiểm tra lại</button>
+          <button class="btn" id="engineRetry">Tôi đã chạy server local — Kiểm tra lại</button>
           <button class="btn ghost" id="engineGateLater">Để sau</button>
-          <span style="color:var(--muted);font-size:12px">Trang tự nhận khi engine chạy.</span>
+          <span style="color:var(--muted);font-size:12px">Trang tự nhận khi server local chạy.</span>
         </div>
       </div>
     </div>
@@ -1037,7 +1037,7 @@ async function generate(){
   if(currentJob) return;
   const text = ta.value.trim();
   if(!text){ setMsg('Bạn chưa nhập văn bản.', true); ta.focus(); return; }
-  if(typeof requireEngine==='function' && !requireEngine()){ setMsg('Cần bật engine trên máy để tạo audio. Làm theo hướng dẫn vừa hiện.', true); return; }
+  if(typeof requireEngine==='function' && !requireEngine()){ setMsg('Cần bật server local trên máy để tạo audio. Làm theo hướng dẫn vừa hiện.', true); return; }
   if(window.GiongAIAccount){ const g=window.GiongAIAccount.gate(text.length); if(!g.ok){ setMsg(g.msg, true); return; } }
   if(emotionCuePattern.test(text) && !(engine==='vieneu' && vmodel==='vieneu')){
     setMsg('Thẻ biểu cảm chỉ dùng với VieNeu. Chọn VieNeu hoặc bỏ thẻ khỏi nội dung để dùng mô hình hiện tại.',true); ta.focus(); return;
@@ -1633,7 +1633,7 @@ $('#pvSaveBtn').onclick = async ()=>{
   const msg = (t,err)=>{ $('#pvMsg').textContent=t; $('#pvMsg').className='msg'+(err?' err':''); };
   const name = $('#pvName').value.trim();
   if(!name) return msg('Hãy đặt tên cho giọng.', true);
-  if(typeof requireEngine==='function' && !requireEngine()) return msg('Cần bật engine trên máy để lưu/nhân bản giọng. Làm theo hướng dẫn vừa hiện.', true);
+  if(typeof requireEngine==='function' && !requireEngine()) return msg('Cần bật server local trên máy để lưu/nhân bản giọng. Làm theo hướng dẫn vừa hiện.', true);
   if(pvEditingId){
     $('#pvSaveBtn').disabled=true;
     try{
