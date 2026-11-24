@@ -21,6 +21,7 @@ import (
 )
 
 const appID = "giongai-v1"
+const appVersion = "1.3.0" // phiên bản engine; web so sánh để gợi ý cập nhật
 const defaultPort = 17860
 
 // UI chạy trên web (GitHub Pages); binary chỉ là engine chạy local.
@@ -206,6 +207,9 @@ func handler(quit chan struct{}) http.Handler {
 
 	// Chỉ còn API — UI do web (GitHub Pages) phục vụ, không nhúng trong binary nữa.
 	mux.HandleFunc("/api/ping", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte(appID)) })
+	mux.HandleFunc("/api/version", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, map[string]string{"app": appID, "version": appVersion})
+	})
 
 	mux.HandleFunc("/api/voices", func(w http.ResponseWriter, r *http.Request) {
 		voicesMu.Lock()
@@ -456,7 +460,18 @@ func pickOutDir() string {
 	return filepath.Join(filepath.Dir(exe), "GiongAI_output")
 }
 
+func launchedViaScheme() bool {
+	for _, a := range os.Args[1:] {
+		if strings.HasPrefix(strings.ToLower(a), "giongai:") {
+			return true
+		}
+	}
+	return false
+}
+
 func main() {
+	registerURLScheme() // đăng ký giao thức giongai:// (Windows) để web mở được engine
+	viaScheme := launchedViaScheme()
 	loadStorageSettings()
 	outDir = pickOutDir()
 	if err := os.MkdirAll(outDir, 0o755); err != nil {
@@ -472,7 +487,9 @@ func main() {
 			n, _ := resp.Body.Read(b)
 			resp.Body.Close()
 			if string(b[:n]) == appID {
-				openPath(webUI)
+				if !viaScheme {
+					openPath(webUI)
+				}
 				return
 			}
 		}
@@ -489,13 +506,22 @@ func main() {
 	srv := &http.Server{Handler: handler(quit), ReadHeaderTimeout: 10 * time.Second}
 	go srv.Serve(ln)
 
-	fmt.Println("==============================================")
-	fmt.Println("  GIONG AI ENGINE dang chay (local):", addr)
-	fmt.Println("  Mo giao dien web tai:", webUI)
-	fmt.Println("  File MP3 luu tai:", outDir)
-	fmt.Println("  Dong cua so nay (hoac bam 'Thoat' tren trang) de tat engine.")
-	fmt.Println("==============================================")
-	if os.Getenv("GIONGAI_NO_BROWSER") == "" {
+	fmt.Println("========================================================")
+	fmt.Println("   GIONG AI ENGINE - DANG CHAY tren may ban   v" + appVersion)
+	fmt.Println("   (day la 'server' tao giong; KHONG phai trang web)")
+	fmt.Println("--------------------------------------------------------")
+	fmt.Println("   >> MO TRINH DUYET va vao dia chi nay de dung:")
+	fmt.Println("        " + webUI)
+	fmt.Println("      (cua so trinh duyet se tu mo sau vai giay)")
+	fmt.Println()
+	fmt.Println("   >> GIU CUA SO NAY MO trong khi dang dung.")
+	fmt.Println("   >> DONG cua so nay (hoac bam Ctrl+C) de TAT server.")
+	fmt.Println("--------------------------------------------------------")
+	fmt.Println("   File am thanh luu tai:")
+	fmt.Println("        " + outDir)
+	fmt.Println("   Dia chi noi bo:", addr)
+	fmt.Println("========================================================")
+	if os.Getenv("GIONGAI_NO_BROWSER") == "" && !viaScheme {
 		openPath(webUI)
 	}
 	openLogFile()
