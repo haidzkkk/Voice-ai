@@ -20,7 +20,7 @@ import (
 	"time"
 )
 
-//go:embed web/index.html
+//go:embed web/index.html web/vendor/*
 var webFS embed.FS
 
 const appID = "giongai-v1"
@@ -211,6 +211,21 @@ func handler(quit chan struct{}) http.Handler {
 		}
 		b, _ := webFS.ReadFile("web/index.html")
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write(b)
+	})
+
+	// Tài nguyên tĩnh nhúng sẵn (vd SDK Firebase vendored để chạy offline).
+	mux.HandleFunc("/vendor/", func(w http.ResponseWriter, r *http.Request) {
+		name := filepath.Base(r.URL.Path)
+		b, err := webFS.ReadFile("web/vendor/" + name)
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		if strings.HasSuffix(name, ".js") {
+			w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
+		}
+		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 		w.Write(b)
 	})
 

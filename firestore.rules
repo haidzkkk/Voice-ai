@@ -1,0 +1,30 @@
+rules_version = '2';
+// Giọng AI — luật bảo mật Firestore.
+// Mô hình: users/{uid} = { role, isVip, limit, createdAt, usages:[{at,day,chars}] }
+// - Mỗi người chỉ đọc/ghi hồ sơ của chính mình.
+// - Client KHÔNG tự đổi được 'role', 'isVip', 'limit' (chỉ chủ sản phẩm sửa trong
+//   Firebase Console bằng quyền admin — bỏ qua rules). Client chỉ ghi thêm 'usages'.
+// - dùng .get(field, default) để chịu được doc cũ còn thiếu field.
+// Lưu ý: tạo giọng chạy cục bộ nên hạn mức chỉ chặn mềm ở UI.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+
+      allow create: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.role == 'user'
+        && request.resource.data.get('isVip', false) == false
+        && request.resource.data.limit is int
+        && request.resource.data.limit >= 0
+        && request.resource.data.usages is list;
+
+      allow update: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.get('role', 'user') == resource.data.get('role', 'user')
+        && request.resource.data.get('isVip', false) == resource.data.get('isVip', false)
+        && request.resource.data.get('limit', 0) == resource.data.get('limit', 0)
+        && request.resource.data.usages is list;
+
+      allow delete: if false;
+    }
+  }
+}
