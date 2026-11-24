@@ -268,8 +268,10 @@ body{min-height:100vh}
       }
       if(up){ markInstalled(); checkVersion(); }
       else { var uu=document.getElementById('engineUpdate'); if(uu) uu.classList.add('hide'); showOpen(isInstalled()); setVerInfo(null); }
-      setStatus(up?'ok':'bad', up ? 'Đã kết nối engine ✓'
-        : 'Chưa thấy engine. Hãy mở GiongAI.exe rồi bấm “Kiểm tra lại”.');
+      var downMsg = isInstalled()
+        ? 'Chưa mở được engine. Nếu bạn vừa di chuyển hoặc xoá file, hãy mở lại GiongAI.exe (ở vị trí mới) 1 lần để nối lại.'
+        : 'Chưa thấy engine. Hãy tải & mở GiongAI.exe rồi bấm “Kiểm tra lại”.';
+      setStatus(up?'ok':'bad', up ? 'Đã kết nối engine ✓' : downMsg);
     }
     function ping(manual){
       if(manual) setStatus('checking','Đang kiểm tra kết nối…');
