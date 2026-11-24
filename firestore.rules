@@ -21,10 +21,17 @@ service cloud.firestore {
       allow update: if request.auth != null && request.auth.uid == uid
         && request.resource.data.get('role', 'user') == resource.data.get('role', 'user')
         && request.resource.data.get('isVip', false) == resource.data.get('isVip', false)
+        && request.resource.data.get('vipUntil', null) == resource.data.get('vipUntil', null)
         && request.resource.data.get('limit', 0) == resource.data.get('limit', 0)
         && request.resource.data.usages is list;
 
       allow delete: if false;
+    }
+
+    // Đơn nâng cấp VIP: user chỉ đọc đơn của mình; chỉ Cloud Function (admin) ghi.
+    match /orders/{orderId} {
+      allow read: if request.auth != null && resource.data.uid == request.auth.uid;
+      allow write: if false;
     }
   }
 }

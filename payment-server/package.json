@@ -1,0 +1,8 @@
+{
+  "name": "giongai-payment-server",
+  "description": "Vercel serverless: tạo đơn VIP + webhook SePay cấp VIP (Firebase Admin)",
+  "private": true,
+  "dependencies": {
+    "firebase-admin": "^12.6.0"
+  }
+}
