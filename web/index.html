@@ -193,6 +193,9 @@ body{min-height:100vh}
 .topbar .btn.ghost{border-radius:999px}
 .side-foot .user-card{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:16px;background:var(--field);border:1px solid var(--line)}
 .user-av{width:38px;height:38px;border-radius:12px;background:var(--grad);color:#fff;display:grid;place-items:center;font-weight:800;font-size:15px;flex:none}
+.av-wrap{position:relative;flex:none}
+.vip-badge{position:absolute;right:-5px;bottom:-5px;min-width:18px;height:18px;padding:0 2px;border-radius:999px;background:linear-gradient(135deg,#f6c945,#e5881f);color:#3a2600;font-size:11px;line-height:1;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid var(--panel);box-shadow:0 2px 6px rgba(0,0,0,.25)}
+.vip-badge.hide{display:none}
 .user-name{font-weight:700;font-size:13.5px;color:var(--ink)}
 .user-sub{font-size:11px;color:var(--muted);margin-top:1px}
 .user-name,.user-sub{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px}
@@ -223,7 +226,7 @@ body{min-height:100vh}
     </nav>
     <div class="side-foot">
       <div class="user-card" title="Tài khoản Giọng AI">
-        <div class="user-av" id="userAv">K</div>
+        <div class="av-wrap"><div class="user-av" id="userAv">K</div><span class="vip-badge hide" id="vipBadge" title="Tài khoản VIP">★</span></div>
         <div style="min-width:0"><div class="user-name" id="userName">Khách</div><div class="user-sub" id="userSub">Chưa đăng nhập · bản giới hạn</div></div>
       </div>
       <button class="btn" id="loginBtn">Đăng nhập</button>
@@ -1669,29 +1672,33 @@ loadVoices(); loadHistory();
   // === ĐIỀN SAU KHI TẠO FIREBASE PROJECT (public, an toàn để nhúng) ===
   var firebaseConfig = { apiKey:"AIzaSyCZ0c7WbsPcVYP5fsdKVKrcioS2XdQChng", authDomain:"giong-33673.firebaseapp.com", projectId:"giong-33673", storageBucket:"giong-33673.firebasestorage.app", messagingSenderId:"412217492906", appId:"1:412217492906:web:660a06a1e007c427c317d3" };
 
-  var LIMITS = { freePerMonth:50000 };
-  function curMonth(){ return new Date().toISOString().slice(0,7); }
+  var DEFAULT_LIMIT = 1000;   // hạn mức mặc định MỖI NGÀY (ký tự); sửa riêng từng user trên DB
+  function dayKey(d){ d=d||new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+  function today(){ return dayKey(); }
+  function dayUsed(usages){ var t=today(), s=0; (usages||[]).forEach(function(x){ if(x&&typeof x.chars==='number'){ var k=x.day||(x.at?dayKey(new Date(x.at)):''); if(k===t) s+=x.chars; } }); return s; }
+  function userLimit(doc){ return (doc&&typeof doc.limit==='number')?doc.limit:DEFAULT_LIMIT; }
 
   var auth=null, db=null, provider=null, cloudOn=false;
   var A = {
-    user:null, quota:null, _pending:0, _unsub:null,
+    user:null, doc:null, _pending:0, _unsub:null,
     gate:function(n){
       this._pending=n;
       if(!cloudOn) return {ok:true};            // cloud chưa sẵn sàng → không khoá, app vẫn dùng được
       if(!this.user){ signIn(); return {ok:false,msg:'Hãy đăng nhập để tạo audio.'}; }
-      var used=(this.quota&&this.quota.chars)||0;
-      if(used+n>LIMITS.freePerMonth) return {ok:false,msg:'Đã dùng hết hạn mức tháng này ('+LIMITS.freePerMonth.toLocaleString('vi-VN')+' ký tự). Gói nâng cấp sẽ có sau.'};
+      if(this.doc&&this.doc.isVip) return {ok:true};   // VIP: không giới hạn
+      var lim=userLimit(this.doc), used=dayUsed(this.doc&&this.doc.usages);
+      if(used+n>lim) return {ok:false,msg:'Đã dùng hết hạn mức hôm nay ('+lim.toLocaleString('vi-VN')+' ký tự). Mai thử lại nhé.'};
       return {ok:true};
     },
     record:function(){
-      var n=this._pending||0; this._pending=0; if(n<=0) return;
-      if(this.user && db){
-        var ref=db.collection('users').doc(this.user.uid), month=curMonth();
-        db.runTransaction(function(tx){ return tx.get(ref).then(function(s){
-          var u=(s.exists&&s.data().usage)||{}; if(u.month!==month)u={month:month,chars:0}; u.chars=(u.chars||0)+n;
-          tx.set(ref,{usage:u},{merge:true});
-        }); }).catch(function(e){console.warn('record',e);});
-      }
+      var n=this._pending||0; this._pending=0; if(n<=0||!this.user||!db) return;
+      var ref=db.collection('users').doc(this.user.uid);
+      db.runTransaction(function(tx){ return tx.get(ref).then(function(s){
+        var d=s.exists?(s.data()||{}):{role:'user',isVip:false,limit:DEFAULT_LIMIT,createdAt:firebase.firestore.FieldValue.serverTimestamp(),usages:[]};
+        if(!Array.isArray(d.usages)) d.usages=[];
+        d.usages.push({at:new Date().toISOString(),day:today(),chars:n});
+        tx.set(ref,d);
+      }); }).catch(function(e){console.warn('record',e);});
     }
   };
   window.GiongAIAccount = A;
@@ -1700,14 +1707,18 @@ loadVoices(); loadHistory();
   function render(){
     var av=$id('userAv'), nm=$id('userName'), sb=$id('userSub'), btn=$id('loginBtn');
     if(!av||!nm||!sb||!btn) return;
+    var badge=$id('vipBadge');
     if(A.user){
       nm.textContent=A.user.displayName||'Người dùng';
       if(A.user.photoURL){ av.style.backgroundImage='url('+A.user.photoURL+')'; av.style.backgroundSize='cover'; av.style.backgroundPosition='center'; av.textContent=''; }
       else { av.style.backgroundImage=''; av.textContent=(A.user.displayName||A.user.email||'U').trim().charAt(0).toUpperCase(); }
-      var used=(A.quota&&A.quota.chars)||0, rem=Math.max(0,LIMITS.freePerMonth-used);
-      sb.textContent='Còn '+rem.toLocaleString('vi-VN')+' ký tự tháng này';
+      var vip=!!(A.doc&&A.doc.isVip);
+      if(badge) badge.classList.toggle('hide',!vip);
+      if(vip){ sb.textContent='VIP · không giới hạn'; }
+      else { var lim=userLimit(A.doc), used=dayUsed(A.doc&&A.doc.usages); sb.textContent='Đã dùng '+used.toLocaleString('vi-VN')+'/'+lim.toLocaleString('vi-VN')+' ký tự hôm nay'; }
       btn.textContent='Đăng xuất';
     } else {
+      if(badge) badge.classList.add('hide');
       nm.textContent='Khách'; av.style.backgroundImage=''; av.textContent='K';
       sb.textContent=cloudOn?'Đăng nhập để tạo audio':'Chưa kết nối tài khoản';
       btn.textContent='Đăng nhập';
@@ -1739,9 +1750,9 @@ loadVoices(); loadHistory();
         if(A._unsub){A._unsub();A._unsub=null;}
         if(u&&db){
           var ref=db.collection('users').doc(u.uid);
-          ref.get().then(function(s){ if(!s.exists) ref.set({plan:'free',createdAt:firebase.firestore.FieldValue.serverTimestamp(),usage:{month:curMonth(),chars:0}}); }).catch(function(){});
-          A._unsub=ref.onSnapshot(function(s){ A.quota=(s.data()&&s.data().usage)||{month:curMonth(),chars:0}; render(); }, function(e){console.warn(e);});
-        } else { A.quota=null; }
+          ref.get().then(function(s){ if(!s.exists) ref.set({role:'user',isVip:false,limit:DEFAULT_LIMIT,createdAt:firebase.firestore.FieldValue.serverTimestamp(),usages:[]}); }).catch(function(){});
+          A._unsub=ref.onSnapshot(function(s){ A.doc=s.data()||null; render(); }, function(e){console.warn(e);});
+        } else { A.doc=null; }
         render();
       });
       return true;
