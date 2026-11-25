@@ -34,6 +34,6 @@ module.exports = async (req, res) => {
     res.status(200).json({ orderId: ref.id, code, amount, qrUrl, account: acc, bank, bankName: process.env.BANK_NAME });
   } catch (e) {
     console.error("createOrder", e);
-    res.status(500).json({ error: "server" });
+    res.status(500).json({ error: "server: " + String((e && e.message) || e) });
   }
 };
