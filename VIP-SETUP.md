@@ -1,7 +1,8 @@
-# Nâng cấp VIP qua SePay (VietQR) — chạy trên Vercel (miễn phí, không cần thẻ)
+# Nâng cấp VIP qua SePay (VietQR) — backend free (Render hoặc Vercel, không cần thẻ)
 
 Giữ Firebase ở gói **Spark (free)** cho Auth + Firestore. Hai endpoint thanh toán chạy trên
-**Vercel** (serverless free), dùng **Firebase Admin SDK + service account** để cấp VIP.
+**Render** (web service free) hoặc **Vercel** (serverless free), dùng **Firebase Admin SDK +
+service account** để cấp VIP. Web UI vẫn ở GitHub Pages như hiện tại, chỉ gọi sang backend này.
 
 Luồng: app gọi `createOrder` → hiện VietQR → user chuyển khoản (nội dung = mã đơn)
 → SePay gọi `sepayWebhook` → cấp VIP → app mở khoá realtime.
@@ -25,21 +26,33 @@ firebase deploy --only firestore:rules
 ```
 (Hoặc dán nội dung `firestore.rules` vào Console → Firestore → Rules → Publish.)
 
-## 4. Deploy backend lên Vercel
-1. Tạo tài khoản https://vercel.com (không cần thẻ) → **Add New Project** → import repo (hoặc dùng `vercel` CLI).
-2. **Root Directory** đặt là `payment-server`.
-3. Thêm **Environment Variables**:
-   - `FIREBASE_SERVICE_ACCOUNT` = dán **nguyên nội dung JSON** service account ở bước 1
-   - `SEPAY_API_KEY` = API key đã đặt ở SePay (bước 2)
-   - `BANK_ACCOUNT` = số tài khoản nhận tiền
-   - `BANK_CODE` = mã ngân hàng VietQR (vd MB, VCB, ACB, TCB)
-   - `BANK_NAME` = tên chủ tài khoản (hiển thị)
-4. Deploy. Có domain dạng `https://<tên>.vercel.app`.
+## 4. Deploy backend `payment-server/`
+Cùng một thư mục chạy được trên cả hai (cùng bộ Environment Variables):
+- `FIREBASE_SERVICE_ACCOUNT` = dán **nguyên nội dung JSON** service account ở bước 1
+- `SEPAY_API_KEY` = API key đã đặt ở SePay (bước 2)
+- `BANK_ACCOUNT` = số tài khoản nhận tiền
+- `BANK_CODE` = mã ngân hàng VietQR (vd MB, VCB, ACB, TCB)
+- `BANK_NAME` = tên chủ tài khoản (hiển thị)
+
+### Cách A — Render (web service thường trực, dùng `server.js`)
+1. https://render.com → **New** → **Web Service** → kết nối repo GitHub.
+2. **Root Directory** = `payment-server`
+   **Build Command** = `npm install`
+   **Start Command** = `npm start`   (Render tự cấp `PORT`)
+3. Thêm 5 Environment Variables ở trên → **Create Web Service**.
+4. Được domain dạng `https://<tên>.onrender.com`.
+   ⚠️ **Gói free "ngủ" sau ~15 phút không dùng** → lần gọi đầu chờ ~30–60s (QR hiện chậm; webhook SePay có thể trượt lần đầu nhưng SePay **tự gửi lại** nên VIP vẫn được cấp, chỉ trễ). Muốn luôn tỉnh: dùng cron-job.org ping `https://<tên>.onrender.com/` mỗi ~10 phút.
+
+### Cách B — Vercel (serverless, dùng `api/*.js`)
+1. https://vercel.com (không cần thẻ) → **Add New Project** → import repo.
+2. **Root Directory** = `payment-server`. Thêm 5 env ở trên → Deploy.
+3. Được domain dạng `https://<tên>.vercel.app`. (Không bị "ngủ" như Render free.)
 
 ## 5. Nối vào app
-- `createOrder`:  `https://<tên>.vercel.app/api/createOrder`
-  → dán vào `web/index.html` biến **`CREATE_ORDER_URL`**, rồi chạy lại `go run .`.
-- `sepayWebhook`: `https://<tên>.vercel.app/api/sepayWebhook`
+Gọi `<domain>` là domain ở bước 4 (`.onrender.com` hoặc `.vercel.app`):
+- `createOrder`:  `<domain>/api/createOrder`
+  → dán vào `web/index.html` biến **`CREATE_ORDER_URL`** (rồi commit để GitHub Pages deploy lại).
+- `sepayWebhook`: `<domain>/api/sepayWebhook`
   → dán vào **Webhook URL** trên SePay (kèm đúng API Key bước 2).
 
 ## 6. Test

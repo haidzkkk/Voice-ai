@@ -1962,8 +1962,8 @@ document.addEventListener('engine:up', function(){ try{ loadVoices(); loadHistor
 (function(){
   // === ĐIỀN SAU KHI TẠO FIREBASE PROJECT (public, an toàn để nhúng) ===
   var firebaseConfig = { apiKey:"AIzaSyCZ0c7WbsPcVYP5fsdKVKrcioS2XdQChng", authDomain:"giong-33673.firebaseapp.com", projectId:"giong-33673", storageBucket:"giong-33673.firebasestorage.app", messagingSenderId:"412217492906", appId:"1:412217492906:web:660a06a1e007c427c317d3" };
-  // === ĐIỀN SAU KHI DEPLOY FUNCTIONS: URL hàm createOrder ===
-  // vd "https://asia-southeast1-giong-33673.cloudfunctions.net/createOrder". Rỗng = tắt nâng cấp.
+  // === ĐIỀN SAU KHI DEPLOY payment-server LÊN VERCEL: URL hàm createOrder ===
+  // vd "https://<tên-project>.vercel.app/api/createOrder". Rỗng = tắt nâng cấp VIP.
   var CREATE_ORDER_URL = "";
 
   var DEFAULT_LIMIT = 1000;   // hạn mức mặc định MỖI NGÀY (ký tự); sửa riêng từng user trên DB

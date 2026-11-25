@@ -1,8 +1,15 @@
 {
   "name": "giongai-payment-server",
-  "description": "Vercel serverless: tạo đơn VIP + webhook SePay cấp VIP (Firebase Admin)",
+  "description": "Tạo đơn VIP + webhook SePay cấp VIP (Firebase Admin). Chạy được trên Render (server.js) hoặc Vercel (api/*.js).",
   "private": true,
+  "scripts": {
+    "start": "node server.js"
+  },
   "dependencies": {
+    "express": "^4.21.2",
     "firebase-admin": "^12.6.0"
+  },
+  "engines": {
+    "node": ">=18"
   }
 }
