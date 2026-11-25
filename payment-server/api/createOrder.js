@@ -30,8 +30,11 @@ module.exports = async (req, res) => {
     });
 
     const acc = process.env.BANK_ACCOUNT, bank = process.env.BANK_CODE;
-    const qrUrl = `https://qr.sepay.vn/img?acc=${encodeURIComponent(acc)}&bank=${encodeURIComponent(bank)}&amount=${amount}&des=${encodeURIComponent(code)}`;
-    res.status(200).json({ orderId: ref.id, code, amount, qrUrl, account: acc, bank, bankName: process.env.BANK_NAME });
+    // VietinBank: SePay chỉ nhận biến động số dư khi nội dung CK bắt đầu bằng "SEVQR".
+    // Mã đơn GAI... vẫn nằm trong nội dung nên webhook vẫn tìm thấy. Prefix này vô hại với bank khác.
+    const payContent = "SEVQR " + code;
+    const qrUrl = `https://qr.sepay.vn/img?acc=${encodeURIComponent(acc)}&bank=${encodeURIComponent(bank)}&amount=${amount}&des=${encodeURIComponent(payContent)}`;
+    res.status(200).json({ orderId: ref.id, code, payContent, amount, qrUrl, account: acc, bank, bankName: process.env.BANK_NAME });
   } catch (e) {
     console.error("createOrder", e);
     res.status(500).json({ error: "server: " + String((e && e.message) || e) });

@@ -240,7 +240,7 @@ body{min-height:100vh}
     };
   })();
   // Phiên bản của bản web này + phiên bản engine tối thiểu cần (so với /api/version).
-  var WEB_VERSION='1.8.3';
+  var WEB_VERSION='1.8.4';
   var REQUIRED_ENGINE_VERSION='1.8.0';
   function setVerInfo(engineVer){
     var e=document.getElementById('verInfo'); if(!e) return;
@@ -841,7 +841,7 @@ body{min-height:100vh}
   <div id="vipPay" class="hide" style="text-align:center">
     <img id="vipQR" alt="Mã VietQR" style="width:220px;height:220px;border-radius:12px;background:#fff;padding:6px;margin:6px auto;display:block"/>
     <div class="sub" id="vipPayInfo" style="margin-top:4px"></div>
-    <p class="sub" style="margin-top:8px">Quét VietQR, hoặc chuyển đúng <b>số tiền</b> kèm đúng <b>nội dung</b>. VIP tự mở khoá khi nhận được tiền (thường vài giây).</p>
+    <p class="sub" style="margin-top:8px">Nên <b>quét mã QR</b> để tự điền đúng. Nếu nhập tay, giữ <b>nguyên nội dung</b> (cả chữ <b>SEVQR</b> ở đầu) và đúng <b>số tiền</b>. VIP tự mở khoá khi nhận được tiền (thường vài giây).</p>
     <button class="btn ghost" id="vipBackBtn" style="margin-top:4px">← Chọn gói khác</button>
   </div>
   <div class="msg" id="vipMsg" aria-live="polite"></div>
@@ -2170,7 +2170,7 @@ document.addEventListener('engine:up', function(){ try{ loadVoices(); loadHistor
       if(!o||!o.orderId) throw new Error((o&&o.error)||'không tạo được đơn');
       var img=$id('vipQR'); if(img) img.src=o.qrUrl;
       var info=$id('vipPayInfo');
-      if(info) info.innerHTML='Số tiền: <b>'+Number(o.amount).toLocaleString('vi-VN')+'đ</b> · Nội dung: <b>'+o.code+'</b><br>'+(o.bankName||'')+' · '+(o.bank||'')+' · '+(o.account||'');
+      if(info) info.innerHTML='Số tiền: <b>'+Number(o.amount).toLocaleString('vi-VN')+'đ</b> · Nội dung: <b>'+(o.payContent||o.code)+'</b><br>'+(o.bankName||'')+' · '+(o.bank||'')+' · '+(o.account||'');
       $id('vipPlans').classList.add('hide'); $id('vipPay').classList.remove('hide'); vipMsg('Đang chờ thanh toán…');
       payPending={isVip:!!(A.doc&&A.doc.isVip), until:payVipMs(A.doc)}; payDone=false;
       watchOrder(o.orderId);
