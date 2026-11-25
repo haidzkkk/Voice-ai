@@ -22,11 +22,11 @@ import (
 )
 
 const appID = "giongai-v1"
-const appVersion = "1.7.0" // phiên bản engine; web so sánh để gợi ý cập nhật
+const appVersion = "1.8.0" // phiên bản engine; web so sánh để gợi ý cập nhật
 const defaultPort = 17860
 
 // UI chạy trên web (GitHub Pages); binary chỉ là engine chạy local.
-const webUI = "https://haidzkkk.github.io/Voice-ai/"
+const webUI = "https://giongai-web.onrender.com/"
 
 var outDir string
 
@@ -441,7 +441,8 @@ func allowedOrigin(o string) bool {
 	if o == "" {
 		return false
 	}
-	if o == "https://haidzkkk.github.io" {
+	switch o {
+	case "https://giongai-web.onrender.com", "https://haidzkkk.github.io":
 		return true
 	}
 	u, err := url.Parse(o)
