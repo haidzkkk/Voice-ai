@@ -1,0 +1,29 @@
+# Render Blueprint — deploy CẢ web tĩnh lẫn backend thanh toán cùng lúc.
+# Dùng: Render Dashboard → New → Blueprint → chọn repo này → điền các biến môi trường.
+services:
+  # 1) Web UI tĩnh (thay cho GitHub Pages). Static Site KHÔNG bị "ngủ".
+  - type: web
+    name: giongai-web
+    runtime: static
+    buildCommand: "echo no build"
+    staticPublishPath: web
+
+  # 2) Backend thanh toán: createOrder + webhook SePay (Node web service, free — có "ngủ").
+  - type: web
+    name: giongai-payment
+    runtime: node
+    rootDir: payment-server
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: FIREBASE_SERVICE_ACCOUNT
+        sync: false
+      - key: SEPAY_API_KEY
+        sync: false
+      - key: BANK_ACCOUNT
+        sync: false
+      - key: BANK_CODE
+        sync: false
+      - key: BANK_NAME
+        sync: false
