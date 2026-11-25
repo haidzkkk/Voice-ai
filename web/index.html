@@ -240,7 +240,7 @@ body{min-height:100vh}
     };
   })();
   // Phiên bản của bản web này + phiên bản engine tối thiểu cần (so với /api/version).
-  var WEB_VERSION='1.8.0';
+  var WEB_VERSION='1.8.1';
   var REQUIRED_ENGINE_VERSION='1.8.0';
   function setVerInfo(engineVer){
     var e=document.getElementById('verInfo'); if(!e) return;
@@ -2053,8 +2053,15 @@ document.addEventListener('engine:up', function(){ try{ loadVoices(); loadHistor
 
   // ---- Nâng cấp VIP qua SePay (VietQR) ----
   var orderUnsub=null;
+  // payPending = ảnh chụp trạng thái VIP lúc bắt đầu mua; dùng để phát hiện "đã lên VIP"
+  // qua listener users/{uid} (luôn chạy) — không phụ thuộc listener orders.
+  var payPending=null;
+  function payVipMs(doc){ return (doc&&doc.vipUntil&&doc.vipUntil.toMillis)?doc.vipUntil.toMillis():0; }
   function vipMsg(m){ var e=$id('vipMsg'); if(e) e.textContent=m||''; }
-  function showPlans(){ var p=$id('vipPlans'), q=$id('vipPay'); if(p)p.classList.remove('hide'); if(q)q.classList.add('hide'); if(orderUnsub){orderUnsub();orderUnsub=null;} vipMsg(''); }
+  function paymentDone(){ payPending=null; if(orderUnsub){orderUnsub();orderUnsub=null;} vipMsg('Thanh toán thành công! Đã nâng cấp VIP.'); setTimeout(function(){ var dg=$id('vipDialog'); if(dg&&dg.open) dg.close(); },1600); }
+  // Gọi mỗi khi hồ sơ user đổi: nếu đang chờ thanh toán và VIP vừa bật/gia hạn → đóng popup.
+  function checkPay(){ if(!payPending) return; var curVip=!!(A.doc&&A.doc.isVip), curUntil=payVipMs(A.doc); if((curVip&&!payPending.isVip)||(curUntil>payPending.until)) paymentDone(); }
+  function showPlans(){ var p=$id('vipPlans'), q=$id('vipPay'); if(p)p.classList.remove('hide'); if(q)q.classList.add('hide'); if(orderUnsub){orderUnsub();orderUnsub=null;} payPending=null; vipMsg(''); }
   function openUpgrade(){ var d=$id('vipDialog'); if(!d) return; showPlans(); if(d.showModal) d.showModal(); }
   function buyPlan(plan){
     if(!A.user){ signIn(); return; }
@@ -2068,6 +2075,7 @@ document.addEventListener('engine:up', function(){ try{ loadVoices(); loadHistor
       var info=$id('vipPayInfo');
       if(info) info.innerHTML='Số tiền: <b>'+Number(o.amount).toLocaleString('vi-VN')+'đ</b> · Nội dung: <b>'+o.code+'</b><br>'+(o.bankName||'')+' · '+(o.bank||'')+' · '+(o.account||'');
       $id('vipPlans').classList.add('hide'); $id('vipPay').classList.remove('hide'); vipMsg('Đang chờ thanh toán…');
+      payPending={isVip:!!(A.doc&&A.doc.isVip), until:payVipMs(A.doc)};
       watchOrder(o.orderId);
     }).catch(function(e){ vipMsg('Lỗi: '+(e.message||e)); });
   }
@@ -2076,11 +2084,7 @@ document.addEventListener('engine:up', function(){ try{ loadVoices(); loadHistor
     if(!db) return;
     orderUnsub=db.collection('orders').doc(id).onSnapshot(function(s){
       var d=s.data();
-      if(d&&d.status==='paid'){
-        vipMsg('Thanh toán thành công! Đã nâng cấp VIP.');
-        if(orderUnsub){orderUnsub();orderUnsub=null;}
-        setTimeout(function(){ var dg=$id('vipDialog'); if(dg&&dg.open) dg.close(); },1600);
-      }
+      if(d&&d.status==='paid'){ paymentDone(); }
     }, function(e){console.warn('order',e);});
   }
 
@@ -2103,7 +2107,7 @@ document.addEventListener('engine:up', function(){ try{ loadVoices(); loadHistor
         if(u&&db){
           var ref=db.collection('users').doc(u.uid);
           ref.get().then(function(s){ if(!s.exists){ return ref.set({role:'user',isVip:false,limit:DEFAULT_LIMIT,createdAt:firebase.firestore.FieldValue.serverTimestamp(),usages:[]}); } }).then(function(){ recordDevice(ref); }).catch(function(){});
-          A._unsub=ref.onSnapshot(function(s){ A.doc=s.data()||null; try{ if(analytics) analytics.setUserProperties({role:(A.doc&&A.doc.role)||'user', vip:String(!!(A.doc&&A.doc.isVip))}); }catch(e){} render(); }, function(e){console.warn(e);});
+          A._unsub=ref.onSnapshot(function(s){ A.doc=s.data()||null; try{ if(analytics) analytics.setUserProperties({role:(A.doc&&A.doc.role)||'user', vip:String(!!(A.doc&&A.doc.isVip))}); }catch(e){} render(); checkPay(); }, function(e){console.warn(e);});
         } else { A.doc=null; }
         render();
       });
