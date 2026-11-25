@@ -240,7 +240,7 @@ body{min-height:100vh}
     };
   })();
   // Phiên bản của bản web này + phiên bản engine tối thiểu cần (so với /api/version).
-  var WEB_VERSION='1.8.2';
+  var WEB_VERSION='1.8.3';
   var REQUIRED_ENGINE_VERSION='1.8.0';
   function setVerInfo(engineVer){
     var e=document.getElementById('verInfo'); if(!e) return;
@@ -833,6 +833,9 @@ body{min-height:100vh}
         <div class="pc-price"><b>499.000đ</b><span>/ trọn đời</span></div>
         <span class="pc-btn">Chọn gói</span>
       </button>
+    </div>
+    <div style="text-align:center;margin-top:10px">
+      <button type="button" class="btn ghost" data-plan="test" style="font-size:12px;color:var(--muted)">🔧 Gói test 2.000đ (VIP 1 ngày)</button>
     </div>
   </div>
   <div id="vipPay" class="hide" style="text-align:center">
