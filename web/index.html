@@ -240,7 +240,7 @@ body{min-height:100vh}
     };
   })();
   // Phiên bản của bản web này + phiên bản engine tối thiểu cần (so với /api/version).
-  var WEB_VERSION='1.8.1';
+  var WEB_VERSION='1.8.2';
   var REQUIRED_ENGINE_VERSION='1.8.0';
   function setVerInfo(engineVer){
     var e=document.getElementById('verInfo'); if(!e) return;
@@ -764,14 +764,75 @@ body{min-height:100vh}
   <div class="wizard-footer"><button class="btn ghost" id="emotionBackBtn">← Quay lại</button><button class="btn primary" id="emotionNextBtn">Tiếp tục →</button></div>
 </dialog>
 <dialog id="helpDialog" aria-labelledby="helpTitle"><div class="dialog-heading"><h2 id="helpTitle"></h2><button class="btn ghost" id="helpCloseBtn" aria-label="Đóng hướng dẫn">✕</button></div><div class="help-content" id="helpBody"></div><button class="btn primary" id="helpDoneBtn">Đã hiểu</button></dialog>
+<style>
+/* ---- Thẻ gói VIP ---- */
+.plan-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(166px,1fr));gap:10px;margin-top:14px}
+.plan-card{position:relative;text-align:left;display:flex;flex-direction:column;gap:11px;background:var(--panel);border:1.5px solid var(--line);border-radius:16px;padding:17px 15px 15px;cursor:pointer;font:inherit;color:var(--ink);transition:transform .15s ease,border-color .15s ease,box-shadow .15s ease}
+.plan-card:hover,.plan-card:focus-visible{transform:translateY(-3px);border-color:var(--accent);box-shadow:0 12px 30px rgba(124,58,237,.16);outline:none}
+.plan-card.is-pop{border-color:var(--accent)}
+.plan-card.is-best{border-color:var(--accent);background:linear-gradient(168deg,var(--accent-soft),var(--panel) 62%)}
+.pc-badge{position:absolute;top:-10px;right:12px;background:var(--accent);color:var(--accent-ink);font-size:10.5px;font-weight:800;padding:3px 9px;border-radius:999px;letter-spacing:.02em;white-space:nowrap}
+.pc-badge.best{background:linear-gradient(90deg,#f59e0b,#ef4444);color:#fff}
+.pc-name{font-size:14px;font-weight:800;letter-spacing:.02em}
+.pc-feats{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:7px}
+.pc-feats li{position:relative;padding-left:21px;font-size:12.5px;line-height:1.35}
+.pc-feats li::before{content:"✓";position:absolute;left:0;top:-1px;color:var(--accent);font-weight:800}
+.pc-price{margin-top:auto;display:flex;align-items:baseline;gap:5px;flex-wrap:wrap}
+.pc-price b{font-size:22px;letter-spacing:-.02em}
+.pc-price span{font-size:12px;color:var(--muted)}
+.pc-sub{font-size:11px;color:var(--muted);margin:-4px 0 0}
+.pc-btn{display:block;text-align:center;margin-top:2px;background:var(--accent-soft);color:var(--accent);border-radius:10px;padding:8px;font-size:13px;font-weight:700}
+.plan-card.is-best .pc-btn{background:var(--accent);color:var(--accent-ink)}
+.plan-card:hover .pc-btn{background:var(--accent);color:var(--accent-ink)}
+/* ---- Hiệu ứng chúc mừng VIP ---- */
+.vip-celebrate{position:fixed;inset:0;z-index:99999;pointer-events:none;overflow:hidden;display:flex;align-items:center;justify-content:center}
+.vip-congrats{text-align:center;background:var(--panel);border:1px solid var(--line);border-radius:22px;padding:28px 36px;box-shadow:0 30px 90px rgba(0,0,0,.32);animation:vcPop .5s cubic-bezier(.2,1.3,.5,1) both}
+.vip-congrats .vc-emoji{font-size:52px;line-height:1;animation:vcBounce 1s ease .3s infinite alternate}
+.vip-congrats h3{margin:12px 0 5px;font-size:23px;letter-spacing:-.02em}
+.vip-congrats p{margin:0;color:var(--muted);font-size:13.5px;max-width:260px}
+@keyframes vcPop{from{transform:scale(.6);opacity:0}to{transform:scale(1);opacity:1}}
+@keyframes vcBounce{to{transform:translateY(-10px)}}
+.cf{position:absolute;top:-16px;width:9px;height:14px;will-change:transform;animation:cfFall linear forwards}
+@keyframes cfFall{0%{transform:translateY(-20px) rotateZ(0)}100%{transform:translateY(104vh) rotateZ(760deg)}}
+</style>
 <dialog id="vipDialog" aria-labelledby="vipTitle">
   <div class="dialog-heading"><div><div class="eyebrow">GIỌNG AI · VIP</div><h2 id="vipTitle">Nâng cấp VIP</h2></div><button class="btn ghost" id="vipCloseBtn" aria-label="Đóng">✕</button></div>
   <div id="vipPlans">
-    <p class="sub">Mở khoá không giới hạn ký tự. Chọn gói:</p>
-    <div class="row" style="flex-wrap:wrap;gap:8px;margin-top:8px">
-      <button class="btn" data-plan="month">Theo tháng</button>
-      <button class="btn" data-plan="year">Theo năm</button>
-      <button class="btn primary" data-plan="lifetime">Vĩnh viễn</button>
+    <p class="sub">Mở khoá toàn bộ tính năng — chọn gói phù hợp:</p>
+    <div class="plan-grid">
+      <button type="button" class="plan-card" data-plan="month">
+        <span class="pc-name">VIP 1 THÁNG</span>
+        <ul class="pc-feats">
+          <li>Không giới hạn ký tự</li>
+          <li>Mở khoá toàn bộ giọng</li>
+          <li>Nhân bản giọng (clone)</li>
+        </ul>
+        <div class="pc-price"><b>29.000đ</b><span>/ tháng</span></div>
+        <span class="pc-btn">Chọn gói</span>
+      </button>
+      <button type="button" class="plan-card is-pop" data-plan="year">
+        <span class="pc-badge">Tiết kiệm 43%</span>
+        <span class="pc-name">VIP 1 NĂM</span>
+        <ul class="pc-feats">
+          <li>Mọi quyền lợi gói tháng</li>
+          <li>Dùng cả năm, không lo gia hạn</li>
+          <li>Ưu tiên cập nhật mới</li>
+        </ul>
+        <div class="pc-price"><b>199.000đ</b><span>/ năm</span></div>
+        <p class="pc-sub">≈ 16.600đ/tháng</p>
+        <span class="pc-btn">Chọn gói</span>
+      </button>
+      <button type="button" class="plan-card is-best" data-plan="lifetime">
+        <span class="pc-badge best">Tốt nhất</span>
+        <span class="pc-name">VIP VĨNH VIỄN</span>
+        <ul class="pc-feats">
+          <li>Mọi quyền lợi VIP</li>
+          <li>Trả 1 lần, dùng trọn đời</li>
+          <li>Không bao giờ hết hạn</li>
+        </ul>
+        <div class="pc-price"><b>499.000đ</b><span>/ trọn đời</span></div>
+        <span class="pc-btn">Chọn gói</span>
+      </button>
     </div>
   </div>
   <div id="vipPay" class="hide" style="text-align:center">
@@ -2055,13 +2116,46 @@ document.addEventListener('engine:up', function(){ try{ loadVoices(); loadHistor
   var orderUnsub=null;
   // payPending = ảnh chụp trạng thái VIP lúc bắt đầu mua; dùng để phát hiện "đã lên VIP"
   // qua listener users/{uid} (luôn chạy) — không phụ thuộc listener orders.
-  var payPending=null;
+  var payPending=null, payDone=false;
   function payVipMs(doc){ return (doc&&doc.vipUntil&&doc.vipUntil.toMillis)?doc.vipUntil.toMillis():0; }
   function vipMsg(m){ var e=$id('vipMsg'); if(e) e.textContent=m||''; }
-  function paymentDone(){ payPending=null; if(orderUnsub){orderUnsub();orderUnsub=null;} vipMsg('Thanh toán thành công! Đã nâng cấp VIP.'); setTimeout(function(){ var dg=$id('vipDialog'); if(dg&&dg.open) dg.close(); },1600); }
+  // Hiệu ứng confetti + lời chúc mừng toàn màn hình.
+  function celebrateVip(msg){
+    try{
+      var w=document.createElement('div'); w.className='vip-celebrate';
+      var colors=['#7c3aed','#f59e0b','#ef4444','#10b981','#3b82f6','#ec4899','#a855f7'];
+      var frag=document.createDocumentFragment();
+      for(var i=0;i<100;i++){
+        var p=document.createElement('i'); p.className='cf';
+        p.style.left=(Math.random()*100)+'%';
+        p.style.background=colors[i%colors.length];
+        p.style.animationDuration=(2+Math.random()*1.9)+'s';
+        p.style.animationDelay=(Math.random()*0.6)+'s';
+        if(Math.random()<0.5) p.style.borderRadius='50%';
+        frag.appendChild(p);
+      }
+      var card=document.createElement('div'); card.className='vip-congrats';
+      card.innerHTML='<div class="vc-emoji">🎉</div><h3>Chúc mừng!</h3><p></p>';
+      card.querySelector('p').textContent=msg||'Bạn đã trở thành thành viên VIP';
+      w.appendChild(frag); w.appendChild(card); document.body.appendChild(w);
+      setTimeout(function(){ w.style.transition='opacity .5s'; w.style.opacity='0'; setTimeout(function(){ if(w.parentNode) w.parentNode.removeChild(w); },520); }, 3400);
+    }catch(e){}
+  }
+  function vipCongratsMsg(){
+    if(A.doc&&A.doc.isVip===true) return 'Bạn đã là thành viên VIP trọn đời!';
+    if(A.doc&&A.doc.vipUntil) return 'VIP có hiệu lực đến ' + (typeof fmtDate==='function'?fmtDate(A.doc.vipUntil):'') + '. Cảm ơn bạn!';
+    return 'Bạn đã trở thành thành viên VIP!';
+  }
+  function paymentDone(){
+    if(payDone) return; payDone=true;
+    payPending=null; if(orderUnsub){orderUnsub();orderUnsub=null;}
+    vipMsg('Thanh toán thành công! Đã nâng cấp VIP.');
+    var dg=$id('vipDialog'); if(dg&&dg.open) dg.close();
+    celebrateVip(vipCongratsMsg());
+  }
   // Gọi mỗi khi hồ sơ user đổi: nếu đang chờ thanh toán và VIP vừa bật/gia hạn → đóng popup.
   function checkPay(){ if(!payPending) return; var curVip=!!(A.doc&&A.doc.isVip), curUntil=payVipMs(A.doc); if((curVip&&!payPending.isVip)||(curUntil>payPending.until)) paymentDone(); }
-  function showPlans(){ var p=$id('vipPlans'), q=$id('vipPay'); if(p)p.classList.remove('hide'); if(q)q.classList.add('hide'); if(orderUnsub){orderUnsub();orderUnsub=null;} payPending=null; vipMsg(''); }
+  function showPlans(){ var p=$id('vipPlans'), q=$id('vipPay'); if(p)p.classList.remove('hide'); if(q)q.classList.add('hide'); if(orderUnsub){orderUnsub();orderUnsub=null;} payPending=null; payDone=false; vipMsg(''); }
   function openUpgrade(){ var d=$id('vipDialog'); if(!d) return; showPlans(); if(d.showModal) d.showModal(); }
   function buyPlan(plan){
     if(!A.user){ signIn(); return; }
@@ -2075,7 +2169,7 @@ document.addEventListener('engine:up', function(){ try{ loadVoices(); loadHistor
       var info=$id('vipPayInfo');
       if(info) info.innerHTML='Số tiền: <b>'+Number(o.amount).toLocaleString('vi-VN')+'đ</b> · Nội dung: <b>'+o.code+'</b><br>'+(o.bankName||'')+' · '+(o.bank||'')+' · '+(o.account||'');
       $id('vipPlans').classList.add('hide'); $id('vipPay').classList.remove('hide'); vipMsg('Đang chờ thanh toán…');
-      payPending={isVip:!!(A.doc&&A.doc.isVip), until:payVipMs(A.doc)};
+      payPending={isVip:!!(A.doc&&A.doc.isVip), until:payVipMs(A.doc)}; payDone=false;
       watchOrder(o.orderId);
     }).catch(function(e){ vipMsg('Lỗi: '+(e.message||e)); });
   }
