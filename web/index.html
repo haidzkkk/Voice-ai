@@ -305,7 +305,7 @@ body{min-height:100vh}
 .tune-card{width:min(360px,100%)}
 .voice-card.hide,.tune-card.hide{display:none}
 .voice-card>.section-heading,.tune-card>.section-heading{position:sticky;top:0;background:var(--panel);z-index:2}
-@media(max-width:800px){.voice-card,.tune-card{width:100%}}
+@media(max-width:900px){.voice-card,.tune-card{width:100%}}
 /* Nút Tạo audio nằm cạnh phải thanh meta (⌘/Ctrl+Enter); progress/kết quả nằm dưới full-width */
 .editor-meta{display:flex!important;align-items:center;gap:10px;flex-wrap:wrap;margin:16px 0 0!important}
 .editor-meta .spacer{flex:1 1 auto;min-width:8px}
@@ -315,13 +315,13 @@ body{min-height:100vh}
 /* Hàng công cụ trên cùng ô nhập: văn bản mẫu (trái) + Mở file/Xóa (phải) */
 .gen-toolbar{padding:0 6px}
 .gen-toolbar .spacer{flex:1 1 auto;min-width:8px}
-.gen-toolbar .sample-row{margin:0;flex:0 0 auto;display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:5px 6px 5px 12px}
+.gen-toolbar .sample-row{margin:0;flex:0 0 auto;align-self:stretch;display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:0 6px 0 12px}
 .gen-toolbar .sample-row select{max-width:180px;background:transparent;border:0;font-size:13px;padding:4px 0}
 .gen-toolbar .sample-row .btn{background:var(--accent-soft);color:var(--accent);border:0;border-radius:8px;font-size:12.5px;padding:7px 12px}
-.editor-card{overflow:visible!important}
+.editor-card{overflow:visible!important;border:0!important}
 #text{resize:none}
 /* ===== v6: app full-height, cả web không scroll (desktop) — ô nhập lấp đầy, chỉ cuộn trong ô ===== */
-@media(min-width:801px){
+@media(min-width:901px){
   .app{height:100vh;overflow:hidden}
   .content-in{min-height:0;overflow:hidden;padding-bottom:22px;display:flex;flex-direction:column}
   main{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
@@ -332,6 +332,38 @@ body{min-height:100vh}
   .editor-card .text-highlight-wrap{flex:1 1 auto;min-height:120px}
   #text{height:100%!important;min-height:0!important;overflow-y:auto!important}
 }
+/* ===== v7: responsive adaptive mọi kích thước ===== */
+/* Màn hình thấp (desktop): bỏ full-height, cho cuộn để không cắt nút Tạo audio */
+@media(min-width:901px) and (max-height:640px){
+  .app{height:auto;min-height:100vh;overflow:visible}
+  .content-in{overflow:visible}
+  #text{height:auto!important;min-height:260px!important;overflow-y:auto!important}
+}
+/* Tablet & dưới (sidebar đã xếp lên trên): 1 cột, cuộn tự nhiên */
+@media(max-width:900px){
+  .gen-toolbar{padding:0}
+  .topbar{flex-wrap:wrap;gap:10px}
+  .topbar-intro{flex:1 1 100%;order:-1}
+  .topbar-intro span{white-space:normal}
+}
+/* Điện thoại: xếp dọc control cho dễ chạm, nút tạo full-width */
+@media(max-width:600px){
+  .content-in{padding:16px 14px 28px}
+  .engine{flex-direction:column}
+  .eng-btn{flex:1 1 100%}
+  .gen-toolbar{gap:8px}
+  .gen-tool{flex:1 1 100%;justify-content:space-between}
+  .gen-toolbar .spacer{display:none}
+  .gen-toolbar .sample-row{flex:1 1 100%}
+  .gen-toolbar .sample-row select{max-width:none;flex:1}
+  #loadBtn,#clearBtn{flex:1 1 auto}
+  .editor-meta{flex-wrap:wrap}
+  #goBtn{flex:1 1 100%;order:5}
+  .topbar-intro b{font-size:14px}
+  .topbar-intro span{display:none}
+}
+/* Chống tràn ngang gây scroll ngang */
+img,video,audio,svg,canvas{max-width:100%}
 </style>
 </head>
 <body>
@@ -363,7 +395,7 @@ body{min-height:100vh}
     };
   })();
   // Phiên bản của bản web này + phiên bản engine tối thiểu cần (so với /api/version).
-  var WEB_VERSION='1.9.10';
+  var WEB_VERSION='1.9.11';
   var REQUIRED_ENGINE_VERSION='1.8.0';
   function setVerInfo(engineVer){
     var e=document.getElementById('verInfo'); if(!e) return;
