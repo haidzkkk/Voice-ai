@@ -277,6 +277,23 @@ body{min-height:100vh}
 /* secondary ghost buttons hover accent */
 .voice-card .btn.ghost,.editor-card .btn.ghost{border-radius:9px}
 .voice-card .btn.ghost:hover,.editor-card .btn.ghost:hover{background:var(--accent-soft);color:var(--accent)}
+/* ===== v3: layout editor-centric (1 cột, toolbar trên, panel giọng dạng popover) ===== */
+.gen-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:0 0 16px}
+.gen-tool{display:inline-flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 15px;font-weight:600;font-size:13.5px;color:var(--ink);cursor:pointer;box-shadow:var(--shadow);transition:border-color .15s,color .15s}
+.gen-tool:hover{border-color:var(--accent)}
+.gen-tool .gt-caret{color:var(--muted);font-size:11px;transition:transform .2s}
+.gen-tool[aria-expanded="true"]{border-color:var(--accent);color:var(--accent)}
+.gen-tool[aria-expanded="true"] .gt-caret{transform:rotate(180deg)}
+/* 1 cột: editor full width, bỏ thanh kéo */
+.workspace{display:block!important;position:relative}
+.workspace-divider,.layout-controls{display:none!important}
+.editor-card{width:100%!important;order:0!important}
+#text{min-height:clamp(280px,48vh,620px)!important}
+/* Panel chọn giọng = popover thả xuống từ toolbar */
+.voice-card{position:absolute!important;top:2px;left:0;z-index:45;width:min(460px,100%);max-height:74vh;overflow:auto;box-shadow:0 26px 74px rgba(10,12,30,.30)!important;border-color:var(--accent)!important}
+.voice-card.hide{display:none}
+.voice-card>.section-heading{position:sticky;top:0;background:var(--panel);z-index:2}
+@media(max-width:800px){.voice-card{width:100%}}
 </style>
 </head>
 <body>
@@ -308,7 +325,7 @@ body{min-height:100vh}
     };
   })();
   // Phiên bản của bản web này + phiên bản engine tối thiểu cần (so với /api/version).
-  var WEB_VERSION='1.9.3';
+  var WEB_VERSION='1.9.4';
   var REQUIRED_ENGINE_VERSION='1.8.0';
   function setVerInfo(engineVer){
     var e=document.getElementById('verInfo'); if(!e) return;
@@ -606,9 +623,12 @@ body{min-height:100vh}
       <button type="button" class="eng-btn" data-eng="vieneu"><span class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg></span><span><span class="tt">Tiêu chuẩn</span><span class="ss">Nhanh · trên máy</span></span></button>
       <button type="button" class="eng-btn" data-eng="voxcpm"><span class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a3 3 0 0 1 3 3v5a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3zM5 11a7 7 0 0 0 14 0M12 18v3"/></svg></span><span><span class="tt">Nâng cao</span><span class="ss">Nhân bản giọng</span></span></button>
     </div>
+    <div class="gen-toolbar">
+      <button type="button" class="gen-tool" id="voicePanelBtn" aria-expanded="false">🎙 <span>Giọng đọc &amp; tuỳ chỉnh</span> <span class="gt-caret">▾</span></button>
+    </div>
     <div class="workspace" id="workspace">
-      <section class="card voice-card" aria-labelledby="voiceHeading">
-        <div class="section-heading"><span class="step">01</span><h2 id="voiceHeading">Chọn giọng đọc</h2></div>
+      <section class="card voice-card hide" aria-labelledby="voiceHeading">
+        <div class="section-heading"><span class="step">01</span><h2 id="voiceHeading">Chọn giọng đọc</h2><div class="spacer"></div><button type="button" class="btn ghost" id="voicePanelClose" aria-label="Đóng">✕</button></div>
         <div class="engine-native">
         <label class="fl" for="engineSelect">Công cụ tạo giọng</label>
         <select id="engineSelect"><option value="ms">Microsoft · trực tuyến</option><option value="vieneu">VieNeu · nhanh, trên máy</option><option value="voxcpm">VoxCPM2 · clone đa ngữ, trên máy</option></select>
@@ -2435,6 +2455,17 @@ document.addEventListener('engine:up', function(){ try{ loadVoices(); loadHistor
     // Click ra ngoài (backdrop) để đóng mọi dialog.
     document.querySelectorAll('dialog').forEach(function(dg){
       dg.addEventListener('click', function(e){ if(e.target===dg){ if(dg.id==='vipDialog'&&orderUnsub){orderUnsub();orderUnsub=null;} dg.close(); } });
+    });
+    // Panel chọn giọng dạng popover (bật/tắt từ toolbar) — toàn bộ control bên trong giữ nguyên.
+    var vpBtn=$id('voicePanelBtn'), vCard=document.querySelector('.voice-card'), vpClose=$id('voicePanelClose');
+    function closeVoicePanel(){ if(vCard) vCard.classList.add('hide'); if(vpBtn) vpBtn.setAttribute('aria-expanded','false'); }
+    if(vpBtn) vpBtn.onclick=function(e){ e.stopPropagation(); if(!vCard) return; var willShow=vCard.classList.contains('hide'); vCard.classList.toggle('hide',!willShow); vpBtn.setAttribute('aria-expanded', willShow?'true':'false'); };
+    if(vpClose) vpClose.onclick=function(e){ e.stopPropagation(); closeVoicePanel(); };
+    document.addEventListener('click', function(e){
+      if(!vCard||vCard.classList.contains('hide')) return;
+      var t=e.target;
+      if(t.closest && (t.closest('.voice-card')||t.closest('#voicePanelBtn'))) return;
+      closeVoicePanel();
     });
     var up=$id('upgradeBtn'); if(up) up.onclick=openUpgrade;
     var vc=$id('vipCloseBtn'); if(vc) vc.onclick=function(){ var d=$id('vipDialog'); if(d&&d.open) d.close(); if(orderUnsub){orderUnsub();orderUnsub=null;} };
