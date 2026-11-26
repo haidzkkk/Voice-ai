@@ -248,7 +248,7 @@ body{min-height:100vh}
     };
   })();
   // Phiên bản của bản web này + phiên bản engine tối thiểu cần (so với /api/version).
-  var WEB_VERSION='1.8.8';
+  var WEB_VERSION='1.8.9';
   var REQUIRED_ENGINE_VERSION='1.8.0';
   function setVerInfo(engineVer){
     var e=document.getElementById('verInfo'); if(!e) return;
@@ -361,7 +361,7 @@ body{min-height:100vh}
       </button>
       <div class="user-wrap">
         <div class="user-card" id="userCard" title="Tài khoản Giọng AI">
-          <div class="av-wrap"><div class="user-av" id="userAv">K</div><span class="vip-badge hide" id="vipBadge" title="Tài khoản VIP">★</span></div>
+          <div class="av-wrap"><div class="user-av" id="userAv">K</div><span class="vip-badge hide" id="vipBadge" title="Tài khoản VIP">👑</span></div>
           <div style="min-width:0;flex:1"><div class="user-name" id="userName">Khách</div><div class="user-sub" id="userSub">Ấn để đăng nhập</div></div>
           <span id="userCaret" class="hide" aria-hidden="true" style="color:var(--muted);font-size:11px;flex:none">▾</span>
         </div>
@@ -848,6 +848,11 @@ body{min-height:100vh}
 /* ---- Lịch sử mua ---- */
 .hist-row{display:flex;justify-content:space-between;gap:12px;padding:11px 2px;border-bottom:1px solid var(--line)}
 .hist-row .sub{font-size:11px;margin-top:2px}
+/* ---- Màn đang tạo đơn ---- */
+.vl-spin{width:48px;height:48px;margin:0 auto;border-radius:50%;border:4px solid var(--accent-soft);border-top-color:var(--accent);animation:sp .8s linear infinite}
+.vl-bar{height:7px;border-radius:999px;background:var(--accent-soft);overflow:hidden;position:relative}
+.vl-bar i{position:absolute;left:0;top:0;height:100%;width:40%;border-radius:999px;background:linear-gradient(90deg,#7c3aed,#ec4899);animation:vlSlide 1.3s ease-in-out infinite}
+@keyframes vlSlide{0%{left:-40%}100%{left:100%}}
 </style>
 <dialog id="vipDialog" aria-labelledby="vipTitle">
   <div class="dialog-heading"><div><div class="eyebrow">GIỌNG AI · VIP</div><h2 id="vipTitle">Nâng cấp VIP</h2></div><button class="btn ghost" id="vipCloseBtn" aria-label="Đóng">✕</button></div>
@@ -879,6 +884,12 @@ body{min-height:100vh}
         <span class="pc-btn">Chọn gói</span>
       </button>
     </div>
+  </div>
+  <div id="vipLoading" class="hide" style="text-align:center;padding:26px 8px">
+    <div class="vl-spin"></div>
+    <h3 id="vipLoadingTitle" style="margin:18px 0 6px;font-size:18px;letter-spacing:-.01em">Đang tạo đơn…</h3>
+    <p class="sub" id="vipLoadingSub" style="margin:0 0 16px">Vui lòng đợi vài giây</p>
+    <div class="vl-bar"><i></i></div>
   </div>
   <div id="vipPay" class="hide" style="text-align:center">
     <img id="vipQR" alt="Mã VietQR" style="width:220px;height:220px;border-radius:12px;background:#fff;padding:6px;margin:6px auto;display:block"/>
@@ -2133,15 +2144,15 @@ document.addEventListener('engine:up', function(){ try{ loadVoices(); loadHistor
       if(badge) badge.classList.toggle('hide',!vip);
       if(up) up.hidden=life;   // VIP vĩnh viễn: ẩn hẳn nút nâng cấp (không cho mua nữa)
       if(caret) caret.classList.remove('hide');
-      if(life) sb.textContent='VIP vĩnh viễn';
+      if(life) sb.textContent='VIP · trọn đời';
       else if(vip) sb.textContent='VIP · đến '+fmtDate(A.doc.vipUntil);
-      else sb.textContent='Thành viên thường';
+      else { var lim=userLimit(A.doc), used=dayUsed(A.doc&&A.doc.usages); sb.textContent='Đã dùng '+used.toLocaleString('vi-VN')+'/'+lim.toLocaleString('vi-VN')+' ký tự hôm nay'; }
       // Thông tin trong menu
       var umN=$id('umName'), umE=$id('umEmail'), umU=$id('umUid'), umP=$id('umPlan');
       if(umN) umN.textContent=A.user.displayName||'Người dùng';
       if(umE) umE.textContent=A.user.email||'';
       if(umU) umU.textContent=(A.user.uid||'').slice(0,10);
-      if(umP){ umP.classList.toggle('vip', vip); umP.textContent = life?'VIP vĩnh viễn':(vip?('VIP · đến '+fmtDate(A.doc.vipUntil)):'Thành viên thường'); }
+      if(umP){ umP.classList.toggle('vip', vip); umP.textContent = vip ? 'VIP' : 'Cơ bản'; }
       updateSaleUI();
     } else {
       if(badge) badge.classList.add('hide');
@@ -2189,7 +2200,7 @@ document.addEventListener('engine:up', function(){ try{ loadVoices(); loadHistor
     db.collection('orders').where('uid','==',A.user.uid).limit(50).get().then(function(qs){
       var rows=[]; qs.forEach(function(s){ rows.push(s.data()); });
       rows.sort(function(a,b){ return tsMs(b.createdAt)-tsMs(a.createdAt); });
-      if(!rows.length){ if(list) list.innerHTML='<p class="sub">Chưa có giao dịch nào.</p>'; return; }
+      if(!rows.length){ if(list) list.innerHTML='<p class="sub" style="text-align:center;padding:20px 0">Danh sách rỗng — chưa có giao dịch nào.</p>'; return; }
       if(list) list.innerHTML=rows.map(function(o){
         var pn=o.plan==='lifetime'?'VIP Vĩnh viễn':(o.plan==='month'?'VIP 1 tháng':(o.plan||'VIP'));
         var paid=o.status==='paid';
@@ -2197,7 +2208,9 @@ document.addEventListener('engine:up', function(){ try{ loadVoices(); loadHistor
         var when=fmtDateTime(o.paidAt||o.createdAt);
         return '<div class="hist-row"><div style="min-width:0"><b>'+pn+'</b><div class="sub">'+when+(o.code?(' · '+o.code):'')+'</div></div><div style="text-align:right;flex:none"><b>'+Number(o.amount||0).toLocaleString('vi-VN')+'đ</b><div class="sub">'+st+'</div></div></div>';
       }).join('');
-    }).catch(function(e){ if(list) list.innerHTML='<p class="sub">Lỗi tải lịch sử: '+((e&&e.message)||e)+'</p>'; });
+    }).catch(function(e){
+      if(list){ list.innerHTML='<div style="text-align:center;padding:16px 0"><p class="sub" style="margin:0 0 10px">Lỗi tải lịch sử. Thử lại nhé.</p><button type="button" class="btn" id="histRetry">↻ Tải lại</button></div>'; var rt=$id('histRetry'); if(rt) rt.onclick=openHistory; }
+    });
   }
 
   function warn(m){ console.warn(m); var sb=$id('userSub'); if(sb&&!A.user) sb.textContent=m; }
@@ -2266,29 +2279,39 @@ document.addEventListener('engine:up', function(){ try{ loadVoices(); loadHistor
   // Gọi mỗi khi hồ sơ user đổi: nếu đang chờ thanh toán và VIP vừa bật/gia hạn → đóng popup.
   function checkPay(){ if(!payPending) return; var curVip=!!(A.doc&&A.doc.isVip), curUntil=payVipMs(A.doc); if((curVip&&!payPending.isVip)||(curUntil>payPending.until)) paymentDone(); }
   function showPlans(){
-    var p=$id('vipPlans'), q=$id('vipPay'); if(p)p.classList.remove('hide'); if(q)q.classList.add('hide');
+    var p=$id('vipPlans'), q=$id('vipPay'), l=$id('vipLoading'); if(p)p.classList.remove('hide'); if(q)q.classList.add('hide'); if(l)l.classList.add('hide');
     if(orderUnsub){orderUnsub();orderUnsub=null;} payPending=null; payDone=false; vipMsg('');
     var monthVip = isVipNow(A.doc) && !(A.doc&&A.doc.isVip===true);
     var mb=$id('mpBtn'); if(mb) mb.textContent = monthVip ? 'Gia hạn thêm 1 tháng' : 'Chọn gói';
     var intro=$id('vipIntro'); if(intro) intro.textContent = monthVip ? 'Bạn đang là VIP tháng — gia hạn thêm hoặc nâng lên trọn đời:' : 'Mở khoá toàn bộ tính năng — chọn gói phù hợp:';
     updateLifeCard();
   }
-  function openUpgrade(){ var d=$id('vipDialog'); if(!d) return; showPlans(); if(d.showModal) d.showModal(); }
+  // Đánh thức service thanh toán (Render free hay "ngủ") ngay khi mở popup, để tạo đơn nhanh.
+  function prewarmPay(){ try{ if(!CREATE_ORDER_URL) return; var origin=new URL(CREATE_ORDER_URL).origin; fetch(origin+'/',{method:'GET',mode:'no-cors',cache:'no-store'}).catch(function(){}); }catch(e){} }
+  function setLoadingText(t,s){ var a=$id('vipLoadingTitle'),b=$id('vipLoadingSub'); if(a&&t!=null)a.textContent=t; if(b&&s!=null)b.textContent=s; }
+  function showLoading(t,s){ var p=$id('vipPlans'),l=$id('vipLoading'),q=$id('vipPay'); if(p)p.classList.add('hide'); if(q)q.classList.add('hide'); if(l)l.classList.remove('hide'); setLoadingText(t,s); }
+  function hideLoading(){ var l=$id('vipLoading'); if(l)l.classList.add('hide'); }
+  function openUpgrade(){ var d=$id('vipDialog'); if(!d) return; showPlans(); prewarmPay(); if(d.showModal) d.showModal(); }
   function buyPlan(plan){
     if(!A.user){ signIn(); return; }
     if(!CREATE_ORDER_URL){ vipMsg('Chưa cấu hình thanh toán (thiếu CREATE_ORDER_URL).'); return; }
-    vipMsg('Đang tạo đơn…');
+    vipMsg('');
+    showLoading('Đang tạo đơn…','Vui lòng đợi vài giây');
+    // Nếu lâu (service đang khởi động), đổi thông điệp cho user yên tâm.
+    var slow=setTimeout(function(){ setLoadingText('Đang tạo đơn, hơi lâu một chút…','Máy chủ đang khởi động, chờ xíu nhé…'); }, 4000);
     A.user.getIdToken().then(function(tok){
       return fetch(CREATE_ORDER_URL,{method:'POST',headers:{'Authorization':'Bearer '+tok,'Content-Type':'application/json'},body:JSON.stringify({plan:plan})});
     }).then(function(r){return r.json();}).then(function(o){
+      clearTimeout(slow);
       if(!o||!o.orderId) throw new Error((o&&o.error)||'không tạo được đơn');
+      hideLoading();
       var img=$id('vipQR'); if(img) img.src=o.qrUrl;
       var info=$id('vipPayInfo');
       if(info) info.innerHTML='Số tiền: <b>'+Number(o.amount).toLocaleString('vi-VN')+'đ</b> · Nội dung: <b>'+(o.payContent||o.code)+'</b><br>'+(o.bankName||'')+' · '+(o.bank||'')+' · '+(o.account||'');
-      $id('vipPlans').classList.add('hide'); $id('vipPay').classList.remove('hide'); vipMsg('Đang chờ thanh toán…');
+      var q=$id('vipPay'); if(q) q.classList.remove('hide'); vipMsg('Đang chờ thanh toán…');
       payPending={isVip:!!(A.doc&&A.doc.isVip), until:payVipMs(A.doc)}; payDone=false;
       watchOrder(o.orderId);
-    }).catch(function(e){ vipMsg('Lỗi: '+(e.message||e)); });
+    }).catch(function(e){ clearTimeout(slow); hideLoading(); var p=$id('vipPlans'); if(p) p.classList.remove('hide'); vipMsg('Lỗi: '+((e&&e.message)||e)); });
   }
   function watchOrder(id){
     if(orderUnsub){orderUnsub();orderUnsub=null;}
