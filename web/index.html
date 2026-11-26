@@ -248,7 +248,7 @@ body{min-height:100vh}
     };
   })();
   // Phiên bản của bản web này + phiên bản engine tối thiểu cần (so với /api/version).
-  var WEB_VERSION='1.9.0';
+  var WEB_VERSION='1.9.1';
   var REQUIRED_ENGINE_VERSION='1.8.0';
   function setVerInfo(engineVer){
     var e=document.getElementById('verInfo'); if(!e) return;
@@ -2151,7 +2151,7 @@ document.addEventListener('engine:up', function(){ try{ loadVoices(); loadHistor
       var umN=$id('umName'), umE=$id('umEmail'), umU=$id('umUid'), umP=$id('umPlan');
       if(umN) umN.textContent=A.user.displayName||'Người dùng';
       if(umE) umE.textContent=A.user.email||'';
-      if(umU) umU.textContent=(A.user.uid||'').slice(0,10);
+      if(umU) umU.textContent=(A.user.uid||'').slice(0,10)+'…';
       if(umP){ umP.classList.toggle('vip', vip); umP.textContent = vip ? 'VIP' : 'Cơ bản'; }
       updateSaleUI();
     } else {
@@ -2372,6 +2372,10 @@ document.addEventListener('engine:up', function(){ try{ loadVoices(); loadHistor
     var hc=$id('histCloseBtn'); if(hc) hc.onclick=function(){ var d=$id('histDialog'); if(d&&d.open) d.close(); };
     var ulo=$id('umLogout'); if(ulo) ulo.onclick=function(){ closeMenu(); if(auth) auth.signOut(); };
     setInterval(updateSaleUI, 1000);
+    // Click ra ngoài (backdrop) để đóng mọi dialog.
+    document.querySelectorAll('dialog').forEach(function(dg){
+      dg.addEventListener('click', function(e){ if(e.target===dg){ if(dg.id==='vipDialog'&&orderUnsub){orderUnsub();orderUnsub=null;} dg.close(); } });
+    });
     var up=$id('upgradeBtn'); if(up) up.onclick=openUpgrade;
     var vc=$id('vipCloseBtn'); if(vc) vc.onclick=function(){ var d=$id('vipDialog'); if(d&&d.open) d.close(); if(orderUnsub){orderUnsub();orderUnsub=null;} };
     var vb=$id('vipBackBtn'); if(vb) vb.onclick=showPlans;
