@@ -277,23 +277,31 @@ body{min-height:100vh}
 /* secondary ghost buttons hover accent */
 .voice-card .btn.ghost,.editor-card .btn.ghost{border-radius:9px}
 .voice-card .btn.ghost:hover,.editor-card .btn.ghost:hover{background:var(--accent-soft);color:var(--accent)}
-/* ===== v3: layout editor-centric (1 cột, toolbar trên, panel giọng dạng popover) ===== */
+/* ===== v3: layout editor-centric (1 cột, toolbar trên, panel dạng popover) ===== */
 .gen-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:0 0 16px}
-.gen-tool{display:inline-flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 15px;font-weight:600;font-size:13.5px;color:var(--ink);cursor:pointer;box-shadow:var(--shadow);transition:border-color .15s,color .15s}
+.gen-tool{display:inline-flex;align-items:center;gap:9px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:9px 14px;font-weight:600;font-size:13.5px;color:var(--ink);cursor:pointer;box-shadow:var(--shadow);transition:border-color .15s,color .15s;max-width:100%}
 .gen-tool:hover{border-color:var(--accent)}
-.gen-tool .gt-caret{color:var(--muted);font-size:11px;transition:transform .2s}
+.gen-tool .gt-ic{font-size:15px;line-height:1}
+.gen-tool .gt-val{max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gen-tool .gt-caret{color:var(--muted);font-size:11px;transition:transform .2s;margin-left:2px}
 .gen-tool[aria-expanded="true"]{border-color:var(--accent);color:var(--accent)}
 .gen-tool[aria-expanded="true"] .gt-caret{transform:rotate(180deg)}
 /* 1 cột: editor full width, bỏ thanh kéo */
 .workspace{display:block!important;position:relative}
 .workspace-divider,.layout-controls{display:none!important}
 .editor-card{width:100%!important;order:0!important}
-#text{min-height:clamp(280px,48vh,620px)!important}
-/* Panel chọn giọng = popover thả xuống từ toolbar */
-.voice-card{position:absolute!important;top:2px;left:0;z-index:45;width:min(460px,100%);max-height:74vh;overflow:auto;box-shadow:0 26px 74px rgba(10,12,30,.30)!important;border-color:var(--accent)!important}
-.voice-card.hide{display:none}
-.voice-card>.section-heading{position:sticky;top:0;background:var(--panel);z-index:2}
-@media(max-width:800px){.voice-card{width:100%}}
+#text{min-height:clamp(300px,50vh,640px)!important}
+/* Panel giọng / tuỳ chỉnh = popover thả xuống từ toolbar */
+.voice-card,.tune-card{position:absolute!important;top:2px;left:0;z-index:45;max-height:76vh;overflow:auto;box-shadow:0 26px 74px rgba(10,12,30,.30)!important;border-color:var(--accent)!important}
+.voice-card{width:min(460px,100%)}
+.tune-card{width:min(360px,100%)}
+.voice-card.hide,.tune-card.hide{display:none}
+.voice-card>.section-heading,.tune-card>.section-heading{position:sticky;top:0;background:var(--panel);z-index:2}
+@media(max-width:800px){.voice-card,.tune-card{width:100%}}
+/* Nút Tạo audio nhỏ gọn ở góc dưới phải; khu vực kết quả trải đủ rộng */
+.dock-in .create-actions{display:flex;flex-direction:column;gap:10px}
+#goBtn{width:auto!important;align-self:flex-end;min-width:168px;min-height:46px;padding:0 24px!important}
+.dock-in .create-actions>.progress,.dock-in .create-actions>.row,.dock-in .create-actions>.result{align-self:stretch;width:100%}
 </style>
 </head>
 <body>
@@ -325,7 +333,7 @@ body{min-height:100vh}
     };
   })();
   // Phiên bản của bản web này + phiên bản engine tối thiểu cần (so với /api/version).
-  var WEB_VERSION='1.9.4';
+  var WEB_VERSION='1.9.5';
   var REQUIRED_ENGINE_VERSION='1.8.0';
   function setVerInfo(engineVer){
     var e=document.getElementById('verInfo'); if(!e) return;
@@ -624,7 +632,8 @@ body{min-height:100vh}
       <button type="button" class="eng-btn" data-eng="voxcpm"><span class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a3 3 0 0 1 3 3v5a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3zM5 11a7 7 0 0 0 14 0M12 18v3"/></svg></span><span><span class="tt">Nâng cao</span><span class="ss">Nhân bản giọng</span></span></button>
     </div>
     <div class="gen-toolbar">
-      <button type="button" class="gen-tool" id="voicePanelBtn" aria-expanded="false">🎙 <span>Giọng đọc &amp; tuỳ chỉnh</span> <span class="gt-caret">▾</span></button>
+      <button type="button" class="gen-tool" id="voicePanelBtn" aria-expanded="false"><span class="gt-ic">🎙</span><span class="gt-val" id="voiceLabel">Chọn giọng đọc</span><span class="gt-caret">▾</span></button>
+      <button type="button" class="gen-tool" id="tunePanelBtn" aria-expanded="false"><span class="gt-ic">⚡</span><span class="gt-val" id="rateLabel">Tốc độ 0%</span><span class="gt-caret">▾</span></button>
     </div>
     <div class="workspace" id="workspace">
       <section class="card voice-card hide" aria-labelledby="voiceHeading">
@@ -737,7 +746,12 @@ body{min-height:100vh}
         </div>
 
 
-        <details class="disclosure advanced" open data-layout-option="voiceSettings"><summary>Tùy chỉnh giọng đọc<span class="sub">Tốc độ, cao độ, âm lượng</span></summary>
+        <div class="sidebar-footer"><button class="btn ghost" id="manageVoiceBtn">Quản lý giọng cá nhân →</button>
+          <details class="disclosure"><summary>Mô hình &amp; công cụ</summary><button class="btn" id="modelDirBtn">Mở thư mục mô hình</button><p class="sub">Mô hình đã tải nằm trong thư mục hf/hub và models.</p></details>
+        </div>
+      </section>
+      <section class="card tune-card hide" id="tunePanel" aria-label="Tùy chỉnh giọng đọc">
+        <div class="section-heading"><h2>Tùy chỉnh giọng đọc</h2><div class="spacer"></div><button type="button" class="btn ghost" id="tunePanelClose" aria-label="Đóng">✕</button></div>
         <div id="sliders"><div class="slider"><div class="top"><span>Tốc độ</span><b id="rateV">0%</b></div>
           <input type="range" id="rate" min="-50" max="100" step="5" value="0"></div>
         <div class="slider" id="pitchWrap"><div class="top"><span>Cao độ</span><b id="pitchV">0 Hz</b></div>
@@ -747,11 +761,6 @@ body{min-height:100vh}
         <div class="row" style="justify-content:flex-end;margin:6px 0 14px">
           <button class="btn ghost" id="resetBtn">Đặt lại mặc định</button>
         </div></div>
-
-        </details>
-        <div class="sidebar-footer"><button class="btn ghost" id="manageVoiceBtn">Quản lý giọng cá nhân →</button>
-          <details class="disclosure"><summary>Mô hình &amp; công cụ</summary><button class="btn" id="modelDirBtn">Mở thư mục mô hình</button><p class="sub">Mô hình đã tải nằm trong thư mục hf/hub và models.</p></details>
-        </div>
       </section>
       <div id="workspaceDivider" class="workspace-divider" role="separator" aria-label="Chỉnh độ rộng cột tùy chọn" aria-orientation="vertical" aria-controls="workspace" aria-valuemin="28" aria-valuemax="68" aria-valuenow="46" tabindex="0" title="Kéo để đổi độ rộng · nhấp đúp để đặt lại · phím ← → để điều chỉnh"></div>
       <section class="card editor-card" aria-labelledby="textHeading">
@@ -2456,17 +2465,36 @@ document.addEventListener('engine:up', function(){ try{ loadVoices(); loadHistor
     document.querySelectorAll('dialog').forEach(function(dg){
       dg.addEventListener('click', function(e){ if(e.target===dg){ if(dg.id==='vipDialog'&&orderUnsub){orderUnsub();orderUnsub=null;} dg.close(); } });
     });
-    // Panel chọn giọng dạng popover (bật/tắt từ toolbar) — toàn bộ control bên trong giữ nguyên.
-    var vpBtn=$id('voicePanelBtn'), vCard=document.querySelector('.voice-card'), vpClose=$id('voicePanelClose');
-    function closeVoicePanel(){ if(vCard) vCard.classList.add('hide'); if(vpBtn) vpBtn.setAttribute('aria-expanded','false'); }
-    if(vpBtn) vpBtn.onclick=function(e){ e.stopPropagation(); if(!vCard) return; var willShow=vCard.classList.contains('hide'); vCard.classList.toggle('hide',!willShow); vpBtn.setAttribute('aria-expanded', willShow?'true':'false'); };
-    if(vpClose) vpClose.onclick=function(e){ e.stopPropagation(); closeVoicePanel(); };
-    document.addEventListener('click', function(e){
-      if(!vCard||vCard.classList.contains('hide')) return;
-      var t=e.target;
-      if(t.closest && (t.closest('.voice-card')||t.closest('#voicePanelBtn'))) return;
-      closeVoicePanel();
-    });
+    // Hai panel popover (Giọng / Tuỳ chỉnh) bật-tắt từ toolbar — toàn bộ control bên trong giữ nguyên.
+    (function(){
+      var vpBtn=$id('voicePanelBtn'), vCard=document.querySelector('.voice-card'), vpClose=$id('voicePanelClose');
+      var tpBtn=$id('tunePanelBtn'), tCard=$id('tunePanel'), tpClose=$id('tunePanelClose');
+      function setPanel(card,btn,show){ if(card) card.classList.toggle('hide',!show); if(btn) btn.setAttribute('aria-expanded',show?'true':'false'); }
+      function closeAll(){ setPanel(vCard,vpBtn,false); setPanel(tCard,tpBtn,false); }
+      function openOnly(card,btn){ var show=card&&card.classList.contains('hide'); closeAll(); if(show) setPanel(card,btn,true); }
+      if(vpBtn) vpBtn.onclick=function(e){ e.stopPropagation(); openOnly(vCard,vpBtn); };
+      if(tpBtn) tpBtn.onclick=function(e){ e.stopPropagation(); openOnly(tCard,tpBtn); };
+      if(vpClose) vpClose.onclick=function(e){ e.stopPropagation(); setPanel(vCard,vpBtn,false); };
+      if(tpClose) tpClose.onclick=function(e){ e.stopPropagation(); setPanel(tCard,tpBtn,false); };
+      document.addEventListener('click', function(e){
+        var t=e.target;
+        if(t.closest && (t.closest('.voice-card')||t.closest('#voicePanelBtn')||t.closest('#tunePanel')||t.closest('#tunePanelBtn'))) return;
+        closeAll();
+      });
+      // Hiển thị giọng đang chọn + tốc độ ngay trên toolbar (ngoài popover).
+      function voiceText(){
+        var eng=(document.getElementById('engineSelect')||{}).value||'';
+        var s=document.getElementById(eng==='ms'?'voice':'vvoice');
+        if(s&&s.options&&s.selectedIndex>=0&&s.options[s.selectedIndex]){ var t=s.options[s.selectedIndex].text; if(t&&t.trim()) return t.trim(); }
+        return 'Chọn giọng đọc';
+      }
+      function updVoice(){ var l=$id('voiceLabel'); if(l){ var t=voiceText(); if(l.textContent!==t) l.textContent=t; } }
+      function updRate(){ var l=$id('rateLabel'), r=$id('rate'); if(l&&r) l.textContent='Tốc độ '+r.value+'%'; }
+      var rate=$id('rate'); if(rate) rate.addEventListener('input',updRate);
+      ['voice','vvoice','engineSelect'].forEach(function(id){ var s=document.getElementById(id); if(s) s.addEventListener('change',function(){updVoice();}); });
+      updVoice(); updRate();
+      setInterval(function(){ updVoice(); updRate(); }, 1200);
+    })();
     var up=$id('upgradeBtn'); if(up) up.onclick=openUpgrade;
     var vc=$id('vipCloseBtn'); if(vc) vc.onclick=function(){ var d=$id('vipDialog'); if(d&&d.open) d.close(); if(orderUnsub){orderUnsub();orderUnsub=null;} };
     var vb=$id('vipBackBtn'); if(vb) vb.onclick=showPlans;
