@@ -253,6 +253,30 @@ body{min-height:100vh}
 .btn.primary:not(.upgrade-btn):hover{filter:brightness(1.03)}
 /* Trình phát audio kết quả gọn gàng */
 #result audio,#historyPlayer,#libraryPlayer,#player{width:100%;margin-top:8px}
+/* ===== v2: refine two-column form (CSS only, no DOM change) ===== */
+/* engine cards: clearer selected + hover */
+.eng-btn{transition:background .15s,box-shadow .15s,transform .12s}
+.eng-btn:hover:not(.on){background:var(--field)}
+.eng-btn.on{box-shadow:0 6px 18px -8px rgba(139,92,246,.55);outline:1.5px solid var(--accent);outline-offset:-1.5px}
+.eng-btn .ic{transition:background .15s,color .15s,transform .15s}
+.eng-btn.on .ic{transform:scale(1.05)}
+.eng-btn .ss{display:block;margin-top:1px}
+/* column heading divider */
+.voice-card>.section-heading,.editor-card>.section-heading{padding-bottom:14px;border-bottom:1px solid var(--line);margin-bottom:16px}
+/* sample row as compact toolbar */
+.sample-row{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:8px 10px;margin-bottom:12px}
+.sample-row select{background:transparent!important;border:0!important;flex:1}
+/* char count + shortcut as chips */
+.editor-meta{align-items:center}
+.editor-meta #count,.editor-meta #shortcutHint{background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:4px 11px}
+.editor-meta #count{font-weight:600;color:var(--ink)}
+/* emotion legend wraps neatly */
+.emotion-legend{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+/* slider % value as accent chip */
+#sliders .slider .top b{background:var(--accent-soft);color:var(--accent);padding:2px 9px;border-radius:999px;font-size:12px}
+/* secondary ghost buttons hover accent */
+.voice-card .btn.ghost,.editor-card .btn.ghost{border-radius:9px}
+.voice-card .btn.ghost:hover,.editor-card .btn.ghost:hover{background:var(--accent-soft);color:var(--accent)}
 </style>
 </head>
 <body>
@@ -284,7 +308,7 @@ body{min-height:100vh}
     };
   })();
   // Phiên bản của bản web này + phiên bản engine tối thiểu cần (so với /api/version).
-  var WEB_VERSION='1.9.2';
+  var WEB_VERSION='1.9.3';
   var REQUIRED_ENGINE_VERSION='1.8.0';
   function setVerInfo(engineVer){
     var e=document.getElementById('verInfo'); if(!e) return;
