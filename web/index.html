@@ -199,8 +199,10 @@ body{min-height:100vh}
 .user-av{width:38px;height:38px;border-radius:12px;background:var(--grad);color:#fff;display:grid;place-items:center;font-weight:800;font-size:15px;flex:none}
 .av-wrap{position:relative;flex:none}
 .vip-badge{position:absolute;right:-5px;bottom:-5px;min-width:18px;height:18px;padding:0 2px;border-radius:999px;background:linear-gradient(135deg,#f6c945,#e5881f);color:#3a2600;font-size:11px;line-height:1;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid var(--panel);box-shadow:0 2px 6px rgba(0,0,0,.25)}
-.av-plan{position:absolute;left:-6px;top:-8px;z-index:2;font-size:9.5px;font-weight:800;line-height:1;padding:3px 7px;border-radius:999px;background:var(--accent-soft);color:var(--accent);border:2px solid var(--panel);box-shadow:0 2px 6px rgba(0,0,0,.2);white-space:nowrap;letter-spacing:.02em}
-.av-plan.vip{background:linear-gradient(135deg,#f6c945,#e5881f);color:#3a2600}
+.user-name-row{display:flex;align-items:center;gap:6px;min-width:0}
+.user-name-row .user-name{min-width:0}
+.plan-chip{flex:none;font-size:10px;font-weight:800;line-height:1;padding:3px 8px;border-radius:999px;background:var(--accent-soft);color:var(--accent);white-space:nowrap;letter-spacing:.02em}
+.plan-chip.vip{background:linear-gradient(135deg,#f6c945,#e5881f);color:#3a2600}
 .vip-badge.hide{display:none}
 .user-name{font-weight:700;font-size:13.5px;color:var(--ink)}
 .user-sub{font-size:11px;color:var(--muted);margin-top:1px}
@@ -311,15 +313,17 @@ body{min-height:100vh}
 .editor-card .create-actions{display:flex;flex-direction:column;gap:10px;margin-top:12px;border-top:0;padding-top:0}
 .editor-card .create-actions>.progress,.editor-card .create-actions>.row,.editor-card .create-actions>.result{width:100%}
 /* Hàng công cụ trên cùng ô nhập: văn bản mẫu (trái) + Mở file/Xóa (phải) */
+.gen-toolbar{padding:0 6px}
 .gen-toolbar .spacer{flex:1 1 auto;min-width:8px}
-.gen-toolbar .sample-row{margin:0;flex:0 0 auto}
-.gen-toolbar .sample-row select{max-width:200px}
+.gen-toolbar .sample-row{margin:0;flex:0 0 auto;display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:5px 6px 5px 12px}
+.gen-toolbar .sample-row select{max-width:180px;background:transparent;border:0;font-size:13px;padding:4px 0}
+.gen-toolbar .sample-row .btn{background:var(--accent-soft);color:var(--accent);border:0;border-radius:8px;font-size:12.5px;padding:7px 12px}
 .editor-card{overflow:visible!important}
 #text{resize:none}
 /* ===== v6: app full-height, cả web không scroll (desktop) — ô nhập lấp đầy, chỉ cuộn trong ô ===== */
 @media(min-width:801px){
   .app{height:100vh;overflow:hidden}
-  .content-in{min-height:0;overflow:hidden;padding-bottom:22px}
+  .content-in{min-height:0;overflow:hidden;padding-bottom:22px;display:flex;flex-direction:column}
   main{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
   #createView{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;overflow:hidden}
   #settingsView,#libraryView,#historyView{flex:1 1 auto;min-height:0;overflow:auto}
@@ -359,7 +363,7 @@ body{min-height:100vh}
     };
   })();
   // Phiên bản của bản web này + phiên bản engine tối thiểu cần (so với /api/version).
-  var WEB_VERSION='1.9.9';
+  var WEB_VERSION='1.9.10';
   var REQUIRED_ENGINE_VERSION='1.8.0';
   function setVerInfo(engineVer){
     var e=document.getElementById('verInfo'); if(!e) return;
@@ -472,9 +476,9 @@ body{min-height:100vh}
       </button>
       <div class="user-wrap">
         <div class="user-card" id="userCard" title="Tài khoản Giọng AI">
-          <div class="av-wrap"><div class="user-av" id="userAv">K</div><span class="vip-badge hide" id="vipBadge" title="Tài khoản VIP">👑</span><span class="av-plan hide" id="avPlan">Cơ bản</span></div>
-          <div style="min-width:0;flex:1"><div class="user-name" id="userName">Khách</div><div class="user-sub" id="userSub">Ấn để đăng nhập</div></div>
-          <span id="userCaret" class="hide" aria-hidden="true" style="color:var(--muted);font-size:11px;flex:none">▾</span>
+          <div class="av-wrap"><div class="user-av" id="userAv">K</div><span class="vip-badge hide" id="vipBadge" title="Tài khoản VIP">👑</span></div>
+          <div style="min-width:0;flex:1"><div class="user-name-row"><span class="user-name" id="userName">Khách</span><span class="plan-chip hide" id="avPlan">Cơ bản</span></div><div class="user-sub" id="userSub">Ấn để đăng nhập</div></div>
+          <span id="userCaret" class="hide" aria-hidden="true" style="color:var(--muted);font-size:17px;flex:none">▾</span>
         </div>
         <div id="userMenu" class="user-menu hide" role="menu">
           <div class="um-info">
