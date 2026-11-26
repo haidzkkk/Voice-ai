@@ -304,10 +304,12 @@ body{min-height:100vh}
 #goBtn{width:auto!important;min-width:150px;min-height:44px;padding:0 22px!important;margin:0!important}
 .editor-card .create-actions{display:flex;flex-direction:column;gap:10px;margin-top:12px;border-top:0;padding-top:0}
 .editor-card .create-actions>.progress,.editor-card .create-actions>.row,.editor-card .create-actions>.result{width:100%}
-/* Nhóm công cụ nội dung (tiêu đề + mở file/xoá/mẫu/biểu cảm) nằm dưới ô nhập */
-.editor-tools-heading{border-bottom:0!important;border-top:1px solid var(--line);padding:16px 0 0!important;margin:16px 0 12px!important}
-.editor-tools-heading .step{display:none}
-.editor-tools-heading h2{font-size:14px}
+/* Hàng công cụ trên cùng ô nhập: văn bản mẫu (trái) + Mở file/Xóa (phải) */
+.editor-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px}
+.editor-top .sample-row{margin:0;flex:1 1 220px}
+/* Form tự giãn theo nội dung — không tạo thanh cuộn bên trong ô nhập */
+.editor-card{overflow:visible!important}
+#text{overflow-y:hidden!important;resize:none}
 </style>
 </head>
 <body>
@@ -339,7 +341,7 @@ body{min-height:100vh}
     };
   })();
   // Phiên bản của bản web này + phiên bản engine tối thiểu cần (so với /api/version).
-  var WEB_VERSION='1.9.7';
+  var WEB_VERSION='1.9.8';
   var REQUIRED_ENGINE_VERSION='1.8.0';
   function setVerInfo(engineVer){
     var e=document.getElementById('verInfo'); if(!e) return;
@@ -769,11 +771,15 @@ body{min-height:100vh}
         </div></div>
       </section>
       <div id="workspaceDivider" class="workspace-divider" role="separator" aria-label="Chỉnh độ rộng cột tùy chọn" aria-orientation="vertical" aria-controls="workspace" aria-valuemin="28" aria-valuemax="68" aria-valuenow="46" tabindex="0" title="Kéo để đổi độ rộng · nhấp đúp để đặt lại · phím ← → để điều chỉnh"></div>
-      <section class="card editor-card" aria-labelledby="textHeading">
+      <section class="card editor-card" aria-label="Nội dung cần tạo">
+        <div class="editor-top">
+          <div class="sample-row"><select id="sampleSelect" aria-label="Chọn văn bản mẫu"><option value="">Thử một văn bản mẫu…</option></select><button class="btn" id="insertSampleBtn">Chèn mẫu</button></div>
+          <button class="btn ghost" id="loadBtn">Mở file .txt</button>
+          <button class="btn ghost" id="clearBtn">Xóa</button>
+          <input type="file" id="fileIn" accept=".txt,.srt,.md,text/plain" class="hide">
+        </div>
         <div class="text-highlight-wrap"><div id="textHighlights" aria-hidden="true"></div><textarea id="text" aria-label="Nội dung cần đọc" placeholder="Viết một câu chuyện, bản tin hoặc bất cứ điều gì bạn muốn kể…"></textarea></div><div id="emotionLegend" class="emotion-legend" aria-label="Chú giải màu biểu cảm"></div>
-        <div class="section-heading editor-tools-heading"><span class="step">02</span><h2 id="textHeading">Thêm nội dung</h2><div class="spacer"></div><button class="btn ghost" id="loadBtn">Mở file .txt</button><button class="btn ghost" id="clearBtn">Xóa</button><input type="file" id="fileIn" accept=".txt,.srt,.md,text/plain" class="hide"></div>
-        <div class="sample-row"><select id="sampleSelect" aria-label="Chọn văn bản mẫu"><option value="">Thử một văn bản mẫu…</option></select><button class="btn" id="insertSampleBtn">Chèn mẫu</button></div>
-        <details class="disclosure" style="margin:0 0 14px;border-top:0;padding-top:0">
+        <details class="disclosure" style="margin:14px 0 0;border-top:1px solid var(--line);padding-top:14px">
           <summary>Thẻ biểu cảm</summary>
           <div class="row emotion-tools-actions" style="margin:10px 0 6px"><select id="emotionCue" aria-label="Chọn thẻ biểu cảm"></select><button class="btn" id="insertEmotionBtn">Chèn thẻ</button><button class="btn hide" id="setupEmotionsBtn">Thiết lập cảm xúc</button><button class="btn ghost help-link" data-help="emotion">ⓘ Cách hoạt động</button></div>
           <div class="sub" id="emotionHint" style="font-size:12px"></div>
@@ -2502,6 +2508,16 @@ document.addEventListener('engine:up', function(){ try{ loadVoices(); loadHistor
       ['voice','vvoice','engineSelect'].forEach(function(id){ var s=document.getElementById(id); if(s) s.addEventListener('change',function(){updVoice();}); });
       updVoice(); updRate();
       setInterval(function(){ updVoice(); updRate(); }, 1200);
+      // Ô nhập tự giãn chiều cao theo nội dung — không tạo thanh cuộn bên trong.
+      var ta=$id('text');
+      var grow=function(){ if(ta){ ta.style.height='auto'; ta.style.height=(ta.scrollHeight+2)+'px'; } };
+      if(ta){
+        ta.addEventListener('input',grow);
+        window.addEventListener('resize',grow);
+        ['clearBtn','insertSampleBtn','insertEmotionBtn','loadBtn'].forEach(function(id){ var b=$id(id); if(b) b.addEventListener('click',function(){ setTimeout(grow,0); }); });
+        var fin=$id('fileIn'); if(fin) fin.addEventListener('change',function(){ setTimeout(grow,350); });
+        setTimeout(grow,60);
+      }
     })();
     var up=$id('upgradeBtn'); if(up) up.onclick=openUpgrade;
     var vc=$id('vipCloseBtn'); if(vc) vc.onclick=function(){ var d=$id('vipDialog'); if(d&&d.open) d.close(); if(orderUnsub){orderUnsub();orderUnsub=null;} };
