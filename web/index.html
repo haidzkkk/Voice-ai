@@ -199,7 +199,15 @@ body{min-height:100vh}
 .user-name{font-weight:700;font-size:13.5px;color:var(--ink)}
 .user-sub{font-size:11px;color:var(--muted);margin-top:1px}
 .user-name,.user-sub{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px}
-.side-foot #loginBtn{width:100%;border-radius:999px}
+.user-wrap{position:relative}
+.user-wrap .user-card{cursor:pointer;transition:border-color .15s,background .15s}
+.user-wrap .user-card:hover{border-color:var(--accent)}
+.user-menu{position:absolute;bottom:calc(100% + 8px);left:0;right:0;background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:0 14px 44px rgba(0,0,0,.24);padding:6px;z-index:60;display:flex;flex-direction:column;gap:2px}
+.user-menu.hide{display:none}
+.um-item{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:transparent;border:0;border-radius:9px;padding:9px 11px;font:inherit;font-size:13px;color:var(--ink);cursor:pointer}
+.um-item:hover{background:var(--accent-soft)}
+.um-item.danger{color:var(--bad)}
+.um-ic{width:18px;text-align:center;flex:none}
 @media(max-width:900px){
   .app{grid-template-columns:1fr}
   .side{position:static;height:auto;flex-direction:row;align-items:center;gap:10px;flex-wrap:wrap;border-right:0;border-bottom:1px solid var(--line)}
@@ -240,7 +248,7 @@ body{min-height:100vh}
     };
   })();
   // Phiên bản của bản web này + phiên bản engine tối thiểu cần (so với /api/version).
-  var WEB_VERSION='1.8.6';
+  var WEB_VERSION='1.8.7';
   var REQUIRED_ENGINE_VERSION='1.8.0';
   function setVerInfo(engineVer){
     var e=document.getElementById('verInfo'); if(!e) return;
@@ -347,12 +355,20 @@ body{min-height:100vh}
       <button class="nav-item" data-view="settings">Cài đặt</button>
     </nav>
     <div class="side-foot">
-      <div class="user-card" title="Tài khoản Giọng AI">
-        <div class="av-wrap"><div class="user-av" id="userAv">K</div><span class="vip-badge hide" id="vipBadge" title="Tài khoản VIP">★</span></div>
-        <div style="min-width:0"><div class="user-name" id="userName">Khách</div><div class="user-sub" id="userSub">Chưa đăng nhập · bản giới hạn</div></div>
+      <button class="btn primary" id="upgradeBtn" hidden style="border-radius:999px">⭐ Nâng cấp VIP</button>
+      <div class="user-wrap">
+        <div class="user-card" id="userCard" title="Tài khoản Giọng AI">
+          <div class="av-wrap"><div class="user-av" id="userAv">K</div><span class="vip-badge hide" id="vipBadge" title="Tài khoản VIP">★</span></div>
+          <div style="min-width:0;flex:1"><div class="user-name" id="userName">Khách</div><div class="user-sub" id="userSub">Ấn để đăng nhập</div></div>
+          <span id="userCaret" class="hide" aria-hidden="true" style="color:var(--muted);font-size:11px;flex:none">▾</span>
+        </div>
+        <div id="userMenu" class="user-menu hide" role="menu">
+          <button type="button" class="um-item" id="umSettings"><span class="um-ic">⚙️</span> Cài đặt</button>
+          <button type="button" class="um-item" id="umShare"><span class="um-ic">🔗</span> Chia sẻ ứng dụng</button>
+          <button type="button" class="um-item" id="umSupport"><span class="um-ic">💬</span> Hỗ trợ</button>
+          <button type="button" class="um-item danger" id="umLogout"><span class="um-ic">↩</span> Đăng xuất</button>
+        </div>
       </div>
-      <button class="btn" id="loginBtn">Đăng nhập</button>
-      <button class="btn primary" id="upgradeBtn" hidden style="border-radius:999px">Nâng cấp VIP</button>
       <div id="verInfo" style="font-size:11px;color:var(--muted);text-align:center;letter-spacing:.02em">Web v1.8.0 · Server local: chưa nối</div>
     </div>
   </aside>
@@ -798,7 +814,7 @@ body{min-height:100vh}
 <dialog id="vipDialog" aria-labelledby="vipTitle">
   <div class="dialog-heading"><div><div class="eyebrow">GIỌNG AI · VIP</div><h2 id="vipTitle">Nâng cấp VIP</h2></div><button class="btn ghost" id="vipCloseBtn" aria-label="Đóng">✕</button></div>
   <div id="vipPlans">
-    <p class="sub">Mở khoá toàn bộ tính năng — chọn gói phù hợp:</p>
+    <p class="sub" id="vipIntro">Mở khoá toàn bộ tính năng — chọn gói phù hợp:</p>
     <div class="plan-grid">
       <button type="button" class="plan-card is-pop" data-plan="month">
         <span class="pc-badge">Phổ biến</span>
@@ -809,7 +825,7 @@ body{min-height:100vh}
           <li>Nhân bản giọng (clone)</li>
         </ul>
         <div class="pc-price"><b>39.000đ</b><span>/ tháng</span></div>
-        <span class="pc-btn">Chọn gói</span>
+        <span class="pc-btn" id="mpBtn">Chọn gói</span>
       </button>
       <button type="button" class="plan-card is-best" data-plan="lifetime">
         <span class="pc-badge best">Tốt nhất</span>
@@ -2062,25 +2078,27 @@ document.addEventListener('engine:up', function(){ try{ loadVoices(); loadHistor
   function logEvent(name, params){ try{ if(analytics) analytics.logEvent(name, params||{}); }catch(e){} }
   function userParams(u){ return u ? {uid:u.uid, provider:'google', logged_in:true} : {logged_in:false}; }
   function render(){
-    var av=$id('userAv'), nm=$id('userName'), sb=$id('userSub'), btn=$id('loginBtn');
-    if(!av||!nm||!sb||!btn) return;
-    var badge=$id('vipBadge'), up=$id('upgradeBtn');
+    var av=$id('userAv'), nm=$id('userName'), sb=$id('userSub');
+    if(!av||!nm||!sb) return;
+    var badge=$id('vipBadge'), up=$id('upgradeBtn'), caret=$id('userCaret');
     if(A.user){
       nm.textContent=A.user.displayName||'Người dùng';
       if(A.user.photoURL){ av.style.backgroundImage='url('+A.user.photoURL+')'; av.style.backgroundSize='cover'; av.style.backgroundPosition='center'; av.textContent=''; }
       else { av.style.backgroundImage=''; av.textContent=(A.user.displayName||A.user.email||'U').trim().charAt(0).toUpperCase(); }
-      var vip=isVipNow(A.doc);
+      var vip=isVipNow(A.doc), life=!!(A.doc&&A.doc.isVip===true);
       if(badge) badge.classList.toggle('hide',!vip);
-      if(up) up.hidden=vip;
-      if(vip){ sb.textContent=(A.doc&&A.doc.isVip===true)?'VIP · không giới hạn':'VIP · đến '+fmtDate(A.doc.vipUntil); }
+      // VIP vĩnh viễn: ẩn hẳn nút (không cho mua nữa). VIP tháng: cho gia hạn. Khác: nâng cấp.
+      if(up){ up.hidden=life; up.textContent=vip?'⭐ Gia hạn VIP':'⭐ Nâng cấp VIP'; }
+      if(caret) caret.classList.remove('hide');
+      if(vip){ sb.textContent=life?'VIP · không giới hạn':'VIP · đến '+fmtDate(A.doc.vipUntil); }
       else { var lim=userLimit(A.doc), used=dayUsed(A.doc&&A.doc.usages); sb.textContent='Đã dùng '+used.toLocaleString('vi-VN')+'/'+lim.toLocaleString('vi-VN')+' ký tự hôm nay'; }
-      btn.textContent='Đăng xuất';
     } else {
       if(badge) badge.classList.add('hide');
       if(up) up.hidden=true;
+      if(caret) caret.classList.add('hide');
       nm.textContent='Khách'; av.style.backgroundImage=''; av.textContent='K';
-      sb.textContent=cloudOn?'Đăng nhập để tạo audio':'Chưa kết nối tài khoản';
-      btn.textContent='Đăng nhập';
+      sb.textContent=cloudOn?'Ấn để đăng nhập':'Chưa kết nối tài khoản';
+      var menu=$id('userMenu'); if(menu) menu.classList.add('hide');
     }
   }
 
@@ -2144,7 +2162,13 @@ document.addEventListener('engine:up', function(){ try{ loadVoices(); loadHistor
   }
   // Gọi mỗi khi hồ sơ user đổi: nếu đang chờ thanh toán và VIP vừa bật/gia hạn → đóng popup.
   function checkPay(){ if(!payPending) return; var curVip=!!(A.doc&&A.doc.isVip), curUntil=payVipMs(A.doc); if((curVip&&!payPending.isVip)||(curUntil>payPending.until)) paymentDone(); }
-  function showPlans(){ var p=$id('vipPlans'), q=$id('vipPay'); if(p)p.classList.remove('hide'); if(q)q.classList.add('hide'); if(orderUnsub){orderUnsub();orderUnsub=null;} payPending=null; payDone=false; vipMsg(''); }
+  function showPlans(){
+    var p=$id('vipPlans'), q=$id('vipPay'); if(p)p.classList.remove('hide'); if(q)q.classList.add('hide');
+    if(orderUnsub){orderUnsub();orderUnsub=null;} payPending=null; payDone=false; vipMsg('');
+    var monthVip = isVipNow(A.doc) && !(A.doc&&A.doc.isVip===true);
+    var mb=$id('mpBtn'); if(mb) mb.textContent = monthVip ? 'Gia hạn thêm 1 tháng' : 'Chọn gói';
+    var intro=$id('vipIntro'); if(intro) intro.textContent = monthVip ? 'Bạn đang là VIP tháng — gia hạn thêm hoặc nâng lên trọn đời:' : 'Mở khoá toàn bộ tính năng — chọn gói phù hợp:';
+  }
   function openUpgrade(){ var d=$id('vipDialog'); if(!d) return; showPlans(); if(d.showModal) d.showModal(); }
   function buyPlan(plan){
     if(!A.user){ signIn(); return; }
@@ -2199,8 +2223,24 @@ document.addEventListener('engine:up', function(){ try{ loadVoices(); loadHistor
   }
 
   function start(){
-    var btn=$id('loginBtn');
-    if(btn) btn.onclick=function(){ if(A.user&&auth) auth.signOut(); else signIn(); };
+    var card=$id('userCard'), menu=$id('userMenu');
+    function closeMenu(){ if(menu) menu.classList.add('hide'); }
+    function shareApp(){
+      var url=location.origin+location.pathname;
+      if(navigator.share){ navigator.share({title:'Giọng AI STUDIO', text:'Tạo giọng đọc AI tiếng Việt', url:url}).catch(function(){}); return; }
+      if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(url).then(function(){ alert('Đã sao chép link ứng dụng:\n'+url); }).catch(function(){ prompt('Sao chép link ứng dụng:', url); }); return; }
+      prompt('Sao chép link ứng dụng:', url);
+    }
+    if(card) card.onclick=function(){ if(!A.user){ signIn(); return; } if(menu) menu.classList.toggle('hide'); };
+    document.addEventListener('click', function(e){
+      if(!menu||menu.classList.contains('hide')) return;
+      var w=(e.target&&e.target.closest)?e.target.closest('.user-wrap'):null;
+      if(!w) closeMenu();
+    });
+    var us=$id('umSettings'); if(us) us.onclick=function(){ closeMenu(); var s=document.querySelector('[data-view="settings"]'); if(s) s.click(); };
+    var ush=$id('umShare'); if(ush) ush.onclick=function(){ closeMenu(); shareApp(); };
+    var usp=$id('umSupport'); if(usp) usp.onclick=function(){ closeMenu(); window.open('https://www.facebook.com/othanhhai.51610','_blank','noopener'); };
+    var ulo=$id('umLogout'); if(ulo) ulo.onclick=function(){ closeMenu(); if(auth) auth.signOut(); };
     var up=$id('upgradeBtn'); if(up) up.onclick=openUpgrade;
     var vc=$id('vipCloseBtn'); if(vc) vc.onclick=function(){ var d=$id('vipDialog'); if(d&&d.open) d.close(); if(orderUnsub){orderUnsub();orderUnsub=null;} };
     var vb=$id('vipBackBtn'); if(vb) vb.onclick=showPlans;
