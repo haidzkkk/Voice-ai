@@ -185,7 +185,11 @@ body{min-height:100vh}
 .theme-tog{display:inline-flex;gap:4px;background:var(--field);border-radius:999px;padding:4px;margin-top:12px}
 .theme-btn{border:0;background:transparent;border-radius:999px;padding:9px 18px;font-weight:600;color:var(--muted);cursor:pointer}
 .theme-btn.on{background:var(--panel);color:var(--ink);box-shadow:var(--shadow)}
-.topbar{display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-bottom:20px}
+.topbar{display:flex;justify-content:space-between;align-items:center;gap:14px;margin-bottom:20px}
+.topbar-intro{display:flex;flex-direction:column;gap:1px;min-width:0;margin-right:auto}
+.topbar-intro b{font-size:15px;font-weight:650;color:var(--ink);line-height:1.2}
+.topbar-intro span{font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.topbar-status{display:flex;align-items:center;gap:10px;flex:none}
 .status-pill{display:inline-flex;align-items:center;gap:9px;padding:8px 15px;background:var(--panel);border:1px solid var(--line);border-radius:999px;box-shadow:var(--shadow);font-size:13px;font-weight:600;color:var(--ink)}
 .status-pill .dot{width:9px;height:9px;flex:none}
 .status-pill .dot.on{box-shadow:0 0 0 3px color-mix(in srgb,var(--ok) 30%,transparent)}
@@ -195,6 +199,8 @@ body{min-height:100vh}
 .user-av{width:38px;height:38px;border-radius:12px;background:var(--grad);color:#fff;display:grid;place-items:center;font-weight:800;font-size:15px;flex:none}
 .av-wrap{position:relative;flex:none}
 .vip-badge{position:absolute;right:-5px;bottom:-5px;min-width:18px;height:18px;padding:0 2px;border-radius:999px;background:linear-gradient(135deg,#f6c945,#e5881f);color:#3a2600;font-size:11px;line-height:1;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid var(--panel);box-shadow:0 2px 6px rgba(0,0,0,.25)}
+.av-plan{position:absolute;left:-6px;top:-8px;z-index:2;font-size:9.5px;font-weight:800;line-height:1;padding:3px 7px;border-radius:999px;background:var(--accent-soft);color:var(--accent);border:2px solid var(--panel);box-shadow:0 2px 6px rgba(0,0,0,.2);white-space:nowrap;letter-spacing:.02em}
+.av-plan.vip{background:linear-gradient(135deg,#f6c945,#e5881f);color:#3a2600}
 .vip-badge.hide{display:none}
 .user-name{font-weight:700;font-size:13.5px;color:var(--ink)}
 .user-sub{font-size:11px;color:var(--muted);margin-top:1px}
@@ -282,7 +288,7 @@ body{min-height:100vh}
 .gen-tool{display:inline-flex;align-items:center;gap:9px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:9px 14px;font-weight:600;font-size:13.5px;color:var(--ink);cursor:pointer;box-shadow:var(--shadow);transition:border-color .15s,color .15s;max-width:100%}
 .gen-tool:hover{border-color:var(--accent)}
 .gen-tool .gt-ic{font-size:15px;line-height:1}
-.gen-tool .gt-val{max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gen-tool .gt-val{white-space:nowrap}
 .gen-tool .gt-caret{color:var(--muted);font-size:11px;transition:transform .2s;margin-left:2px}
 .gen-tool[aria-expanded="true"]{border-color:var(--accent);color:var(--accent)}
 .gen-tool[aria-expanded="true"] .gt-caret{transform:rotate(180deg)}
@@ -305,11 +311,23 @@ body{min-height:100vh}
 .editor-card .create-actions{display:flex;flex-direction:column;gap:10px;margin-top:12px;border-top:0;padding-top:0}
 .editor-card .create-actions>.progress,.editor-card .create-actions>.row,.editor-card .create-actions>.result{width:100%}
 /* Hàng công cụ trên cùng ô nhập: văn bản mẫu (trái) + Mở file/Xóa (phải) */
-.editor-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px}
-.editor-top .sample-row{margin:0;flex:1 1 220px}
-/* Form tự giãn theo nội dung — không tạo thanh cuộn bên trong ô nhập */
+.gen-toolbar .spacer{flex:1 1 auto;min-width:8px}
+.gen-toolbar .sample-row{margin:0;flex:0 0 auto}
+.gen-toolbar .sample-row select{max-width:200px}
 .editor-card{overflow:visible!important}
-#text{overflow-y:hidden!important;resize:none}
+#text{resize:none}
+/* ===== v6: app full-height, cả web không scroll (desktop) — ô nhập lấp đầy, chỉ cuộn trong ô ===== */
+@media(min-width:801px){
+  .app{height:100vh;overflow:hidden}
+  .content-in{min-height:0;overflow:hidden;padding-bottom:22px}
+  main{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
+  #createView{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+  #settingsView,#libraryView,#historyView{flex:1 1 auto;min-height:0;overflow:auto}
+  .workspace{flex:1 1 auto;min-height:0;display:flex!important;flex-direction:column}
+  .editor-card{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
+  .editor-card .text-highlight-wrap{flex:1 1 auto;min-height:120px}
+  #text{height:100%!important;min-height:0!important;overflow-y:auto!important}
+}
 </style>
 </head>
 <body>
@@ -341,7 +359,7 @@ body{min-height:100vh}
     };
   })();
   // Phiên bản của bản web này + phiên bản engine tối thiểu cần (so với /api/version).
-  var WEB_VERSION='1.9.8';
+  var WEB_VERSION='1.9.9';
   var REQUIRED_ENGINE_VERSION='1.8.0';
   function setVerInfo(engineVer){
     var e=document.getElementById('verInfo'); if(!e) return;
@@ -454,7 +472,7 @@ body{min-height:100vh}
       </button>
       <div class="user-wrap">
         <div class="user-card" id="userCard" title="Tài khoản Giọng AI">
-          <div class="av-wrap"><div class="user-av" id="userAv">K</div><span class="vip-badge hide" id="vipBadge" title="Tài khoản VIP">👑</span></div>
+          <div class="av-wrap"><div class="user-av" id="userAv">K</div><span class="vip-badge hide" id="vipBadge" title="Tài khoản VIP">👑</span><span class="av-plan hide" id="avPlan">Cơ bản</span></div>
           <div style="min-width:0;flex:1"><div class="user-name" id="userName">Khách</div><div class="user-sub" id="userSub">Ấn để đăng nhập</div></div>
           <span id="userCaret" class="hide" aria-hidden="true" style="color:var(--muted);font-size:11px;flex:none">▾</span>
         </div>
@@ -478,12 +496,15 @@ body{min-height:100vh}
   </aside>
   <div class="content"><div class="content-in">
   <div class="topbar">
+    <div class="topbar-intro"><b>Biến nội dung thành giọng nói.</b><span>Chọn giọng yêu thích, thêm nội dung và để Giọng AI đọc giúp bạn.</span></div>
+    <div class="topbar-status">
     <div class="status-pill"><span class="dot" id="dot"></span><span id="statusText">Đang kết nối…</span></div>
     <button id="enginePill" class="status-pill" style="cursor:pointer;gap:7px;border:none" title="Trạng thái server local trên máy — bấm để xem hướng dẫn cài/bật">
       <span id="enginePillDot" style="width:9px;height:9px;border-radius:50%;background:var(--bad);flex:none"></span>
       <span id="enginePillText">Engine: chưa bật</span>
     </button>
     <button class="btn ghost" id="quitBtn" title="Tắt ứng dụng">Thoát</button>
+    </div>
   </div>
   <div id="engineUpdate" class="hide" style="margin:0 0 14px;padding:10px 14px;border-radius:12px;border:1px solid var(--accent);background:var(--accent-soft);color:var(--ink);display:flex;gap:10px;align-items:center;flex-wrap:wrap">
     <span style="flex:1;min-width:200px">Có bản server local mới hơn (bạn đang dùng <b id="engineUpdateVer">?</b>, cần <b>1.8.0</b>). Tải về để dùng tính năng mới nhất.</span>
@@ -633,7 +654,7 @@ body{min-height:100vh}
     </div>
   </section>
   <div id="createView">
-    <div class="page-intro"><div><h2>Biến nội dung thành giọng nói.</h2><p>Chọn giọng yêu thích, thêm nội dung và để Giọng AI đọc giúp bạn.</p></div><div class="layout-controls"><button class="btn ghost" id="resetLayoutBtn">Đặt lại bố cục</button><span class="sub">Kéo thanh giữa hai cột để chỉnh độ rộng</span></div></div>
+    <div class="layout-controls"><button class="btn ghost" id="resetLayoutBtn">Đặt lại bố cục</button></div>
     <div class="engine" role="group" aria-label="Chọn mô hình giọng">
       <button type="button" class="eng-btn" data-eng="ms"><span class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14a4 4 0 0 1 1-7.9A5.5 5.5 0 0 1 15.5 7 4.5 4.5 0 0 1 16 16H6"/></svg></span><span><span class="tt">Trực tuyến</span><span class="ss">Chất lượng cao · cần mạng</span></span></button>
       <button type="button" class="eng-btn" data-eng="vieneu"><span class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg></span><span><span class="tt">Tiêu chuẩn</span><span class="ss">Nhanh · trên máy</span></span></button>
@@ -642,6 +663,11 @@ body{min-height:100vh}
     <div class="gen-toolbar">
       <button type="button" class="gen-tool" id="voicePanelBtn" aria-expanded="false"><span class="gt-ic">🎙</span><span class="gt-val" id="voiceLabel">Chọn giọng đọc</span><span class="gt-caret">▾</span></button>
       <button type="button" class="gen-tool" id="tunePanelBtn" aria-expanded="false"><span class="gt-ic">⚡</span><span class="gt-val" id="rateLabel">Tốc độ 0%</span><span class="gt-caret">▾</span></button>
+      <div class="spacer"></div>
+      <div class="sample-row"><select id="sampleSelect" aria-label="Chọn văn bản mẫu"><option value="">Thử một văn bản mẫu…</option></select><button class="btn" id="insertSampleBtn">Chèn mẫu</button></div>
+      <button class="btn ghost" id="loadBtn">Mở file .txt</button>
+      <button class="btn ghost" id="clearBtn">Xóa</button>
+      <input type="file" id="fileIn" accept=".txt,.srt,.md,text/plain" class="hide">
     </div>
     <div class="workspace" id="workspace">
       <section class="card voice-card hide" aria-labelledby="voiceHeading">
@@ -772,14 +798,8 @@ body{min-height:100vh}
       </section>
       <div id="workspaceDivider" class="workspace-divider" role="separator" aria-label="Chỉnh độ rộng cột tùy chọn" aria-orientation="vertical" aria-controls="workspace" aria-valuemin="28" aria-valuemax="68" aria-valuenow="46" tabindex="0" title="Kéo để đổi độ rộng · nhấp đúp để đặt lại · phím ← → để điều chỉnh"></div>
       <section class="card editor-card" aria-label="Nội dung cần tạo">
-        <div class="editor-top">
-          <div class="sample-row"><select id="sampleSelect" aria-label="Chọn văn bản mẫu"><option value="">Thử một văn bản mẫu…</option></select><button class="btn" id="insertSampleBtn">Chèn mẫu</button></div>
-          <button class="btn ghost" id="loadBtn">Mở file .txt</button>
-          <button class="btn ghost" id="clearBtn">Xóa</button>
-          <input type="file" id="fileIn" accept=".txt,.srt,.md,text/plain" class="hide">
-        </div>
         <div class="text-highlight-wrap"><div id="textHighlights" aria-hidden="true"></div><textarea id="text" aria-label="Nội dung cần đọc" placeholder="Viết một câu chuyện, bản tin hoặc bất cứ điều gì bạn muốn kể…"></textarea></div><div id="emotionLegend" class="emotion-legend" aria-label="Chú giải màu biểu cảm"></div>
-        <details class="disclosure" style="margin:14px 0 0;border-top:1px solid var(--line);padding-top:14px">
+        <details class="disclosure" style="margin:14px 0 18px;border-top:0;padding-top:0;border-bottom:1px solid var(--line);padding-bottom:14px">
           <summary>Thẻ biểu cảm</summary>
           <div class="row emotion-tools-actions" style="margin:10px 0 6px"><select id="emotionCue" aria-label="Chọn thẻ biểu cảm"></select><button class="btn" id="insertEmotionBtn">Chèn thẻ</button><button class="btn hide" id="setupEmotionsBtn">Thiết lập cảm xúc</button><button class="btn ghost help-link" data-help="emotion">ⓘ Cách hoạt động</button></div>
           <div class="sub" id="emotionHint" style="font-size:12px"></div>
@@ -2249,16 +2269,18 @@ document.addEventListener('engine:up', function(){ try{ loadVoices(); loadHistor
       if(caret) caret.classList.remove('hide');
       if(life) sb.textContent='VIP · trọn đời';
       else if(vip) sb.textContent='VIP · đến '+fmtDate(A.doc.vipUntil);
-      else { var lim=userLimit(A.doc), used=dayUsed(A.doc&&A.doc.usages); sb.textContent='Đã dùng '+used.toLocaleString('vi-VN')+'/'+lim.toLocaleString('vi-VN')+' ký tự hôm nay'; }
+      else { var lim=userLimit(A.doc), used=dayUsed(A.doc&&A.doc.usages), left=Math.max(0,lim-used); sb.textContent='Còn '+left.toLocaleString('vi-VN')+' điểm'; }
       // Thông tin trong menu
       var umN=$id('umName'), umE=$id('umEmail'), umU=$id('umUid'), umP=$id('umPlan');
       if(umN) umN.textContent=A.user.displayName||'Người dùng';
       if(umE) umE.textContent=A.user.email||'';
       if(umU) umU.textContent=(A.user.uid||'').slice(0,10)+'…';
       if(umP){ umP.classList.toggle('vip', vip); umP.textContent = vip ? 'VIP' : 'Cơ bản'; }
+      var avP=$id('avPlan'); if(avP){ avP.classList.remove('hide'); avP.classList.toggle('vip', vip); avP.textContent = vip ? 'VIP' : 'Cơ bản'; }
       updateSaleUI();
     } else {
       if(badge) badge.classList.add('hide');
+      var avPg=$id('avPlan'); if(avPg) avPg.classList.add('hide');
       if(up) up.hidden=true;
       if(caret) caret.classList.add('hide');
       nm.textContent='Khách'; av.style.backgroundImage=''; av.textContent='K';
@@ -2508,16 +2530,6 @@ document.addEventListener('engine:up', function(){ try{ loadVoices(); loadHistor
       ['voice','vvoice','engineSelect'].forEach(function(id){ var s=document.getElementById(id); if(s) s.addEventListener('change',function(){updVoice();}); });
       updVoice(); updRate();
       setInterval(function(){ updVoice(); updRate(); }, 1200);
-      // Ô nhập tự giãn chiều cao theo nội dung — không tạo thanh cuộn bên trong.
-      var ta=$id('text');
-      var grow=function(){ if(ta){ ta.style.height='auto'; ta.style.height=(ta.scrollHeight+2)+'px'; } };
-      if(ta){
-        ta.addEventListener('input',grow);
-        window.addEventListener('resize',grow);
-        ['clearBtn','insertSampleBtn','insertEmotionBtn','loadBtn'].forEach(function(id){ var b=$id(id); if(b) b.addEventListener('click',function(){ setTimeout(grow,0); }); });
-        var fin=$id('fileIn'); if(fin) fin.addEventListener('change',function(){ setTimeout(grow,350); });
-        setTimeout(grow,60);
-      }
     })();
     var up=$id('upgradeBtn'); if(up) up.onclick=openUpgrade;
     var vc=$id('vipCloseBtn'); if(vc) vc.onclick=function(){ var d=$id('vipDialog'); if(d&&d.open) d.close(); if(orderUnsub){orderUnsub();orderUnsub=null;} };
