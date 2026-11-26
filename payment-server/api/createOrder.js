@@ -3,7 +3,9 @@
 const { admin, db } = require("../lib/admin");
 
 // Giá (VND) — sửa tuỳ bạn. Số ngày ở webhook.
-const PRICES = { month: 39000, lifetime: 99000 };
+const PRICES = { month: 39000, lifetime: 199000 };
+const SALE_LIFETIME = 99000;  // giá sale gói vĩnh viễn
+const SALE_DAYS = 2;          // sale kéo dài 2 ngày kể từ lúc tạo tài khoản
 
 module.exports = async (req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -21,7 +23,17 @@ module.exports = async (req, res) => {
     const plan = body.plan || "";
     if (!PRICES[plan]) { res.status(400).json({ error: "bad_plan" }); return; }
 
-    const amount = PRICES[plan];
+    // Giá trọn đời được giảm còn SALE_LIFETIME nếu còn trong 2 ngày đầu kể từ lúc tạo tài khoản.
+    // Xác thực phía server (đọc createdAt từ Firestore) để client không tự ép giá sale.
+    let amount = PRICES[plan];
+    if (plan === "lifetime") {
+      try {
+        const us = await db.collection("users").doc(uid).get();
+        const cr = us.exists && us.data() ? us.data().createdAt : null;
+        const crMs = cr && cr.toMillis ? cr.toMillis() : 0;
+        if (crMs && Date.now() <= crMs + SALE_DAYS * 86400000) amount = SALE_LIFETIME;
+      } catch (e) {}
+    }
     const code = "GAI" + Math.random().toString(36).slice(2, 8).toUpperCase();
     const ref = db.collection("orders").doc();
     await ref.set({

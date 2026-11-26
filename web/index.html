@@ -248,7 +248,7 @@ body{min-height:100vh}
     };
   })();
   // Phiên bản của bản web này + phiên bản engine tối thiểu cần (so với /api/version).
-  var WEB_VERSION='1.8.7';
+  var WEB_VERSION='1.8.8';
   var REQUIRED_ENGINE_VERSION='1.8.0';
   function setVerInfo(engineVer){
     var e=document.getElementById('verInfo'); if(!e) return;
@@ -355,7 +355,10 @@ body{min-height:100vh}
       <button class="nav-item" data-view="settings">Cài đặt</button>
     </nav>
     <div class="side-foot">
-      <button class="btn primary" id="upgradeBtn" hidden style="border-radius:999px">⭐ Nâng cấp VIP</button>
+      <button class="btn primary upgrade-btn" id="upgradeBtn" hidden style="border-radius:999px">
+        <span id="upMain">⭐ Nâng cấp VIP</span>
+        <span id="upCountdown" class="up-count hide"></span>
+      </button>
       <div class="user-wrap">
         <div class="user-card" id="userCard" title="Tài khoản Giọng AI">
           <div class="av-wrap"><div class="user-av" id="userAv">K</div><span class="vip-badge hide" id="vipBadge" title="Tài khoản VIP">★</span></div>
@@ -363,6 +366,14 @@ body{min-height:100vh}
           <span id="userCaret" class="hide" aria-hidden="true" style="color:var(--muted);font-size:11px;flex:none">▾</span>
         </div>
         <div id="userMenu" class="user-menu hide" role="menu">
+          <div class="um-info">
+            <div class="um-info-name" id="umName">Người dùng</div>
+            <div class="um-info-email" id="umEmail"></div>
+            <div class="um-id-row">ID: <span id="umUid">—</span><button type="button" class="um-copy" id="umCopyUid" title="Sao chép User ID" aria-label="Sao chép User ID">⧉</button></div>
+            <span class="um-plan" id="umPlan">Thành viên thường</span>
+          </div>
+          <div class="um-div"></div>
+          <button type="button" class="um-item" id="umHistory"><span class="um-ic">🧾</span> Lịch sử mua</button>
           <button type="button" class="um-item" id="umSettings"><span class="um-ic">⚙️</span> Cài đặt</button>
           <button type="button" class="um-item" id="umShare"><span class="um-ic">🔗</span> Chia sẻ ứng dụng</button>
           <button type="button" class="um-item" id="umSupport"><span class="um-ic">💬</span> Hỗ trợ</button>
@@ -810,6 +821,33 @@ body{min-height:100vh}
 @keyframes vcBounce{to{transform:translateY(-10px)}}
 .cf{position:absolute;top:-16px;width:9px;height:14px;will-change:transform;animation:cfFall linear forwards}
 @keyframes cfFall{0%{transform:translateY(-20px) rotateZ(0)}100%{transform:translateY(104vh) rotateZ(760deg)}}
+/* ---- Nút nâng cấp VIP nổi bật ---- */
+.upgrade-btn{display:flex;flex-direction:column;align-items:center;gap:1px;border:0;color:#fff;font-weight:800;background:linear-gradient(100deg,#7c3aed,#a855f7,#ec4899,#f59e0b);background-size:220% 100%;box-shadow:0 8px 22px rgba(124,58,237,.34);animation:upShine 5s linear infinite}
+.upgrade-btn:hover{filter:brightness(1.05)}
+.upgrade-btn.sale{animation:upShine 3s linear infinite,upPulse 1.5s ease-in-out infinite}
+@keyframes upShine{to{background-position:220% 0}}
+@keyframes upPulse{0%,100%{box-shadow:0 8px 22px rgba(236,72,153,.4)}50%{box-shadow:0 10px 34px rgba(236,72,153,.72)}}
+.up-count{font-size:10.5px;font-weight:700;letter-spacing:.03em;opacity:.96}
+.up-count.hide{display:none}
+/* ---- Sale trên thẻ vĩnh viễn ---- */
+.pc-saleline{margin:-4px 0 0;font-size:12px;display:flex;align-items:center;gap:7px}
+.pc-saleline s{color:var(--muted)}
+.pc-saletag{background:linear-gradient(90deg,#ef4444,#f59e0b);color:#fff;font-weight:800;font-size:10.5px;padding:2px 7px;border-radius:999px}
+.pc-saleline.hide,.pc-countdown.hide{display:none}
+.pc-countdown{margin:-2px 0 0;color:var(--bad);font-weight:700}
+/* ---- Menu user: khối thông tin ---- */
+.um-info{padding:10px 11px 11px}
+.um-info-name{font-weight:800;font-size:13.5px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.um-info-email{font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+.um-id-row{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);margin-top:6px;font-family:ui-monospace,Menlo,Consolas,monospace}
+.um-copy{background:transparent;border:1px solid var(--line);border-radius:6px;cursor:pointer;color:var(--muted);font-size:11px;line-height:1;padding:2px 5px}
+.um-copy:hover{border-color:var(--accent);color:var(--accent)}
+.um-plan{display:inline-block;margin-top:8px;font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;background:var(--accent-soft);color:var(--accent)}
+.um-plan.vip{background:linear-gradient(135deg,#f6c945,#e5881f);color:#3a2600}
+.um-div{height:1px;background:var(--line);margin:2px 6px}
+/* ---- Lịch sử mua ---- */
+.hist-row{display:flex;justify-content:space-between;gap:12px;padding:11px 2px;border-bottom:1px solid var(--line)}
+.hist-row .sub{font-size:11px;margin-top:2px}
 </style>
 <dialog id="vipDialog" aria-labelledby="vipTitle">
   <div class="dialog-heading"><div><div class="eyebrow">GIỌNG AI · VIP</div><h2 id="vipTitle">Nâng cấp VIP</h2></div><button class="btn ghost" id="vipCloseBtn" aria-label="Đóng">✕</button></div>
@@ -828,14 +866,16 @@ body{min-height:100vh}
         <span class="pc-btn" id="mpBtn">Chọn gói</span>
       </button>
       <button type="button" class="plan-card is-best" data-plan="lifetime">
-        <span class="pc-badge best">Tốt nhất</span>
+        <span class="pc-badge best" id="lifeBadge">Tốt nhất</span>
         <span class="pc-name">VIP VĨNH VIỄN</span>
         <ul class="pc-feats">
           <li>Mọi quyền lợi VIP</li>
           <li>Trả 1 lần, dùng trọn đời</li>
           <li>Không bao giờ hết hạn</li>
         </ul>
-        <div class="pc-price"><b>99.000đ</b><span>/ trọn đời</span></div>
+        <div class="pc-price"><b id="lifePrice">199.000đ</b><span>/ trọn đời</span></div>
+        <p class="pc-saleline hide" id="lifeSaleLine"><s id="lifeBase">199.000đ</s> <span class="pc-saletag">-50%</span></p>
+        <p class="pc-sub pc-countdown hide" id="saleCountdown"></p>
         <span class="pc-btn">Chọn gói</span>
       </button>
     </div>
@@ -847,6 +887,10 @@ body{min-height:100vh}
     <button class="btn ghost" id="vipBackBtn" style="margin-top:4px">← Chọn gói khác</button>
   </div>
   <div class="msg" id="vipMsg" aria-live="polite"></div>
+</dialog>
+<dialog id="histDialog" aria-labelledby="histTitle">
+  <div class="dialog-heading"><div><div class="eyebrow">GIỌNG AI · VIP</div><h2 id="histTitle">Lịch sử mua</h2></div><button class="btn ghost" id="histCloseBtn" aria-label="Đóng">✕</button></div>
+  <div id="histList" style="margin-top:14px;max-height:56vh;overflow:auto">—</div>
 </dialog>
 <script>
 
@@ -2087,11 +2131,18 @@ document.addEventListener('engine:up', function(){ try{ loadVoices(); loadHistor
       else { av.style.backgroundImage=''; av.textContent=(A.user.displayName||A.user.email||'U').trim().charAt(0).toUpperCase(); }
       var vip=isVipNow(A.doc), life=!!(A.doc&&A.doc.isVip===true);
       if(badge) badge.classList.toggle('hide',!vip);
-      // VIP vĩnh viễn: ẩn hẳn nút (không cho mua nữa). VIP tháng: cho gia hạn. Khác: nâng cấp.
-      if(up){ up.hidden=life; up.textContent=vip?'⭐ Gia hạn VIP':'⭐ Nâng cấp VIP'; }
+      if(up) up.hidden=life;   // VIP vĩnh viễn: ẩn hẳn nút nâng cấp (không cho mua nữa)
       if(caret) caret.classList.remove('hide');
-      if(vip){ sb.textContent=life?'VIP · không giới hạn':'VIP · đến '+fmtDate(A.doc.vipUntil); }
-      else { var lim=userLimit(A.doc), used=dayUsed(A.doc&&A.doc.usages); sb.textContent='Đã dùng '+used.toLocaleString('vi-VN')+'/'+lim.toLocaleString('vi-VN')+' ký tự hôm nay'; }
+      if(life) sb.textContent='VIP vĩnh viễn';
+      else if(vip) sb.textContent='VIP · đến '+fmtDate(A.doc.vipUntil);
+      else sb.textContent='Thành viên thường';
+      // Thông tin trong menu
+      var umN=$id('umName'), umE=$id('umEmail'), umU=$id('umUid'), umP=$id('umPlan');
+      if(umN) umN.textContent=A.user.displayName||'Người dùng';
+      if(umE) umE.textContent=A.user.email||'';
+      if(umU) umU.textContent=(A.user.uid||'').slice(0,10);
+      if(umP){ umP.classList.toggle('vip', vip); umP.textContent = life?'VIP vĩnh viễn':(vip?('VIP · đến '+fmtDate(A.doc.vipUntil)):'Thành viên thường'); }
+      updateSaleUI();
     } else {
       if(badge) badge.classList.add('hide');
       if(up) up.hidden=true;
@@ -2100,6 +2151,53 @@ document.addEventListener('engine:up', function(){ try{ loadVoices(); loadHistor
       sb.textContent=cloudOn?'Ấn để đăng nhập':'Chưa kết nối tài khoản';
       var menu=$id('userMenu'); if(menu) menu.classList.add('hide');
     }
+  }
+  // Cập nhật thẻ gói vĩnh viễn theo trạng thái sale (giá, giá base gạch, đếm ngược).
+  function updateLifeCard(){
+    var si=saleInfo(), on=si.active;
+    var pr=$id('lifePrice'), sl=$id('lifeSaleLine'), base=$id('lifeBase'), cd=$id('saleCountdown'), bg=$id('lifeBadge');
+    if(pr) pr.textContent = on ? '99.000đ' : '199.000đ';
+    if(base) base.textContent='199.000đ';
+    if(sl) sl.classList.toggle('hide', !on);
+    if(bg) bg.textContent = on ? 'SALE -50%' : 'Tốt nhất';
+    if(cd){ cd.classList.toggle('hide', !on); if(on) cd.textContent='⏳ Ưu đãi kết thúc sau '+fmtLeft(si.left); }
+  }
+  // Cập nhật nút nâng cấp (nhãn + đếm ngược + hiệu ứng sale) và thẻ trong dialog mỗi giây.
+  function updateSaleUI(){
+    if(!A.user) return;
+    var si=saleInfo(), vip=isVipNow(A.doc), life=!!(A.doc&&A.doc.isVip===true);
+    var up=$id('upgradeBtn'), um=$id('upMain'), uc=$id('upCountdown');
+    if(up && !up.hidden){
+      if(si.active && !life){
+        up.classList.add('sale');
+        if(um) um.textContent = vip ? '⭐ Gia hạn VIP' : '🔥 Nâng cấp VIP · Sale 99k';
+        if(uc){ uc.classList.remove('hide'); uc.textContent='Ưu đãi còn '+fmtLeft(si.left); }
+      } else {
+        up.classList.remove('sale');
+        if(um) um.textContent = vip ? '⭐ Gia hạn VIP' : '⭐ Nâng cấp VIP';
+        if(uc){ uc.classList.add('hide'); uc.textContent=''; }
+      }
+    }
+    var d=$id('vipDialog'); if(d&&d.open) updateLifeCard();
+  }
+  // Lịch sử mua: đọc các đơn của chính user (rules cho phép uid==mình).
+  function openHistory(){
+    var d=$id('histDialog'); if(!d) return;
+    var list=$id('histList'); if(list) list.innerHTML='<p class="sub">Đang tải…</p>';
+    if(d.showModal) d.showModal();
+    if(!db||!A.user){ if(list) list.innerHTML='<p class="sub">Cần đăng nhập để xem.</p>'; return; }
+    db.collection('orders').where('uid','==',A.user.uid).limit(50).get().then(function(qs){
+      var rows=[]; qs.forEach(function(s){ rows.push(s.data()); });
+      rows.sort(function(a,b){ return tsMs(b.createdAt)-tsMs(a.createdAt); });
+      if(!rows.length){ if(list) list.innerHTML='<p class="sub">Chưa có giao dịch nào.</p>'; return; }
+      if(list) list.innerHTML=rows.map(function(o){
+        var pn=o.plan==='lifetime'?'VIP Vĩnh viễn':(o.plan==='month'?'VIP 1 tháng':(o.plan||'VIP'));
+        var paid=o.status==='paid';
+        var st=paid?'<span style="color:var(--ok)">✓ Đã thanh toán</span>':'<span style="color:var(--muted)">Chờ thanh toán</span>';
+        var when=fmtDateTime(o.paidAt||o.createdAt);
+        return '<div class="hist-row"><div style="min-width:0"><b>'+pn+'</b><div class="sub">'+when+(o.code?(' · '+o.code):'')+'</div></div><div style="text-align:right;flex:none"><b>'+Number(o.amount||0).toLocaleString('vi-VN')+'đ</b><div class="sub">'+st+'</div></div></div>';
+      }).join('');
+    }).catch(function(e){ if(list) list.innerHTML='<p class="sub">Lỗi tải lịch sử: '+((e&&e.message)||e)+'</p>'; });
   }
 
   function warn(m){ console.warn(m); var sb=$id('userSub'); if(sb&&!A.user) sb.textContent=m; }
@@ -2125,6 +2223,11 @@ document.addEventListener('engine:up', function(){ try{ loadVoices(); loadHistor
   // qua listener users/{uid} (luôn chạy) — không phụ thuộc listener orders.
   var payPending=null, payDone=false;
   function payVipMs(doc){ return (doc&&doc.vipUntil&&doc.vipUntil.toMillis)?doc.vipUntil.toMillis():0; }
+  function tsMs(ts){ return ts&&ts.toMillis?ts.toMillis():(ts&&ts.seconds?ts.seconds*1000:0); }
+  function fmtLeft(ms){ if(ms<0)ms=0; var s=Math.floor(ms/1000); var d=Math.floor(s/86400); s-=d*86400; var h=Math.floor(s/3600); s-=h*3600; var m=Math.floor(s/60); s-=m*60; function p(n){return (n<10?'0':'')+n;} return (d>0?d+' ngày ':'')+p(h)+':'+p(m)+':'+p(s); }
+  function fmtDateTime(ts){ var ms=tsMs(ts); if(!ms) return ''; try{ return new Date(ms).toLocaleString('vi-VN'); }catch(e){ return ''; } }
+  // Sale gói vĩnh viễn: còn hiệu lực trong 2 ngày kể từ lúc tạo tài khoản (createdAt).
+  function saleInfo(){ var crMs=tsMs(A.doc&&A.doc.createdAt); if(!crMs) return {active:false,left:0}; var end=crMs+2*86400000, left=end-Date.now(); return {active:left>0, end:end, left:left}; }
   function vipMsg(m){ var e=$id('vipMsg'); if(e) e.textContent=m||''; }
   // Hiệu ứng confetti + lời chúc mừng toàn màn hình.
   function celebrateVip(msg){
@@ -2168,6 +2271,7 @@ document.addEventListener('engine:up', function(){ try{ loadVoices(); loadHistor
     var monthVip = isVipNow(A.doc) && !(A.doc&&A.doc.isVip===true);
     var mb=$id('mpBtn'); if(mb) mb.textContent = monthVip ? 'Gia hạn thêm 1 tháng' : 'Chọn gói';
     var intro=$id('vipIntro'); if(intro) intro.textContent = monthVip ? 'Bạn đang là VIP tháng — gia hạn thêm hoặc nâng lên trọn đời:' : 'Mở khoá toàn bộ tính năng — chọn gói phù hợp:';
+    updateLifeCard();
   }
   function openUpgrade(){ var d=$id('vipDialog'); if(!d) return; showPlans(); if(d.showModal) d.showModal(); }
   function buyPlan(plan){
@@ -2240,7 +2344,11 @@ document.addEventListener('engine:up', function(){ try{ loadVoices(); loadHistor
     var us=$id('umSettings'); if(us) us.onclick=function(){ closeMenu(); var s=document.querySelector('[data-view="settings"]'); if(s) s.click(); };
     var ush=$id('umShare'); if(ush) ush.onclick=function(){ closeMenu(); shareApp(); };
     var usp=$id('umSupport'); if(usp) usp.onclick=function(){ closeMenu(); window.open('https://www.facebook.com/othanhhai.51610','_blank','noopener'); };
+    var uh=$id('umHistory'); if(uh) uh.onclick=function(){ closeMenu(); openHistory(); };
+    var ucp=$id('umCopyUid'); if(ucp) ucp.onclick=function(ev){ ev.stopPropagation(); var uid=A.user?A.user.uid:''; if(!uid) return; if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(uid).then(function(){ ucp.textContent='✓'; setTimeout(function(){ ucp.textContent='⧉'; },1200); }).catch(function(){ prompt('User ID:', uid); }); } else { prompt('User ID:', uid); } };
+    var hc=$id('histCloseBtn'); if(hc) hc.onclick=function(){ var d=$id('histDialog'); if(d&&d.open) d.close(); };
     var ulo=$id('umLogout'); if(ulo) ulo.onclick=function(){ closeMenu(); if(auth) auth.signOut(); };
+    setInterval(updateSaleUI, 1000);
     var up=$id('upgradeBtn'); if(up) up.onclick=openUpgrade;
     var vc=$id('vipCloseBtn'); if(vc) vc.onclick=function(){ var d=$id('vipDialog'); if(d&&d.open) d.close(); if(orderUnsub){orderUnsub();orderUnsub=null;} };
     var vb=$id('vipBackBtn'); if(vb) vb.onclick=showPlans;
