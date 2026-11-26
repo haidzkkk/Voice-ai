@@ -298,10 +298,12 @@ body{min-height:100vh}
 .voice-card.hide,.tune-card.hide{display:none}
 .voice-card>.section-heading,.tune-card>.section-heading{position:sticky;top:0;background:var(--panel);z-index:2}
 @media(max-width:800px){.voice-card,.tune-card{width:100%}}
-/* Nút Tạo audio nhỏ gọn ở góc dưới phải; khu vực kết quả trải đủ rộng */
-.dock-in .create-actions{display:flex;flex-direction:column;gap:10px}
-#goBtn{width:auto!important;align-self:flex-end;min-width:168px;min-height:46px;padding:0 24px!important}
-.dock-in .create-actions>.progress,.dock-in .create-actions>.row,.dock-in .create-actions>.result{align-self:stretch;width:100%}
+/* Nút Tạo audio nằm cạnh phải thanh meta (⌘/Ctrl+Enter); progress/kết quả nằm dưới full-width */
+.editor-meta{display:flex!important;align-items:center;gap:10px;flex-wrap:wrap;margin:16px 0 0!important}
+.editor-meta .spacer{flex:1 1 auto;min-width:8px}
+#goBtn{width:auto!important;min-width:150px;min-height:44px;padding:0 22px!important;margin:0!important}
+.editor-card .create-actions{display:flex;flex-direction:column;gap:10px;margin-top:12px;border-top:0;padding-top:0}
+.editor-card .create-actions>.progress,.editor-card .create-actions>.row,.editor-card .create-actions>.result{width:100%}
 </style>
 </head>
 <body>
@@ -333,7 +335,7 @@ body{min-height:100vh}
     };
   })();
   // Phiên bản của bản web này + phiên bản engine tối thiểu cần (so với /api/version).
-  var WEB_VERSION='1.9.5';
+  var WEB_VERSION='1.9.6';
   var REQUIRED_ENGINE_VERSION='1.8.0';
   function setVerInfo(engineVer){
     var e=document.getElementById('verInfo'); if(!e) return;
@@ -772,12 +774,13 @@ body{min-height:100vh}
           <div class="sub" id="emotionHint" style="font-size:12px"></div>
         </details>
         <div class="text-highlight-wrap"><div id="textHighlights" aria-hidden="true"></div><textarea id="text" aria-label="Nội dung cần đọc" placeholder="Viết một câu chuyện, bản tin hoặc bất cứ điều gì bạn muốn kể…"></textarea></div><div id="emotionLegend" class="emotion-legend" aria-label="Chú giải màu biểu cảm"></div>
-        <div class="editor-meta"><span id="count">0 ký tự · 0 từ</span><span id="shortcutHint">⌘ / Ctrl + Enter để tạo</span></div>
-      </section>
-    </div>
-    <div class="dock"><div class="dock-in">
+        <div class="editor-meta">
+          <span id="count">0 ký tự · 0 từ</span>
+          <span id="shortcutHint">⌘ / Ctrl + Enter để tạo</span>
+          <div class="spacer"></div>
+          <button class="btn primary" id="goBtn">Tạo audio</button>
+        </div>
         <div class="create-actions">
-        <button class="btn primary" id="goBtn">Tạo audio</button>
         <div class="progress" id="prog"><i></i></div>
         <div class="row" style="justify-content:space-between">
           <div class="msg" id="msg"></div>
@@ -793,7 +796,8 @@ body{min-height:100vh}
           </div>
         </div>
         </div>
-    </div></div>
+      </section>
+    </div>
   </div>
   <section id="libraryView" class="hide" aria-labelledby="libraryHeading">
     <div class="page-intro"><div><h2 id="libraryHeading">Giọng cá nhân</h2><p>Giữ những giọng bạn yêu thích trong một nơi. Tải mẫu, ghi âm hoặc chỉnh lời thoại.</p></div><button class="btn" data-switch-create>Quay lại tạo audio</button></div>
