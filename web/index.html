@@ -240,7 +240,7 @@ body{min-height:100vh}
     };
   })();
   // Phiên bản của bản web này + phiên bản engine tối thiểu cần (so với /api/version).
-  var WEB_VERSION='1.8.5';
+  var WEB_VERSION='1.8.6';
   var REQUIRED_ENGINE_VERSION='1.8.0';
   function setVerInfo(engineVer){
     var e=document.getElementById('verInfo'); if(!e) return;
@@ -800,7 +800,8 @@ body{min-height:100vh}
   <div id="vipPlans">
     <p class="sub">Mở khoá toàn bộ tính năng — chọn gói phù hợp:</p>
     <div class="plan-grid">
-      <button type="button" class="plan-card" data-plan="month">
+      <button type="button" class="plan-card is-pop" data-plan="month">
+        <span class="pc-badge">Phổ biến</span>
         <span class="pc-name">VIP 1 THÁNG</span>
         <ul class="pc-feats">
           <li>Không giới hạn ký tự</li>
