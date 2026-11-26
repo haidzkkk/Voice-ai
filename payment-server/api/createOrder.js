@@ -3,7 +3,7 @@
 const { admin, db } = require("../lib/admin");
 
 // Giá (VND) — sửa tuỳ bạn. Số ngày ở webhook.
-const PRICES = { month: 29000, year: 199000, lifetime: 499000, test: 2000 };
+const PRICES = { month: 39000, lifetime: 99000 };
 
 module.exports = async (req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");

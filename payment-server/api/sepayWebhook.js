@@ -2,7 +2,7 @@
 // Header: Authorization: Apikey <SEPAY_API_KEY>
 const { admin, db } = require("../lib/admin");
 
-const PLAN_DAYS = { month: 30, year: 365, test: 1 };
+const PLAN_DAYS = { month: 30 };
 
 module.exports = async (req, res) => {
   try {
