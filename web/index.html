@@ -248,7 +248,7 @@ body{min-height:100vh}
     };
   })();
   // Phiên bản của bản web này + phiên bản engine tối thiểu cần (so với /api/version).
-  var WEB_VERSION='1.8.9';
+  var WEB_VERSION='1.9.0';
   var REQUIRED_ENGINE_VERSION='1.8.0';
   function setVerInfo(engineVer){
     var e=document.getElementById('verInfo'); if(!e) return;
@@ -2240,7 +2240,7 @@ document.addEventListener('engine:up', function(){ try{ loadVoices(); loadHistor
   function fmtLeft(ms){ if(ms<0)ms=0; var s=Math.floor(ms/1000); var d=Math.floor(s/86400); s-=d*86400; var h=Math.floor(s/3600); s-=h*3600; var m=Math.floor(s/60); s-=m*60; function p(n){return (n<10?'0':'')+n;} return (d>0?d+' ngày ':'')+p(h)+':'+p(m)+':'+p(s); }
   function fmtDateTime(ts){ var ms=tsMs(ts); if(!ms) return ''; try{ return new Date(ms).toLocaleString('vi-VN'); }catch(e){ return ''; } }
   // Sale gói vĩnh viễn: còn hiệu lực trong 2 ngày kể từ lúc tạo tài khoản (createdAt).
-  function saleInfo(){ var crMs=tsMs(A.doc&&A.doc.createdAt); if(!crMs) return {active:false,left:0}; var end=crMs+2*86400000, left=end-Date.now(); return {active:left>0, end:end, left:left}; }
+  function saleInfo(){ var crMs=tsMs(A.doc&&A.doc.createdAt); if(!crMs) return {active:false,left:0}; var end=crMs+3*86400000, left=end-Date.now(); return {active:left>0, end:end, left:left}; }
   function vipMsg(m){ var e=$id('vipMsg'); if(e) e.textContent=m||''; }
   // Hiệu ứng confetti + lời chúc mừng toàn màn hình.
   function celebrateVip(msg){

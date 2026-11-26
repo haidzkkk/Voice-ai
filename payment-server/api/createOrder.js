@@ -5,7 +5,7 @@ const { admin, db } = require("../lib/admin");
 // Giá (VND) — sửa tuỳ bạn. Số ngày ở webhook.
 const PRICES = { month: 39000, lifetime: 199000 };
 const SALE_LIFETIME = 99000;  // giá sale gói vĩnh viễn
-const SALE_DAYS = 2;          // sale kéo dài 2 ngày kể từ lúc tạo tài khoản
+const SALE_DAYS = 3;          // sale kéo dài 3 ngày kể từ lúc tạo tài khoản
 
 module.exports = async (req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
